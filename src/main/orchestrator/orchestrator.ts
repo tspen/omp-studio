@@ -1114,7 +1114,7 @@ export class Orchestrator extends EventEmitter {
       this.deps.emit({ type: "thread:message", payload: message });
       this.deps.emit({ type: "thread:updated", payload: updated });
       if (message.usage) this.recomputeUsage();
-      if (message.role === "assistant" && textOf(message)) {
+      if (message.role === "assistant" && textOf(message) && (message.stopReason || message.usage)) {
         this.deps.naming.autoName(thread.id, textOf(message));
         this.maybeRetitle(thread);
       }
@@ -1357,6 +1357,10 @@ export class Orchestrator extends EventEmitter {
     if (!this.store.settings.autoReport) return;
     const thread = this.store.getThread(threadId);
     if (!thread) return;
+    // Orchestrators report deliberately through `tree_report`. Auto-report is a
+    // safety net for leaf work; otherwise every orchestrator turn wakes its
+    // parent and the tree turns into a report storm.
+    if (thread.kind === "orchestrator") return;
     const parent = this.bus.parentOf(thread);
     if (!parent) return;
     const git = thread.worktreePath ? await this.deps.git.status(thread.worktreePath).catch(() => null) : null;
@@ -1420,8 +1424,12 @@ export class Orchestrator extends EventEmitter {
       }
       return false;
     }
+    // Progress reports are queued for the parent's next turn instead of
+    // steering or waking it. Only decisions and completed work interrupt.
+    if (envelope.direction === "up" && envelope.kind === "progress" && !envelope.requiresResponse) return false;
+    const urgent = ["question", "escalation", "result", "cancel"].includes(envelope.kind);
     const shouldWake =
-      envelope.direction === "down" || envelope.fromThreadId === "user" || this.store.settings.autoWakeParent;
+      envelope.direction === "down" || envelope.fromThreadId === "user" || (this.store.settings.autoWakeParent && urgent);
     if (!this.sessions.get(target.id)?.isRunning && !shouldWake) return false;
     let session: OmpSession;
     try {

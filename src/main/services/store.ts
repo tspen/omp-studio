@@ -571,8 +571,12 @@ export class Store {
   appendChat(message: ChatMessage): ChatMessage {
     const list = this.getChat(message.threadId);
     const existing = list.findIndex((m) => m.id === message.id);
-    if (existing >= 0) list[existing] = message;
-    else list.push(message);
+    if (existing >= 0) {
+      list[existing] = message;
+      // Live streaming updates only live in memory; persist the first sighting
+      // and the final message, not every throttled token batch.
+      if (!message.stopReason && !message.usage) return message;
+    } else list.push(message);
     if (list.length > 1200) list.splice(0, list.length - 1200);
     appendFileSync(this.transcriptPath(message.threadId), `${JSON.stringify(message)}\n`, "utf8");
     return message;
@@ -583,10 +587,12 @@ export class Store {
     if (cached) return cached;
     const path = this.transcriptPath(threadId);
     const byId = new Map<string, ChatMessage>();
+    let lines = 0;
     if (existsSync(path)) {
       try {
         for (const line of readFileSync(path, "utf8").split("\n")) {
           if (!line.trim()) continue;
+          lines += 1;
           try {
             const message = JSON.parse(line) as ChatMessage;
             byId.set(message.id, message);
@@ -599,6 +605,15 @@ export class Store {
       }
     }
     const list = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
+    if (list.length > 1200) list.splice(0, list.length - 1200);
+    // Transcripts used to append every streaming update. Compact bloated files
+    // once, on first read, so startup stays fast.
+    if (existsSync(path)) {
+      const size = statSync(path).size;
+      if (lines > byId.size * 2 || (size > 8 * 1024 * 1024 && lines > list.length)) {
+        writeFileSync(path, list.map((message) => JSON.stringify(message)).join("\n") + (list.length ? "\n" : ""), "utf8");
+      }
+    }
     this.chats.set(threadId, list);
     return list;
   }

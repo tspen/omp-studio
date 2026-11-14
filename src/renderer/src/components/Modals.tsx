@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Bell,
   Check,
+  ChevronDown,
   ChevronRight,
   CircleAlert,
   Copy,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import type { ApprovalRequest, Artifact, ChatBlock, Environment, ModelInfo, Thread, TreeNode } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
+import { ModelPicker } from "./ModelPicker";
 import { Badge, Button, Empty, Field, IconButton, Modal, Select, Spinner, StatusDot, cx, defaultNodePath, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 
 export function Modals() {
@@ -144,6 +146,54 @@ function ApprovalDialog({ request }: { request: ApprovalRequest }) {
   );
 }
 
+function ModelField({
+  label,
+  value,
+  onChange,
+  role,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (selector: string) => void;
+  role: "group" | "project" | "worker";
+  hint?: string;
+}) {
+  const state = useApp();
+  const [open, setOpen] = useState(false);
+  const model = state.models.find((item) => item.selector === value) ?? state.models[0];
+  return (
+    <>
+      <Field label={label} hint={hint}>
+        <button type="button" className="model-choice" onClick={() => setOpen(true)}>
+          <span className="model-choice-main">
+            <strong>{model?.name ?? "Choose a model"}</strong>
+            <span>{model ? `${model.quality.toFixed(0)} quality · ${formatNumber(model.contextWindow)} context${model.reasoning ? " · reasoning" : ""}` : "No model selected"}</span>
+          </span>
+          <span className={model?.included ? "model-choice-included" : "model-choice-price"}>
+            {model?.included ? "included in plan" : model ? `${formatCost(model.cost.input)} in / ${formatCost(model.cost.output)} out` : ""}
+          </span>
+          <ChevronDown size={14} />
+        </button>
+      </Field>
+      {open ? (
+        <div className="picker-layer modal-picker-layer" onMouseDown={() => setOpen(false)}>
+          <ModelPicker
+            models={state.models}
+            value={value}
+            role={role}
+            onSelect={(selector: string) => {
+              onChange(selector);
+              setOpen(false);
+            }}
+            onClose={() => setOpen(false)}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function NewNodeModal() {
   const state = useApp();
   const nodes = state.snapshot?.nodes ?? [];
@@ -156,7 +206,6 @@ function NewNodeModal() {
   const [brief, setBrief] = useState("");
   const [model, setModel] = useState(state.snapshot?.settings.models.project ?? "");
   const [gitInit, setGitInit] = useState(false);
-  const models = useMemo(() => [...state.models].sort((a, b) => b.quality - a.quality), [state.models]);
   const suggestedPath = useMemo(
     () => defaultNodePath(name, state.snapshot?.workspaceRoot),
     [name, state.snapshot?.workspaceRoot],
@@ -190,11 +239,13 @@ function NewNodeModal() {
         {type === "project" ? (
           <label className="inline-check"><input type="checkbox" checked={gitInit} onChange={(event) => setGitInit(event.target.checked)} /> Initialize a git repository if needed</label>
         ) : null}
-        <Field label="Orchestrator model">
-          <Select value={model} onChange={setModel}>
-            {models.map((item) => <option key={item.selector} value={item.selector}>{item.name} · {item.quality.toFixed(0)} · {formatCost(item.cost.output)}/M out</option>)}
-          </Select>
-        </Field>
+        <ModelField
+          label="Orchestrator model"
+          value={model}
+          onChange={setModel}
+          role={type === "group" ? "group" : "project"}
+          hint="Defaults to your project model. Search the full OMP catalog."
+        />
         <Field label="Brief" hint="Optional. Sent to the new orchestrator as its first task.">
           <textarea rows={5} value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="What should this group/project own? Constraints, definition of done, first milestone…" />
         </Field>
