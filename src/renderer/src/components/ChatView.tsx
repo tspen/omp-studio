@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   Brain,
+  Check,
   ChevronRight,
+  CircleHelp,
   CircleStop,
   Copy,
   FolderGit2,
@@ -25,9 +27,9 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { ApprovalMode, Thread, TreeNode } from "../../../shared/types";
+import type { ApprovalMode, ApprovalRequest, Thread, TreeNode } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
-import { Badge, Button, IconButton, Select, Spinner, formatCost, formatNumber, statusColor, statusLabel, truncate } from "./Common";
+import { Badge, Button, IconButton, Select, Spinner, cx, formatCost, formatNumber, statusColor, statusLabel, truncate } from "./Common";
 import { Transcript } from "./Transcript";
 import { ModelPicker } from "./ModelPicker";
 
@@ -82,7 +84,95 @@ export function ChatView() {
           />
         </div>
       ) : null}
+      <QuestionCards threadId={thread.id} />
       <Composer thread={thread} node={node} onModelPicker={() => setPickerOpen(true)} />
+    </div>
+  );
+}
+
+function QuestionCards({ threadId }: { threadId: string }) {
+  const state = useApp();
+  const questions = state.approvals.filter((request) => request.kind === "ask" && request.threadId === threadId);
+  if (!questions.length) return null;
+  return (
+    <div className="question-cards">
+      {questions.map((request) => <QuestionCard key={request.id} request={request} />)}
+    </div>
+  );
+}
+
+function QuestionCard({ request }: { request: ApprovalRequest }) {
+  const state = useApp();
+  const raw = (request.raw ?? {}) as { questions?: Array<{ id: string; question: string; multi?: boolean; options?: Array<{ label: string; description?: string }> }> };
+  const questions = raw.questions ?? [];
+  const from = state.snapshot?.threads.find((thread) => thread.id === request.threadId);
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  const [custom, setCustom] = useState<Record<string, string>>({});
+  const answerOf = (id: string) => custom[id]?.trim() ? [custom[id].trim()] : answers[id] ?? [];
+  const ready = questions.length > 0 && questions.every((question) => answerOf(question.id).length > 0);
+  const submit = () => {
+    if (!ready) return;
+    const payload: Record<string, string[]> = {};
+    for (const question of questions) payload[question.id] = answerOf(question.id);
+    void state.respondApproval(request.id, payload);
+  };
+  return (
+    <div className="question-card">
+      <div className="question-card-head">
+        <CircleHelp size={16} />
+        <div>
+          <strong>{request.title || "Question"}</strong>
+          <span>{from ? `From ${from.title}` : request.message.split("\n")[0]}</span>
+        </div>
+      </div>
+      <div className="ask-questions">
+        {questions.map((question) => {
+          const current = answers[question.id] ?? [];
+          return (
+            <div key={question.id} className="ask-question">
+              <strong>{question.question}</strong>
+              {question.options?.length ? (
+                <div className="ask-options">
+                  {question.options.map((option) => {
+                    const active = current.includes(option.label);
+                    return (
+                      <button
+                        key={option.label}
+                        type="button"
+                        className={cx("ask-option", active && "selected")}
+                        onClick={() => {
+                          setCustom({ ...custom, [question.id]: "" });
+                          setAnswers({
+                            ...answers,
+                            [question.id]: question.multi ? (active ? current.filter((item) => item !== option.label) : [...current, option.label]) : [option.label],
+                          });
+                        }}
+                      >
+                        <span>{option.label}</span>
+                        {option.description ? <small>{option.description}</small> : null}
+                        {active ? <Check size={14} /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <input
+                placeholder="Or type an answer…"
+                value={custom[question.id] ?? ""}
+                onChange={(event) => {
+                  setCustom({ ...custom, [question.id]: event.target.value });
+                  if (event.target.value) setAnswers({ ...answers, [question.id]: [] });
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="question-card-foot">
+        <span>This thread is waiting for your answer.</span>
+        <Button size="sm" variant="ghost" onClick={() => void state.respondApproval(request.id, null)}>Skip</Button>
+        <Button size="sm" variant="primary" disabled={!ready} onClick={submit}><Check size={13} /> Answer</Button>
+      </div>
     </div>
   );
 }

@@ -62,7 +62,7 @@ export function Modals() {
 
 export function ApprovalModal() {
   const state = useApp();
-  const request = state.approvals[0];
+  const request = state.approvals.find((item) => item.kind !== "ask");
   if (!request) return null;
   return <ApprovalDialog key={request.id} request={request} />;
 }

@@ -905,3 +905,15 @@ textarea { resize: vertical; line-height: 1.45; }
 .thread-row-branch { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted-2); font-family: var(--mono); font-size: 9px; }
 .thread-row-tokens { margin-left: auto; flex: 0 0 auto; color: var(--muted-2); font-variant-numeric: tabular-nums; }
 .thread-row-last { margin: 3px 0 0 14px; font-size: 9.5px; color: var(--muted-2); }
+.question-cards { display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 0; }
+.question-card { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; }
+.question-card-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
+.question-card-head > svg { color: var(--accent); flex: 0 0 auto; margin-top: 1px; }
+.question-card-head strong { display: block; font-size: 12px; }
+.question-card-head span { display: block; font-size: 10px; color: var(--muted); }
+.question-card .ask-questions { margin: 0; }
+.question-card .ask-question { margin-bottom: 7px; }
+.question-card .ask-question > strong { display: block; font-size: 11px; margin-bottom: 4px; }
+.question-card .ask-question input { margin-top: 4px; font-size: 10.5px; }
+.question-card-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--accent-line); padding-top: 7px; margin-top: 2px; }
+.question-card-foot > span { flex: 1; font-size: 9.5px; color: var(--muted); }
