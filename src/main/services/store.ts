@@ -220,9 +220,17 @@ export class Store {
         threads: (parsed.threads ?? []).map((t) => {
           const wasActive = ["running", "starting", "queued", "waiting"].includes(t.status);
           const interrupted = wasActive || !!t.pendingApproval || !!t.interrupted;
+          const status = wasActive ? "parked" : t.status;
+          const statusMessage =
+            !["running", "starting", "queued"].includes(status) && t.statusMessage && /^(working|starting omp)/i.test(t.statusMessage)
+              ? status === "parked"
+                ? "Parked"
+                : undefined
+              : t.statusMessage;
           return {
             ...t,
-            status: wasActive ? "parked" : t.status,
+            status,
+            statusMessage,
             interrupted: interrupted || undefined,
             interruptedAt: interrupted ? (t.interruptedAt ?? Date.now()) : undefined,
             pendingApproval: undefined,
@@ -585,6 +593,21 @@ export class Store {
 
   clearChatCache(): void {
     this.chats.clear();
+  }
+
+  diagnostics(): { chats: number; messages: number; chars: number } {
+    let messages = 0;
+    let chars = 0;
+    for (const list of this.chats.values()) {
+      messages += list.length;
+      for (const message of list) {
+        for (const block of message.blocks) {
+          if (block.type === "text" || block.type === "thinking") chars += block.text.length;
+          else if (block.type === "tool") chars += (block.result?.length ?? 0) + 200;
+        }
+      }
+    }
+    return { chats: this.chats.size, messages, chars };
   }
 
   getChat(threadId: string): ChatMessage[] {

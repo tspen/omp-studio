@@ -286,10 +286,21 @@ async function bootstrap(): Promise<void> {
   const dataStore = new Store();
   dataStore.init();
   store = dataStore;
+  let memoryEmergencyTripped = false;
   const memoryTimer = setInterval(() => {
     try {
       const usage = process.memoryUsage();
       if (usage.heapUsed > 1_800_000_000) dataStore.clearChatCache();
+      if (!memoryEmergencyTripped && usage.rss > 2_500_000_000 && orchestrator) {
+        memoryEmergencyTripped = true;
+        const diagnostics = orchestrator.diagnostics();
+        appendFileSync(
+          join(dataStore.baseDir, "memory.log"),
+          `${new Date().toISOString()} EMERGENCY rss=${Math.round(usage.rss / 1_048_576)}MB diagnostics=${JSON.stringify(diagnostics)}\n`,
+          "utf8",
+        );
+        void orchestrator.emergencyStop("Stopped live sessions because the app reached 2.5 GB of memory.").catch(() => undefined);
+      }
       appendFileSync(
         join(dataStore.baseDir, "memory.log"),
         `${new Date().toISOString()} heap=${Math.round(usage.heapUsed / 1_048_576)}MB rss=${Math.round(usage.rss / 1_048_576)}MB external=${Math.round(usage.external / 1_048_576)}MB arrayBuffers=${Math.round(usage.arrayBuffers / 1_048_576)}MB${usage.heapUsed > 1_800_000_000 ? " trimmed-chat-cache" : ""}\n`,
@@ -298,7 +309,7 @@ async function bootstrap(): Promise<void> {
     } catch {
       /* diagnostics must never throw */
     }
-  }, 15_000);
+  }, 2_000);
   memoryTimer.unref();
 
   const engine = new EngineLocator(dataStore);

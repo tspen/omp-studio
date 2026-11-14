@@ -421,7 +421,11 @@ export class OmpSession extends EventEmitter {
     }
     if (type === "auto_compaction_end" || type === "manual_compaction_end") {
       this.emit("compaction", { phase: "end", manual: type === "manual_compaction_end", ...frame });
-      if (!frame.aborted) this.options.onStatus(type === "manual_compaction_end" ? "idle" : "running", type === "manual_compaction_end" ? "Compacted" : "Working…");
+      if (!frame.aborted) {
+        const manual = type === "manual_compaction_end";
+        const wasRunning = this.thread.status === "running";
+        this.options.onStatus(manual ? "idle" : wasRunning ? "running" : "idle", manual ? "Compacted" : wasRunning ? "Working…" : "Ready");
+      }
       return;
     }
     if (type === "turn_end") {
@@ -433,6 +437,7 @@ export class OmpSession extends EventEmitter {
       return;
     }
     if (type === "session_settled") {
+      if (this.thread.status === "running" || this.thread.status === "starting") this.options.onStatus("idle", "Ready");
       this.emit("settled");
       return;
     }

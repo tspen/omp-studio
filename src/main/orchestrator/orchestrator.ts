@@ -935,6 +935,24 @@ export class Orchestrator extends EventEmitter {
     this.focusedThreadId = threadId;
   }
 
+  diagnostics(): { sessions: number; focused: string | null; approvals: number; chats: ReturnType<Store["diagnostics"]> } {
+    return {
+      sessions: this.sessions.size,
+      focused: this.focusedThreadId,
+      approvals: this.approvals.size,
+      chats: this.store.diagnostics(),
+    };
+  }
+
+  /** Last-resort guard: stop every live OMP session instead of letting the app OOM. */
+  async emergencyStop(reason: string): Promise<void> {
+    this.deps.notifications.notify({ kind: "error", title: "Session load stopped", body: reason });
+    for (const threadId of [...this.sessions.keys()]) {
+      await this.disposeSession(threadId).catch(() => undefined);
+    }
+    this.store.clearChatCache();
+  }
+
   async deleteThread(id: string): Promise<void> {
     await this.disposeSession(id).catch(() => undefined);
     this.store.removeThread(id);
