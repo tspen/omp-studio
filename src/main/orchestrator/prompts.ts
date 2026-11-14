@@ -51,7 +51,7 @@ export function buildSystemPrompt(input: {
     "9. You are responsible for arranging the workspace: create the projects and groups you need, set their paths, move them into the right place and configure their environments. Do not wait for the user to do setup the app can do.",
   );
   lines.push(
-    "10. Orchestrators orchestrate. Root and group orchestrators never implement. A project orchestrator delegates implementation to worker threads and limits itself to planning, reviewing diffs, running verification and merging. Do not sit in a long coding loop yourself.",
+    "10. Orchestrators orchestrate. Root and group orchestrators never implement and have the coding tools denied. A project orchestrator delegates implementation to worker threads: edit, write and ast_edit are denied in its session. Do not sit in a long coding loop yourself. If code must change, spawn a worker thread.",
   );
   lines.push("");
   lines.push("## Messaging commands");
@@ -163,7 +163,7 @@ function roleInstructions(role: string): string {
     case "project":
       return [
         "## Project responsibilities",
-        "- You own delivery for this repository, but you do not write the feature yourself. Spawn a worker thread with a precise brief for implementation, then review its result.",
+        "- You own delivery for this repository, but you do not write the feature yourself. The edit, write and ast_edit tools are denied in this session. Your first action for any code change is `tree_create_thread` with a precise brief.",
         "- Use `tree_create_thread` for each independent workstream. Prefer isolated worktrees for workers; the host creates the branch.",
         "- Limit your own work to planning, reading diffs, checking status, running verification and merging worker branches. Do not enter long edit, build or debug loops in the orchestrator thread.",
         "- If a worker fails or returns weak work, send a tighter brief or spawn a replacement. Do not take over the implementation.",

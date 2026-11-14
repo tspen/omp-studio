@@ -17,6 +17,40 @@ import type { Store } from "../services/store";
 import type { HostToolDefinition, HostToolHandler, HostToolResult } from "../orchestrator/host-tools";
 import { RpcClient } from "./rpc-client";
 
+/** Mission Control and groups never touch the workspace; only tree tools remain. */
+const ROOT_DENIED_TOOLS = [
+  "bash",
+  "python",
+  "eval",
+  "debug",
+  "launch",
+  "read",
+  "edit",
+  "write",
+  "grep",
+  "glob",
+  "ast_grep",
+  "ast_edit",
+  "notebook",
+  "lsp",
+  "task",
+  "checkpoint",
+  "security",
+  "github",
+];
+
+/** Project orchestrators may review, but implementation belongs to workers. */
+const PROJECT_ORCHESTRATOR_DENIED_TOOLS = [
+  "edit",
+  "write",
+  "ast_edit",
+  "ast_grep",
+  "notebook",
+  "python",
+  "eval",
+  "task",
+];
+
 export interface OmpSessionOptions {
   store: Store;
   exe: string;
@@ -84,6 +118,14 @@ export class OmpSession extends EventEmitter {
     writeFileSync(promptPath, this.options.systemPrompt, "utf8");
     const overlayPath = join(promptDir, `${this.thread.id}.config.yml`);
     const configuredApproval = (this.store.data.ompConfig.entries.find((entry) => entry.key === "tools.approval")?.value ?? {}) as Record<string, string>;
+    const orchestratorDenied =
+      this.thread.kind === "orchestrator"
+        ? this.node.type === "root" || this.node.type === "group"
+          ? ROOT_DENIED_TOOLS
+          : this.node.type === "project"
+            ? PROJECT_ORCHESTRATOR_DENIED_TOOLS
+            : []
+        : [];
     writeFileSync(
       overlayPath,
       YAML.stringify({
@@ -91,6 +133,7 @@ export class OmpSession extends EventEmitter {
           approval: {
             ...configuredApproval,
             ...Object.fromEntries(this.options.hostTools.map((tool) => [tool.name, "allow"])),
+            ...Object.fromEntries(orchestratorDenied.map((name) => [name, "deny"])),
           },
         },
       }),
