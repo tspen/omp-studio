@@ -20,6 +20,7 @@ import {
   Zap,
   History,
   Target,
+  Trash2,
 } from "lucide-react";
 import type { Thread, TreeNode } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
@@ -158,6 +159,14 @@ function ThreadHeader({
         <IconButton icon={<Target size={15} />} label="Goal mode" onClick={() => state.setOverlay("goal")} />
         <IconButton icon={<History size={15} />} label="History, fork and rewind" onClick={() => state.setOverlay("history")} />
         <IconButton icon={<Share2 size={15} />} label="Share this thread" onClick={() => void state.shareThread()} />
+        {thread.kind !== "orchestrator" ? (
+          <IconButton icon={<Trash2 size={15} />} label="Delete thread" onClick={async () => {
+            if (!confirm(`Delete thread "${thread.title}"? Its branch and files stay on disk.`)) return;
+            await window.omp.deleteThread(thread.id);
+            await state.refresh();
+            await state.selectNode(node.id);
+          }} />
+        ) : null}
         <IconButton icon={state.railOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />} label="Toggle right panel" onClick={state.toggleRail} />
         <IconButton icon={<Settings2 size={16} />} label="Project settings" onClick={() => state.setSettingsTab("general")} />
       </div>

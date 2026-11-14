@@ -702,6 +702,19 @@ export class Orchestrator extends EventEmitter {
 
   async updateNode(id: string, patch: Partial<TreeNode>): Promise<TreeNode> {
     const existing = this.store.getNode(id);
+    if (!existing) throw new Error(`Node not found: ${id}`);
+    if (patch.parentId !== undefined) {
+      if (patch.parentId === id) throw new Error("A node cannot be its own parent");
+      if (patch.parentId && this.descendantNodes(id).some((node) => node.id === patch.parentId)) {
+        throw new Error("Cannot move a node inside its own subtree");
+      }
+      const parent = patch.parentId ? this.store.getNode(patch.parentId) : undefined;
+      if (patch.parentId && !parent) throw new Error("Target parent not found");
+      const thread = this.store.getThread(existing.orchestratorThreadId);
+      if (thread) {
+        this.store.updateThread(thread.id, { parentThreadId: parent?.orchestratorThreadId ?? null });
+      }
+    }
     if (existing && patch.path && patch.path !== existing.path && existing.type === "project") {
       patch.repoPath = (await this.deps.git.root(patch.path)) ?? patch.path;
     }
@@ -1434,7 +1447,10 @@ export class Orchestrator extends EventEmitter {
         lines.push(`- ${child.title} (${child.id}) status=${child.status} model=${child.model.selector} branch=${child.branch ?? "shared"}`);
       }
     }
-    const records = this.store.listEnvelopes({ nodeId: context.node.id, limit: 20 });
+    const subtree = new Set<string>([context.node.id, ...this.descendantNodes(context.node.id).map((node) => node.id)]);
+    const records = this.store
+      .listEnvelopes({ limit: 120 })
+      .filter((envelope) => (envelope.fromNodeId && subtree.has(envelope.fromNodeId)) || (envelope.toNodeId && subtree.has(envelope.toNodeId)));
     if (records.length) {
       lines.push("");
       lines.push("Recent messages at this level:");

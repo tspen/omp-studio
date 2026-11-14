@@ -205,6 +205,15 @@ function GeneralTab() {
             <Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) setPath(picked); }}><Folder size={13} /> Browse</Button>
           </div>
         </Row>
+        {node.type !== "root" ? (
+        <Row label="Parent" hint="Move this node under another group or the root. Existing child nodes move with it.">
+          <Select value={node.parentId ?? ""} onChange={(value) => void window.omp.updateNode(node.id, { parentId: value || null }).then(() => state.refresh())}>
+            {(state.snapshot?.nodes ?? []).filter((candidate) => candidate.type !== "project" && candidate.id !== node.id).map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+            ))}
+          </Select>
+        </Row>
+        ) : null}
         <Row label="Orchestrator model">
           <span className="mono muted">{state.models.find((model) => model.selector === node.model)?.name ?? node.model}</span>
         </Row>
@@ -618,6 +627,7 @@ function NotificationsTab() {
 function EngineTab() {
   const state = useApp();
   const engine = state.engine;
+  const settings = state.snapshot?.settings;
   return (
     <>
       <Section title="OMP runtime" subtitle="OMP Studio launches and supervises the real omp.exe. The installer bundles a Windows x64 build.">
@@ -625,6 +635,9 @@ function EngineTab() {
         <Row label="Version"><span className="mono">{engine?.version ?? "—"}</span></Row>
         <Row label="Path"><span className="mono muted">{engine?.path ?? "—"}</span></Row>
         <Row label="Source"><span>{engine?.source ?? "—"}</span></Row>
+        <Row label="Custom engine path" hint="Optional. Restart after changing. Blank uses the bundled/installed engine.">
+          <input defaultValue={settings?.enginePath ?? ""} onBlur={(event) => state.updateSettings({ settings: { enginePath: event.target.value } })} placeholder="C:\\path\\to\\omp.exe" />
+        </Row>
         {engine?.downloading ? <Row label="Download"><div className="download-bar"><i style={{ width: `${engine.progress ?? 0}%` }} /><span>{engine.progress ?? 0}%</span></div></Row> : null}
         <Row label="Install / update" hint="Downloads the latest omp-windows-x64.exe from GitHub releases.">
           <Button size="sm" variant="primary" disabled={engine?.downloading} onClick={() => void window.omp.downloadEngine().then(() => state.refresh())}><Download size={13} /> Download OMP</Button>
@@ -632,8 +645,8 @@ function EngineTab() {
         <Row label="Restart app" hint="Required after changing the engine or some global settings.">
           <Button size="sm" variant="soft" onClick={() => void window.omp.restartApp()}><RefreshCw size={13} /> Restart</Button>
         </Row>
-        <Row label="Data folder">
-          <Button size="sm" variant="soft" onClick={() => void window.omp.openPath("")}>Open</Button>
+        <Row label="Open config file" hint="The raw OMP config YAML is also editable from Advanced.">
+          <Button size="sm" variant="soft" onClick={() => state.ompConfig?.path && void window.omp.openPath(state.ompConfig.path)}>Open config</Button>
         </Row>
       </Section>
       <Section title="OMP config" subtitle="The advanced tab exposes the full config surface.">
