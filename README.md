@@ -14,6 +14,8 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 - **Environments**: Local env vars, secrets, setup/teardown commands, shell, git isolation and approval mode, assignable per node and inherited.
 - **Memory**: Per-node durable memory, visible and editable. Orchestrators write through `tree_memory_write`; completed thread outcomes are auto-captured as low-importance entries.
 - **Notifications**: Windows toasts, tray badge, in-app inbox, per-node mute.
+- **Permissions where you work**: tool approval is chosen in the chat toolbar (YOLO, auto-approve writes, ask always) and defaults to YOLO. Switching to YOLO resolves any pending approval immediately and future tool calls skip the prompt, even in sessions that started under a stricter policy.
+- **Interrupted work resumes**: if the app closes mid-turn, affected threads load as interrupted with a Continue banner. Continue reopens the OMP session and tells the model to inspect the workspace, finish the unfinished work and verify it.
 - **Thread history**: Fork from an entry or rewind the leaf; goal mode; live read-only share over a local token URL. Worker titles refresh every few turns using the cheap naming model, throttled so titles never dominate spend.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 
@@ -89,6 +91,8 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 - Environments are local only (env vars, secrets, setup scripts, services via commands). Docker/WSL/remote are intentionally deferred.
 - Model scores come from the public Artificial Analysis leaderboard; the app fetches it daily and labels the source. No API key is required.
 - The tree is logically unlimited, but concurrent OMP sessions are capped in Settings (default 8) and idle sessions are parked.
+- Tool approval defaults to YOLO because the app is built for unattended orchestration. Change it per node from the chat toolbar, or set the app-wide default and apply it to all nodes in Settings -> General. Interactive questions from OMP are still surfaced; only permission prompts are auto-approved.
+- Uncaught main-process errors are appended to `%APPDATA%\omp-studio\omp-studio\errors.log`; renderer errors show an in-app banner with the message and a reload action.
 - Plan mode is disabled by policy. Goal mode, advisor, history/fork, artifacts, terminal, diffs and live sharing are exposed.
 - Live sharing is read-only. Steering guests is not implemented.
 - Provider login is driven through OMP's local CLI auth flow. OpenCode Go keys are validated before saving; other API-key providers rely on OMP's login behavior.

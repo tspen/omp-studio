@@ -1,6 +1,6 @@
 import { app, BrowserWindow, nativeImage } from "electron";
 import { basename, join } from "node:path";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { EngineLocator } from "./engine/engine-locator";
 import { registerIpc, type IpcContext } from "./ipc";
@@ -28,6 +28,21 @@ let store: Store | null = null;
 
 const smokeTest = process.argv.includes("--smoke-test");
 const integrationTest = process.argv.includes("--integration-test");
+
+function logCrash(kind: string, error: unknown): void {
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  console.error(`[${kind}]`, error);
+  try {
+    const dir = app.isReady() ? join(app.getPath("userData"), "omp-studio") : join(process.env.APPDATA ?? process.cwd(), "omp-studio");
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, "errors.log"), `[${new Date().toISOString()}] ${kind}: ${message}\n`, "utf8");
+  } catch {
+    /* logging must never throw */
+  }
+}
+
+process.on("uncaughtException", (error) => logCrash("uncaughtException", error));
+process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
 if (process.env.OMP_STUDIO_USER_DATA) {
   mkdirSync(process.env.OMP_STUDIO_USER_DATA, { recursive: true });
   app.setPath("userData", process.env.OMP_STUDIO_USER_DATA);

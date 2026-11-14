@@ -44,6 +44,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   onboardingCompleted: false,
   enginePath: "",
   workspaceRoot: "",
+  defaultApprovalMode: "yolo",
+  approvalMigrationDone: false,
   autoName: true,
   autoReport: true,
   autoWakeParent: true,
@@ -162,6 +164,13 @@ export class Store {
       this.state.settings.workspaceRoot = this.detectWorkspaceRoot();
       this.markDirty();
     }
+    if (!this.state.settings.approvalMigrationDone) {
+      const target = this.state.settings.defaultApprovalMode || "yolo";
+      for (const node of this.state.nodes) if (node.approvalMode === "write") node.approvalMode = target;
+      for (const environment of this.state.environments) if (environment.approvalMode === "write") environment.approvalMode = target;
+      this.state.settings.approvalMigrationDone = true;
+      this.markDirty();
+    }
     this.loadEnvelopes();
   }
 
@@ -208,11 +217,17 @@ export class Store {
         ...parsed,
         settings: deepMerge(structuredClone(DEFAULT_SETTINGS), parsed.settings ?? {}),
         nodes: parsed.nodes ?? [],
-        threads: (parsed.threads ?? []).map((t) => ({
-          ...t,
-          status: t.status === "running" || t.status === "starting" || t.status === "queued" ? "parked" : t.status,
-          pendingApproval: undefined,
-        })),
+        threads: (parsed.threads ?? []).map((t) => {
+          const wasActive = ["running", "starting", "queued", "waiting"].includes(t.status);
+          const interrupted = wasActive || !!t.pendingApproval || !!t.interrupted;
+          return {
+            ...t,
+            status: wasActive ? "parked" : t.status,
+            interrupted: interrupted || undefined,
+            interruptedAt: interrupted ? (t.interruptedAt ?? Date.now()) : undefined,
+            pendingApproval: undefined,
+          };
+        }),
         environments: parsed.environments ?? [],
         traces: parsed.traces ?? [],
         notifications: parsed.notifications ?? [],

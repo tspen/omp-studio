@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
   Archive,
-  Bell,
   Boxes,
   ChevronDown,
   ChevronRight,
@@ -23,7 +22,7 @@ import {
 } from "lucide-react";
 import type { Thread, TreeNode } from "../../../shared/types";
 import { useApp, childNodes, selectedNode, selectedThread } from "../store";
-import { Badge, Button, IconButton, Logo, StatusDot, cx, formatCost, formatNumber, statusColor, statusLabel, truncate } from "./Common";
+import { Badge, Button, IconButton, StatusDot, cx, formatCost, formatNumber, statusColor, statusLabel, truncate } from "./Common";
 
 export function Sidebar() {
   const state = useApp();
@@ -49,20 +48,6 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-top">
-        <div className="brand">
-          <Logo />
-          <div>
-            <strong>OMP Studio</strong>
-            <span>Tree orchestration</span>
-          </div>
-        </div>
-        <div className="sidebar-actions">
-          <IconButton icon={<Search size={15} />} label="Search" onClick={() => state.setOverlay("search")} />
-          <IconButton icon={<Bell size={15} />} label="Notifications" onClick={() => state.setOverlay("inbox")} />
-        </div>
-      </div>
-
       <div className="sidebar-search">
         <Search size={14} />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a project or group" />

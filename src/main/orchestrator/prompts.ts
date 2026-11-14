@@ -94,6 +94,15 @@ export function buildSystemPrompt(input: {
     if (environment.setupCommands.length) lines.push(`- Setup commands already run by the host: ${environment.setupCommands.join(" ; ")}`);
   }
   lines.push(`- Model: ${thread.model.name ?? thread.model.selector}; effort: ${thread.effort}`);
+  lines.push(
+    `- Tool approval: ${
+      node.approvalMode === "yolo"
+        ? "YOLO — every tool call is auto-approved, including shell and destructive commands. Be deliberate."
+        : node.approvalMode === "write"
+          ? "auto-approve writes; sensitive commands still ask."
+          : "ask before sensitive tools."
+    }`,
+  );
   lines.push(`- Operating system: Windows. Use PowerShell-compatible commands or cmd /c where appropriate.`);
   lines.push("");
   const memoryBlock = memory.promptBlock(node.id);

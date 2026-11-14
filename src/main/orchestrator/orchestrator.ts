@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
   AppEvent,
+  ApprovalMode,
   ApprovalRequest,
   Artifact,
   ChatMessage,
@@ -59,7 +60,7 @@ export class Orchestrator extends EventEmitter {
   private deps: OrchestratorDeps;
   private store: Store;
   private sessions = new Map<string, OmpSession>();
-  private approvals = new Map<string, { threadId: string; session: OmpSession }>();
+  private approvals = new Map<string, { threadId: string; session: OmpSession; request: ApprovalRequest }>();
   private starting = new Map<string, Promise<OmpSession>>();
   private gitTimers = new Map<string, NodeJS.Timeout>();
   private autoContinueTimers = new Map<string, NodeJS.Timeout>();
@@ -153,7 +154,7 @@ export class Orchestrator extends EventEmitter {
         model: model?.selector ?? "",
         effort: this.store.settings.models.rootEffort || "high",
         gitMode: "shared",
-        approvalMode: "write",
+        approvalMode: this.store.settings.defaultApprovalMode || "yolo",
         collapsed: false,
         muted: false,
         autoName: false,
@@ -309,7 +310,7 @@ export class Orchestrator extends EventEmitter {
       model: model?.selector ?? "",
       effort: input.effort || (type === "group" ? this.store.settings.models.groupEffort : this.store.settings.models.projectEffort) || "high",
       gitMode: type === "project" ? this.store.settings.git.defaultMode : "shared",
-      approvalMode: input.approvalMode ?? "write",
+      approvalMode: input.approvalMode ?? this.store.settings.defaultApprovalMode ?? "yolo",
       collapsed: false,
       muted: false,
       autoName,
@@ -428,9 +429,23 @@ export class Orchestrator extends EventEmitter {
     return this.store.getThread(thread.id)!;
   }
 
+  async continueThread(threadId: string): Promise<void> {
+    const thread = this.store.getThread(threadId);
+    if (!thread) throw new Error("Thread not found");
+    if (thread.kind === "native") throw new Error("Native subagent threads are resumed by their parent");
+    await this.sendUserMessage({
+      threadId,
+      text: "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace, files and transcript first, then finish the unfinished work, verify it, and report. Do not redo steps that already completed.",
+    });
+  }
+
   async sendUserMessage(request: SendMessageRequest): Promise<void> {
     const thread = this.store.getThread(request.threadId);
     if (!thread) throw new Error("Thread not found");
+    if (thread.interrupted) {
+      this.store.updateThread(thread.id, { interrupted: false, interruptedAt: undefined });
+      this.deps.emit({ type: "thread:updated", payload: this.store.getThread(thread.id)! });
+    }
     const text = request.text.trim();
     if (!text) return;
     let traceId = request.traceId;
@@ -487,6 +502,32 @@ export class Orchestrator extends EventEmitter {
     if (session?.isRunning) await session.setThinking(effort);
     const updated = this.store.updateThread(threadId, { effort });
     this.deps.emit({ type: "thread:updated", payload: updated });
+    return updated;
+  }
+
+  /**
+   * Change a node's tool-approval policy. Idle sessions are recycled so the
+   * next prompt starts with the new policy; a running turn is left alone.
+   */
+  async setNodeApproval(nodeId: string, mode: ApprovalMode): Promise<TreeNode> {
+    if (!["always-ask", "write", "yolo"].includes(mode)) throw new Error(`Unknown approval mode: ${mode}`);
+    const node = this.store.getNode(nodeId);
+    if (!node) throw new Error("Node not found");
+    const updated = this.store.updateNode(nodeId, { approvalMode: mode });
+    this.deps.emit({ type: "node:updated", payload: updated });
+    if (mode === "yolo") {
+      const pending = [...this.approvals.entries()].filter(([, entry]) => this.store.getThread(entry.threadId)?.nodeId === nodeId);
+      for (const [id, entry] of pending) {
+        const value = autoApproveValue(entry.request);
+        if (value !== undefined) await this.respondApproval(id, value).catch(() => undefined);
+      }
+    }
+    for (const thread of this.store.threadsForNode(nodeId)) {
+      const session = this.sessions.get(thread.id);
+      if (session && !["running", "starting", "waiting"].includes(thread.status)) {
+        await this.disposeSession(thread.id).catch(() => undefined);
+      }
+    }
     return updated;
   }
 
@@ -640,7 +681,7 @@ export class Orchestrator extends EventEmitter {
       shell: input.shell?.trim() || undefined,
       inheritEnv: input.inheritEnv !== false,
       gitMode: input.gitMode ?? "auto",
-      approvalMode: input.approvalMode ?? "write",
+      approvalMode: input.approvalMode ?? this.store.settings.defaultApprovalMode ?? "yolo",
       createdAt: now,
       updatedAt: now,
     };
@@ -968,7 +1009,14 @@ export class Orchestrator extends EventEmitter {
       },
     });
     session.on("ui_request", (request: ApprovalRequest, promise: Promise<any>) => {
-      this.approvals.set(request.id, { threadId, session });
+      if (this.store.getNode(thread.nodeId)?.approvalMode === "yolo") {
+        const value = autoApproveValue(request);
+        if (value !== undefined) {
+          void session.respondUi(request.id, value).catch(() => undefined);
+          return;
+        }
+      }
+      this.approvals.set(request.id, { threadId, session, request });
       this.store.updateThread(threadId, { pendingApproval: request.id });
       this.deps.emit({ type: "approval:request", payload: request });
       this.deps.notifications.notify({
@@ -1848,6 +1896,21 @@ function textResult(text: string): HostToolResult {
 
 function textOf(message: ChatMessage): string {
   return message.blocks.filter((block) => block.type === "text").map((block) => (block as any).text).join("\n").trim();
+}
+
+/**
+ * The response that approves an OMP permission prompt when the node is in
+ * yolo mode. Returns undefined for genuine questions we must ask the user.
+ */
+function autoApproveValue(request: ApprovalRequest): unknown {
+  if (request.kind === "confirm") return true;
+  if (request.kind !== "select") return undefined;
+  const labels = (request.options ?? []).map((option) => option.label.trim());
+  if (!labels.some((label) => /^deny$/i.test(label))) return undefined;
+  const once = labels.findIndex((label) => /^approve(\s+once)?$/i.test(label));
+  if (once >= 0) return String(once);
+  const allow = labels.findIndex((label) => /^(allow|approve|yes|run)/i.test(label) && !/deny/i.test(label));
+  return allow >= 0 ? String(allow) : undefined;
 }
 
 function slug(value: string): string {

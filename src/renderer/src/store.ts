@@ -73,6 +73,7 @@ interface AppState {
   setSettingsTab(tab: SettingsTab): void;
   openPreview(preview: PreviewState): void;
   send(text: string, mode?: "prompt" | "steer" | "followUp"): Promise<void>;
+  continueThread(threadId: string): Promise<void>;
   stop(): Promise<void>;
   createNode(input: any): Promise<void>;
   createThread(input: any): Promise<void>;
@@ -358,6 +359,18 @@ export const useApp = create<AppState>((set, get) => ({
       await api().send({ threadId, text, mode });
     } catch (error) {
       get().pushToast({ kind: "error", title: "Message failed", body: String(error) });
+    } finally {
+      set({ sending: false });
+    }
+  },
+
+  async continueThread(threadId) {
+    try {
+      set({ sending: true });
+      await api().continueThread(threadId);
+      await get().refresh();
+    } catch (error) {
+      get().pushToast({ kind: "error", title: "Could not continue thread", body: String(error) });
     } finally {
       set({ sending: false });
     }

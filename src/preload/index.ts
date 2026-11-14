@@ -10,6 +10,7 @@ const api: OmpStudioApi = {
 
   createNode: (req) => invoke("node:create", req) as Promise<any>,
   updateNode: (id, patch) => invoke("node:update", id, patch) as Promise<any>,
+  setNodeApproval: (id, mode) => invoke("node:set-approval", id, mode) as Promise<any>,
   deleteNode: (id) => invoke("node:delete", id) as Promise<any>,
   createThread: (req) => invoke("thread:create", req) as Promise<any>,
   updateThread: (id, patch) => invoke("thread:update", id, patch) as Promise<any>,
@@ -17,6 +18,7 @@ const api: OmpStudioApi = {
   send: (req) => invoke("thread:send", req) as Promise<any>,
   stopThread: (id) => invoke("thread:stop", id) as Promise<any>,
   restartThread: (id) => invoke("thread:restart", id) as Promise<any>,
+  continueThread: (id) => invoke("thread:continue", id) as Promise<any>,
   setThreadModel: (id, selector) => invoke("thread:set-model", id, selector) as Promise<any>,
   setThreadEffort: (id, effort) => invoke("thread:set-effort", id, effort) as Promise<any>,
   forkThread: (id, entryId) => invoke("thread:fork", id, entryId) as Promise<any>,

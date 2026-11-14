@@ -111,7 +111,7 @@ export class OmpSession extends EventEmitter {
       "--thinking",
       this.thread.effort || "medium",
       "--approval-mode",
-      this.node.approvalMode || "write",
+      this.node.approvalMode || this.store.settings.defaultApprovalMode || "yolo",
       "--append-system-prompt",
       promptPath,
       "--config",

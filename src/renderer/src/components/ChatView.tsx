@@ -11,6 +11,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
+  RotateCw,
   Settings2,
   Share2,
   Sparkles,
@@ -21,8 +22,9 @@ import {
   History,
   Target,
   Trash2,
+  X,
 } from "lucide-react";
-import type { Thread, TreeNode } from "../../../shared/types";
+import type { ApprovalMode, Thread, TreeNode } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, IconButton, Select, Spinner, formatCost, formatNumber, statusColor, statusLabel, truncate } from "./Common";
 import { Transcript } from "./Transcript";
@@ -49,6 +51,19 @@ export function ChatView() {
   return (
     <div className="chat">
       <ThreadHeader thread={thread} node={node} onModelPicker={() => setPickerOpen(true)} />
+      {thread.interrupted ? (
+        <div className="resume-banner">
+          <RotateCw size={15} />
+          <div>
+            <strong>This thread was interrupted when the app closed</strong>
+            <span>Continue from the last checkpoint. The model re-reads the workspace and finishes the unfinished work.</span>
+          </div>
+          <Button size="sm" variant="primary" disabled={state.sending} onClick={() => void state.continueThread(thread.id)}>
+            {state.sending ? <Spinner size={13} /> : <RotateCw size={13} />} Continue
+          </Button>
+          <IconButton icon={<X size={14} />} label="Dismiss" onClick={() => void window.omp.updateThread(thread.id, { interrupted: false }).then(() => state.refresh())} />
+        </div>
+      ) : null}
       <Transcript thread={thread} messages={messages} />
       {pickerOpen ? (
         <div className="picker-layer" onMouseDown={() => setPickerOpen(false)}>
@@ -143,6 +158,9 @@ function ThreadHeader({
           <span>{thread.kind === "orchestrator" ? node.type : thread.kind}</span>
           <span>{thread.model.name ?? thread.model.selector}</span>
           <span>{thread.effort} effort</span>
+          <span className={node.approvalMode === "yolo" ? "approval-inline danger" : "approval-inline"}>
+            {node.approvalMode === "yolo" ? "auto-approve all" : node.approvalMode === "write" ? "auto-approve writes" : "ask each time"}
+          </span>
           {thread.branch ? <span className="mono chip-inline"><GitBranch size={11} /> {thread.branch}</span> : null}
           {thread.git ? (
             <span className={thread.git.clean ? "git-clean" : "git-dirty"}>
@@ -150,6 +168,7 @@ function ThreadHeader({
             </span>
           ) : null}
           {thread.pendingApproval ? <Badge tone="amber">approval needed</Badge> : null}
+          {thread.interrupted ? <Badge tone="amber">interrupted</Badge> : null}
         </div>
       </div>
       <div className="chat-header-actions">
@@ -238,6 +257,24 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
                 <option key={effort} value={effort}>{effort}</option>
               ))}
             </Select>
+            <span title="Tool approval for this node. Running turns keep their current policy; the next prompt uses the new one.">
+              <Select
+                value={node.approvalMode}
+                className={node.approvalMode === "yolo" ? "approval-select approval-danger" : "approval-select"}
+                onChange={(value) => void window.omp.setNodeApproval(node.id, value as ApprovalMode).then(() => {
+                  state.refresh();
+                  state.pushToast({
+                    kind: value === "yolo" ? "warning" : "info",
+                    title: "Permissions updated",
+                    body: value === "yolo" ? "All tool calls auto-approve for this node. Running turns keep the old policy." : value === "write" ? "Writes auto-approve; other sensitive tools still ask." : "Every sensitive tool call asks first.",
+                  });
+                })}
+              >
+                <option value="yolo">YOLO · approve all</option>
+                <option value="write">Auto · writes</option>
+                <option value="always-ask">Ask always</option>
+              </Select>
+            </span>
             <span className="composer-context">
               <span className="context-bar"><i style={{ width: `${contextPercent}%` }} /></span>
               {thread.contextTokens ? `${formatNumber(thread.contextTokens)} ctx` : "context"}

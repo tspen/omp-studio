@@ -40,7 +40,7 @@ export class EnvironmentService {
         teardownCommands: [],
         inheritEnv: true,
         gitMode: "auto",
-        approvalMode: "write",
+        approvalMode: this.store.settings.defaultApprovalMode || "yolo",
         createdAt: now,
         updatedAt: now,
       });

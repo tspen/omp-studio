@@ -40,6 +40,7 @@ export function registerIpc(context: IpcContext): void {
 
   ipcMain.handle("node:create", (_event, req: NewNodeRequest) => orchestrator.createNode(req));
   ipcMain.handle("node:update", (_event, id: string, patch) => orchestrator.updateNode(id, patch));
+  ipcMain.handle("node:set-approval", (_event, id: string, mode) => orchestrator.setNodeApproval(id, mode));
   ipcMain.handle("node:delete", (_event, id: string) => orchestrator.deleteNode(id));
 
   ipcMain.handle("thread:create", (_event, req: NewThreadRequest) => orchestrator.createThread(req));
@@ -48,6 +49,7 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("thread:send", (_event, req: SendMessageRequest) => orchestrator.sendUserMessage(req));
   ipcMain.handle("thread:stop", (_event, id: string) => orchestrator.stopThread(id));
   ipcMain.handle("thread:restart", (_event, id: string) => orchestrator.restartThread(id));
+  ipcMain.handle("thread:continue", (_event, id: string) => orchestrator.continueThread(id));
   ipcMain.handle("thread:set-model", (_event, id: string, selector: string) => orchestrator.setThreadModel(id, selector));
   ipcMain.handle("thread:set-effort", (_event, id: string, effort: string) => orchestrator.setThreadEffort(id, effort));
   ipcMain.handle("thread:fork", (_event, id: string, entryId?: string) => orchestrator.forkThread(id, entryId));

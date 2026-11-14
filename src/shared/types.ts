@@ -171,6 +171,8 @@ export interface Thread {
   titleAuto: boolean;
   status: ThreadStatus;
   statusMessage?: string;
+  interrupted?: boolean;
+  interruptedAt?: number;
   model: ModelRef;
   modelManual?: boolean;
   effort: string;
@@ -321,6 +323,8 @@ export interface AppSettings {
   onboardingCompleted: boolean;
   enginePath?: string;
   workspaceRoot: string;
+  defaultApprovalMode: ApprovalMode;
+  approvalMigrationDone: boolean;
   autoName: boolean;
   autoReport: boolean;
   autoWakeParent: boolean;
@@ -679,6 +683,7 @@ export interface OmpStudioApi {
 
   createNode(req: NewNodeRequest): Promise<TreeNode>;
   updateNode(id: string, patch: Partial<TreeNode>): Promise<TreeNode>;
+  setNodeApproval(id: string, mode: ApprovalMode): Promise<TreeNode>;
   deleteNode(id: string): Promise<void>;
   createThread(req: NewThreadRequest): Promise<Thread>;
   updateThread(id: string, patch: Partial<Thread>): Promise<Thread>;
@@ -686,6 +691,7 @@ export interface OmpStudioApi {
   send(req: SendMessageRequest): Promise<void>;
   stopThread(id: string): Promise<void>;
   restartThread(id: string): Promise<void>;
+  continueThread(id: string): Promise<void>;
   setThreadModel(id: string, selector: string): Promise<Thread>;
   setThreadEffort(id: string, effort: string): Promise<Thread>;
   forkThread(id: string, entryId?: string): Promise<Thread>;

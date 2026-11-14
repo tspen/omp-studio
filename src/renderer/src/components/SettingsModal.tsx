@@ -23,7 +23,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { Environment, EnvVar, McpServerInfo, ModelInfo, OmpConfigEntry, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, Environment, EnvVar, McpServerInfo, ModelInfo, OmpConfigEntry, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -174,6 +174,20 @@ function GeneralTab() {
           <div className="inline-actions">
             <input value={settings.workspaceRoot ?? ""} onChange={(event) => update({ workspaceRoot: event.target.value })} placeholder="C:\\Users\\you\\code" />
             <Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) update({ workspaceRoot: picked }); }}><Folder size={13} /> Browse</Button>
+          </div>
+        </Row>
+        <Row label="Default tool approval" hint="YOLO auto-approves every tool call, including shell and destructive commands. Applies to new nodes and sessions; change one node from the chat toolbar.">
+          <div className="inline-actions">
+            <Select value={settings.defaultApprovalMode ?? "yolo"} onChange={(value) => update({ defaultApprovalMode: value as ApprovalMode })}>
+              <option value="yolo">YOLO · approve all</option>
+              <option value="write">Auto-approve writes</option>
+              <option value="always-ask">Always ask</option>
+            </Select>
+            <Button size="sm" variant="soft" onClick={async () => {
+              const mode = (settings.defaultApprovalMode ?? "yolo") as ApprovalMode;
+              for (const item of state.snapshot?.nodes ?? []) await window.omp.setNodeApproval(item.id, mode);
+              await state.refresh();
+            }}>Apply to all</Button>
           </div>
         </Row>
         <Row label="Auto-name threads" hint="Uses the cheap naming model to name threads and refresh long-running worker titles every few turns.">
