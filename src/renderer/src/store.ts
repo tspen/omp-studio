@@ -321,7 +321,8 @@ export const useApp = create<AppState>((set, get) => ({
     if (!thread) return;
     const node = nodeId ?? thread.nodeId;
     set({ selectedThreadId: threadId, selectedNodeId: node, overlay: state.overlay === "inbox" ? "none" : state.overlay });
-    if (!state.messages[threadId]?.length) await get().loadMessages(threadId);
+    await api().focusThread(threadId).catch(() => undefined);
+    await get().loadMessages(threadId);
     const envelopes = await api().getEnvelopes({ threadId, limit: 300 });
     set({ envelopes: mergeEnvelopes(state.envelopes, envelopes) });
   },

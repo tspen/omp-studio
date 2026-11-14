@@ -559,6 +559,7 @@ export class OmpSession extends EventEmitter {
       }
       const live = this.liveMessage;
       live.blocks = normalizeBlocks(frame.message.content);
+      capLiveBlocks(live.blocks);
       this.emitChatThrottled(live);
       return;
     }
@@ -571,14 +572,16 @@ export class OmpSession extends EventEmitter {
       blocks[index] = { type: "text", text: "" };
     } else if (delta.type === "text_delta") {
       const block = blocks[index];
-      if (block?.type === "text") block.text += delta.delta ?? "";
-      else blocks[index] = { type: "text", text: delta.delta ?? "" };
+      if (block?.type === "text") {
+        if (block.text.length < LIVE_TEXT_LIMIT) block.text += delta.delta ?? "";
+      } else blocks[index] = { type: "text", text: (delta.delta ?? "").slice(0, LIVE_TEXT_LIMIT) };
     } else if (delta.type === "thinking_start") {
       blocks[index] = { type: "thinking", text: "" };
     } else if (delta.type === "thinking_delta") {
       const block = blocks[index];
-      if (block?.type === "thinking") block.text += delta.delta ?? "";
-      else blocks[index] = { type: "thinking", text: delta.delta ?? "" };
+      if (block?.type === "thinking") {
+        if (block.text.length < LIVE_THINKING_LIMIT) block.text += delta.delta ?? "";
+      } else blocks[index] = { type: "thinking", text: (delta.delta ?? "").slice(0, LIVE_THINKING_LIMIT) };
     }
     this.emitChatThrottled(live);
   }
@@ -751,9 +754,20 @@ export class OmpSession extends EventEmitter {
 
   private emitChatThrottled(message: ChatMessage): void {
     const now = Date.now();
-    if (now - this.lastEmit < 45) return;
+    if (now - this.lastEmit < 80) return;
     this.lastEmit = now;
     this.emitChat(message);
+  }
+}
+
+const LIVE_THINKING_LIMIT = 30_000;
+const LIVE_TEXT_LIMIT = 200_000;
+
+function capLiveBlocks(blocks: ChatBlock[]): void {
+  for (const block of blocks) {
+    if (block.type === "thinking" && block.text.length > LIVE_THINKING_LIMIT) block.text = block.text.slice(0, LIVE_THINKING_LIMIT);
+    else if (block.type === "text" && block.text.length > LIVE_TEXT_LIMIT) block.text = block.text.slice(0, LIVE_TEXT_LIMIT);
+    else if (block.type === "tool" && block.result && block.result.length > 60_000) block.result = block.result.slice(0, 60_000);
   }
 }
 

@@ -5,14 +5,18 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  CircleAlert,
   CircleCheck,
   CircleDashed,
+  Clock,
   Copy,
   FileEdit,
   FileText,
+  GitBranch,
   Globe,
   Image as ImageIcon,
   ListChecks,
+  MessageSquare,
   Search,
   Terminal,
   Wrench,
@@ -200,19 +204,27 @@ function Block({ block, showThinking }: { block: ChatBlock; showThinking: boolea
 }
 
 function ToolCard({ block }: { block: Extract<ChatBlock, { type: "tool" }> }) {
+  const state = useApp();
   const [copied, setCopied] = useState(false);
+  const presentation = describeTool(block.name, block.args, state.snapshot);
   const icon = toolIcon(block.name);
-  const args = summarizeArgs(block.args);
   const result = block.result ?? "";
+  const hasArgs = block.args != null && (typeof block.args !== "object" || Object.keys(block.args as object).length > 0);
+  const duration = block.startedAt && block.endedAt ? formatDuration(block.endedAt - block.startedAt) : "";
   return (
     <div className={cx("tool-card", block.status)}>
       <div className="tool-head">
         <span className="tool-icon">{icon}</span>
-        <span className="tool-name">{block.name}</span>
-        {args ? <span className="tool-args">{truncate(args, 110)}</span> : null}
-        <span className={cx("tool-status", block.status)}>
-          {block.status === "running" ? "running" : block.status === "error" ? "failed" : "done"}
-        </span>
+        <span className="tool-title">{presentation.label}</span>
+        {presentation.summary ? <span className={cx("tool-summary", presentation.mono && "mono")}>{truncate(presentation.summary, 120)}</span> : <span className="tool-summary" />}
+        {duration && block.status !== "running" ? <span className="tool-duration">{duration}</span> : null}
+        {block.status === "running" ? (
+          <span className="tool-status running"><span className="tool-spinner" /> working</span>
+        ) : block.status === "error" ? (
+          <span className="tool-status error"><CircleAlert size={11} /> failed</span>
+        ) : (
+          <span className="tool-done" title="Done"><CircleCheck size={13} /></span>
+        )}
         {result ? (
           <button
             type="button"
@@ -229,14 +241,178 @@ function ToolCard({ block }: { block: Extract<ChatBlock, { type: "tool" }> }) {
         ) : null}
       </div>
       {block.intent ? <div className="tool-intent">{block.intent}</div> : null}
-      {result ? (
-        <details className="tool-output">
-          <summary>{result.split("\n").length} lines of output</summary>
-          <pre>{truncate(result, 20_000)}</pre>
-        </details>
+      {hasArgs || result ? (
+        <div className="tool-details">
+          {hasArgs ? (
+            <details className="tool-output">
+              <summary>Arguments</summary>
+              <pre>{typeof block.args === "string" ? block.args : JSON.stringify(block.args, null, 2)}</pre>
+            </details>
+          ) : null}
+          {result ? (
+            <details className="tool-output">
+              <summary>Result · {result.split("\n").length} line{result.split("\n").length === 1 ? "" : "s"}</summary>
+              <pre>{truncate(result, 20_000)}</pre>
+            </details>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.round((ms % 60_000) / 1000);
+  return `${minutes}m ${seconds}s`;
+}
+
+function describeTool(
+  name: string,
+  args: unknown,
+  snapshot: ReturnType<typeof useApp.getState>["snapshot"],
+): { label: string; summary: string; mono?: boolean } {
+  const key = name.toLowerCase();
+  const record = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+  const str = (value: unknown) => (typeof value === "string" ? value : "");
+  const threadName = (id: unknown) => {
+    const value = str(id);
+    const thread = snapshot?.threads.find((item) => item.id === value);
+    return thread?.title ?? (value ? value.slice(-6) : "child thread");
+  };
+  const nodeName = (id: unknown) => {
+    const value = str(id);
+    return snapshot?.nodes.find((item) => item.id === value)?.name ?? (value ? value.slice(-6) : "node");
+  };
+  let summary = "";
+  let mono = false;
+  switch (key) {
+    case "tree_wait": {
+      const ids = Array.isArray(record.threadIds) ? record.threadIds : [];
+      const names = ids.slice(0, 3).map(threadName).join(", ");
+      const minutes = record.timeoutMs ? Math.round(Number(record.timeoutMs) / 60_000) : 0;
+      summary = `${names || "child threads"}${minutes ? ` · ${minutes}m timeout` : ""}`;
+      break;
+    }
+    case "tree_list":
+      summary = [record.depth ? `depth ${record.depth}` : "", record.includeStatus ? "with statuses" : ""].filter(Boolean).join(" · ");
+      break;
+    case "tree_message":
+      summary = `${threadName(record.toThreadId ?? record.threadId)}${record.kind ? ` · ${record.kind}` : ""}`;
+      break;
+    case "tree_create_thread":
+      summary = `${str(record.title) || "worker"}${record.model ? ` · ${String(record.model).split("/").pop()}` : ""}`;
+      break;
+    case "tree_create_node":
+      summary = `${str(record.type) || "node"}${record.name ? ` · ${record.name}` : ""}`;
+      break;
+    case "tree_resolve_thread":
+      summary = threadName(record.threadId);
+      break;
+    case "tree_cancel":
+      summary = threadName(record.threadId);
+      break;
+    case "tree_report":
+      summary = [str(record.status), truncate(str(record.summary), 80)].filter(Boolean).join(" · ");
+      break;
+    case "tree_ask_parent":
+      summary = truncate(str(record.question), 100);
+      break;
+    case "tree_git":
+      summary = [str(record.op), threadName(record.threadId)].filter(Boolean).join(" · ");
+      break;
+    case "tree_memory_write":
+      summary = truncate(str(record.text), 90);
+      break;
+    case "tree_memory_read":
+      summary = truncate(str(record.query) || "recall", 60);
+      break;
+    case "tree_create_environment":
+    case "tree_update_environment":
+      summary = str(record.name) || str(record.environmentId);
+      break;
+    case "tree_assign_environment":
+      summary = `${nodeName(record.nodeId)} · ${str(record.environmentId)}`;
+      break;
+    case "bash":
+      summary = truncate(str(record.command), 110);
+      mono = true;
+      break;
+    case "read":
+    case "edit":
+    case "write":
+    case "notebook":
+      summary = str(record.path) || str(record.file_path) || str(record.filePath);
+      mono = true;
+      break;
+    case "grep":
+    case "glob":
+    case "ast_grep":
+      summary = [str(record.pattern), str(record.path)].filter(Boolean).join(" · ");
+      mono = true;
+      break;
+    case "task":
+    case "ask":
+      summary = truncate(str(record.description) || str(record.question) || str(record.prompt), 100);
+      break;
+    case "web_search":
+    case "web_fetch":
+      summary = truncate(str(record.query) || str(record.url), 100);
+      break;
+    default: {
+      const values = Object.entries(record)
+        .filter(([, value]) => typeof value === "string" || typeof value === "number")
+        .slice(0, 2)
+        .map(([, value]) => String(value));
+      summary = truncate(values.join(" · "), 100);
+    }
+  }
+  return { label: toolLabel(key), summary, mono };
+}
+
+function toolLabel(key: string): string {
+  const labels: Record<string, string> = {
+    tree_wait: "Wait",
+    tree_list: "Tree",
+    tree_message: "Message",
+    tree_create_thread: "New thread",
+    tree_create_node: "New node",
+    tree_report: "Report",
+    tree_ask_parent: "Ask parent",
+    tree_reply: "Reply",
+    tree_cancel: "Cancel",
+    tree_resolve_thread: "Resolve",
+    tree_git: "Git",
+    tree_memory_write: "Remember",
+    tree_memory_read: "Recall",
+    tree_set_title: "Title",
+    tree_create_environment: "New environment",
+    tree_update_environment: "Update environment",
+    tree_assign_environment: "Assign environment",
+    tree_list_environments: "Environments",
+    tree_test_environment: "Test environment",
+    bash: "Shell",
+    read: "Read",
+    edit: "Edit",
+    write: "Write",
+    grep: "Search",
+    glob: "Find files",
+    ast_grep: "Search code",
+    ast_edit: "Edit code",
+    task: "Subagent",
+    web_search: "Web search",
+    web_fetch: "Fetch",
+    ask: "Ask",
+    todo: "Plan",
+    goal: "Goal",
+    python: "Python",
+    eval: "Eval",
+    notebook: "Notebook",
+    github: "GitHub",
+  };
+  return labels[key] ?? key.replace(/^mcp__/, "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function EnvelopeCard({
@@ -287,27 +463,15 @@ function parseEnvelope(message: ChatMessage): { header: Record<string, string>; 
 
 function toolIcon(name: string) {
   const value = name.toLowerCase();
-  if (value.includes("bash") || value.includes("terminal")) return <Terminal size={14} />;
-  if (value.includes("edit") || value.includes("write")) return <FileEdit size={14} />;
-  if (value.includes("read")) return <FileText size={14} />;
-  if (value.includes("grep") || value.includes("glob") || value.includes("find")) return <Search size={14} />;
-  if (value.includes("web")) return <Globe size={14} />;
-  if (value.includes("todo")) return <ListChecks size={14} />;
-  return <Wrench size={14} />;
-}
-
-function summarizeArgs(args: unknown): string {
-  if (args == null) return "";
-  if (typeof args === "string") return args;
-  try {
-    if (typeof args === "object") {
-      const record = args as Record<string, unknown>;
-      for (const key of ["path", "file_path", "filePath", "command", "query", "pattern", "description"]) {
-        if (typeof record[key] === "string") return `${key}: ${record[key]}`;
-      }
-    }
-    return JSON.stringify(args);
-  } catch {
-    return String(args);
-  }
+  if (value.startsWith("tree_") && value.includes("wait")) return <Clock size={13} />;
+  if (value.startsWith("tree_") && (value.includes("message") || value.includes("report") || value.includes("reply") || value.includes("ask"))) return <MessageSquare size={13} />;
+  if (value.startsWith("tree_")) return <GitBranch size={13} />;
+  if (value.includes("bash") || value.includes("terminal")) return <Terminal size={13} />;
+  if (value.includes("edit") || value.includes("write")) return <FileEdit size={13} />;
+  if (value.includes("read")) return <FileText size={13} />;
+  if (value.includes("grep") || value.includes("glob") || value.includes("find")) return <Search size={13} />;
+  if (value.includes("web")) return <Globe size={13} />;
+  if (value.includes("todo") || value.includes("plan")) return <ListChecks size={13} />;
+  if (value.includes("task") || value.includes("agent")) return <Bot size={13} />;
+  return <Wrench size={13} />;
 }

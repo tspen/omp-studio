@@ -696,6 +696,7 @@ export interface OmpStudioApi {
   compactThread(id: string): Promise<void>;
   setThreadModel(id: string, selector: string): Promise<Thread>;
   setThreadEffort(id: string, effort: string): Promise<Thread>;
+  focusThread(id: string | null): Promise<void>;
   forkThread(id: string, entryId?: string): Promise<Thread>;
   branchThread(id: string, entryId: string): Promise<Thread>;
   navigateThread(id: string, entryId: string, summarize?: boolean): Promise<void>;

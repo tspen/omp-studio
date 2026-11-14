@@ -569,17 +569,18 @@ export class Store {
   }
 
   appendChat(message: ChatMessage): ChatMessage {
-    const list = this.getChat(message.threadId);
-    const existing = list.findIndex((m) => m.id === message.id);
+    const compact = compactChatMessage(message);
+    const list = this.getChat(compact.threadId);
+    const existing = list.findIndex((m) => m.id === compact.id);
     if (existing >= 0) {
-      list[existing] = message;
+      list[existing] = compact;
       // Live streaming updates only live in memory; persist the first sighting
       // and the final message, not every throttled token batch.
-      if (!message.stopReason && !message.usage) return message;
-    } else list.push(message);
-    if (list.length > 1200) list.splice(0, list.length - 1200);
-    appendFileSync(this.transcriptPath(message.threadId), `${JSON.stringify(message)}\n`, "utf8");
-    return message;
+      if (!compact.stopReason && !compact.usage) return compact;
+    } else list.push(compact);
+    if (list.length > 500) list.splice(0, list.length - 500);
+    appendFileSync(this.transcriptPath(compact.threadId), `${JSON.stringify(compact)}\n`, "utf8");
+    return compact;
   }
 
   getChat(threadId: string): ChatMessage[] {
@@ -605,7 +606,7 @@ export class Store {
       }
     }
     const list = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
-    if (list.length > 1200) list.splice(0, list.length - 1200);
+    if (list.length > 500) list.splice(0, list.length - 500);
     // Transcripts used to append every streaming update. Compact bloated files
     // once, on first read, so startup stays fast.
     if (existsSync(path)) {
@@ -614,7 +615,13 @@ export class Store {
         writeFileSync(path, list.map((message) => JSON.stringify(message)).join("\n") + (list.length ? "\n" : ""), "utf8");
       }
     }
+    this.chats.delete(threadId);
     this.chats.set(threadId, list);
+    while (this.chats.size > 3) {
+      const oldest = this.chats.keys().next().value as string | undefined;
+      if (!oldest || oldest === threadId) break;
+      this.chats.delete(oldest);
+    }
     return list;
   }
 
@@ -711,6 +718,16 @@ function deepMerge<T>(base: T, patch: Partial<T>): T {
     }
   }
   return out as T;
+}
+
+function compactChatMessage(message: ChatMessage): ChatMessage {
+  const blocks = message.blocks.map((block) => {
+    if (block.type === "thinking" && block.text.length > 30_000) return { ...block, text: block.text.slice(0, 30_000) };
+    if (block.type === "text" && block.text.length > 100_000) return { ...block, text: block.text.slice(0, 100_000) };
+    if (block.type === "tool" && block.result && block.result.length > 60_000) return { ...block, result: block.result.slice(0, 60_000) };
+    return block;
+  });
+  return { ...message, blocks };
 }
 
 export function newId(prefix: string): string {

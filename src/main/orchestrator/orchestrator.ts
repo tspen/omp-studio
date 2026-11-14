@@ -68,6 +68,7 @@ export class Orchestrator extends EventEmitter {
   private gitTimers = new Map<string, NodeJS.Timeout>();
   private autoContinueTimers = new Map<string, NodeJS.Timeout>();
   private retitleState = new Map<string, { turns: number; lastAt: number }>();
+  private focusedThreadId: string | null = null;
   private digestTimer: NodeJS.Timeout | null = null;
   private parkingTimer: NodeJS.Timeout | null = null;
   private bus: MessageBus;
@@ -452,7 +453,7 @@ export class Orchestrator extends EventEmitter {
     );
     const claimed = new Map<string, string>();
     for (const running of active) for (const key of this.conflictKeys(running)) claimed.set(key, running.title);
-    const slots = Math.max(1, this.store.settings.maxConcurrentThreads - active.length);
+    const slots = Math.min(3, Math.max(1, this.store.settings.maxConcurrentThreads - active.length));
     const resumable = this.resumableThreads(node.id);
     const resumed: Thread[] = [];
     const paused: Array<{ thread: Thread; reason: string }> = [];
@@ -465,7 +466,7 @@ export class Orchestrator extends EventEmitter {
         continue;
       }
       if (resumed.length >= slots) {
-        const reason = `Paused: concurrency limit (${slots} slot${slots === 1 ? "" : "s"} free)`;
+        const reason = `Paused: resume batch limit (${slots} started this pass)`;
         await this.pauseThread(worker, reason);
         paused.push({ thread: worker, reason });
         continue;
@@ -553,6 +554,7 @@ export class Orchestrator extends EventEmitter {
   async sendUserMessage(request: SendMessageRequest): Promise<void> {
     const thread = this.store.getThread(request.threadId);
     if (!thread) throw new Error("Thread not found");
+    this.focusedThreadId = thread.id;
     if (thread.interrupted) {
       this.store.updateThread(thread.id, { interrupted: false, interruptedAt: undefined });
       this.deps.emit({ type: "thread:updated", payload: this.store.getThread(thread.id)! });
@@ -929,6 +931,10 @@ export class Orchestrator extends EventEmitter {
     }
   }
 
+  setFocusedThread(threadId: string | null): void {
+    this.focusedThreadId = threadId;
+  }
+
   async deleteThread(id: string): Promise<void> {
     await this.disposeSession(id).catch(() => undefined);
     this.store.removeThread(id);
@@ -1243,25 +1249,28 @@ export class Orchestrator extends EventEmitter {
     }
     this.store.appendChat(message);
     const thread = this.store.getThread(message.threadId);
-    if (thread) {
-      const patch: Partial<Thread> = {
-        lastActivityAt: Date.now(),
-        lastMessage: textOf(message).slice(0, 240),
-      };
-      if (message.usage) {
-        patch.tokens = thread.tokens + message.usage.totalTokens;
-        patch.cost = thread.cost + this.estimateCost(thread, message.usage);
-      }
-      const updated = this.store.updateThread(thread.id, patch);
-      this.deps.emit({ type: "thread:message", payload: message });
-      this.deps.emit({ type: "thread:updated", payload: updated });
-      if (message.usage) this.recomputeUsage();
-      if (message.role === "assistant" && textOf(message) && (message.stopReason || message.usage)) {
-        this.deps.naming.autoName(thread.id, textOf(message));
-        this.maybeRetitle(thread);
-      }
-    } else {
-      this.deps.emit({ type: "thread:message", payload: message });
+    if (!thread) {
+      if (this.focusedThreadId === message.threadId) this.deps.emit({ type: "thread:message", payload: message });
+      return;
+    }
+    const final = !!message.stopReason || !!message.usage;
+    const visible = this.focusedThreadId === thread.id || final || message.role === "user";
+    if (!visible) return;
+    const patch: Partial<Thread> = {
+      lastActivityAt: Date.now(),
+      lastMessage: textOf(message).slice(0, 240),
+    };
+    if (message.usage) {
+      patch.tokens = thread.tokens + message.usage.totalTokens;
+      patch.cost = thread.cost + this.estimateCost(thread, message.usage);
+    }
+    const updated = this.store.updateThread(thread.id, patch);
+    this.deps.emit({ type: "thread:message", payload: message });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+    if (message.usage) this.recomputeUsage();
+    if (message.role === "assistant" && textOf(message) && final) {
+      this.deps.naming.autoName(thread.id, textOf(message));
+      this.maybeRetitle(thread);
     }
   }
 
