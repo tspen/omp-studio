@@ -19,6 +19,7 @@ const api: OmpStudioApi = {
   stopThread: (id) => invoke("thread:stop", id) as Promise<any>,
   restartThread: (id) => invoke("thread:restart", id) as Promise<any>,
   continueThread: (id) => invoke("thread:continue", id) as Promise<any>,
+  compactThread: (id) => invoke("thread:compact", id) as Promise<any>,
   setThreadModel: (id, selector) => invoke("thread:set-model", id, selector) as Promise<any>,
   setThreadEffort: (id, effort) => invoke("thread:set-effort", id, effort) as Promise<any>,
   forkThread: (id, entryId) => invoke("thread:fork", id, entryId) as Promise<any>,

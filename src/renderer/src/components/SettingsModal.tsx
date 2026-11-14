@@ -205,6 +205,9 @@ function GeneralTab() {
         <Row label="Max concurrent OMP sessions" hint="Idle sessions are parked to stay under this cap.">
           <input className="num-input" type="number" min={1} max={32} value={settings.maxConcurrentThreads} onChange={(event) => update({ maxConcurrentThreads: Number(event.target.value) })} />
         </Row>
+        <Row label="Auto-compact context" hint="OMP summarizes older history as the context window fills, including mid-turn. Applies to running sessions immediately.">
+          <Toggle checked={settings.contextCompaction !== false} onChange={(value) => update({ contextCompaction: value })} />
+        </Row>
         <Row label="Advisor runtime" hint="Passively reviews each turn and injects notes. More tokens, more scrutiny.">
           <Toggle checked={settings.advisor} onChange={(value) => update({ advisor: value })} />
         </Row>

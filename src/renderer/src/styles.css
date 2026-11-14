@@ -852,3 +852,4 @@ textarea { resize: vertical; line-height: 1.45; }
 .fatal-screen p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
 .fatal-screen pre { max-height: 320px; overflow: auto; font-size: 10.5px; background: var(--bg-2); padding: 10px; border-radius: 8px; white-space: pre-wrap; }
 .fatal-screen button { margin-top: 12px; border: 1px solid var(--line); background: var(--accent); color: #fff; border-radius: 7px; padding: 7px 12px; font-size: 12px; }
+.compaction-inline { color: var(--accent); font-weight: 600; }

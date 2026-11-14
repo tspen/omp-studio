@@ -16,6 +16,7 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 - **Notifications**: Windows toasts, tray badge, in-app inbox, per-node mute.
 - **Permissions where you work**: tool approval is chosen in the chat toolbar (YOLO, auto-approve writes, ask always) and defaults to YOLO. Switching to YOLO resolves any pending approval immediately and future tool calls skip the prompt, even in sessions that started under a stricter policy.
 - **Interrupted work resumes**: if the app closes mid-turn, affected threads load as interrupted with a Continue banner. Continue reopens the OMP session and tells the model to inspect the workspace, finish the unfinished work and verify it.
+- **Context management**: OMP auto-compacts history by default when the window fills, including mid-turn. The app applies the auto-compact setting to live sessions, shows a compacting indicator and offers a manual **Compact now** action in the chat header. Thresholds and method order remain OMP config values.
 - **Thread history**: Fork from an entry or rewind the leaf; goal mode; live read-only share over a local token URL. Worker titles refresh every few turns using the cheap naming model, throttled so titles never dominate spend.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 

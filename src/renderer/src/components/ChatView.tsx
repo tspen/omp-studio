@@ -8,6 +8,7 @@ import {
   FolderGit2,
   GitBranch,
   MessageSquarePlus,
+  Minimize2,
   PanelRightClose,
   PanelRightOpen,
   Plus,
@@ -158,6 +159,7 @@ function ThreadHeader({
           <span>{thread.kind === "orchestrator" ? node.type : thread.kind}</span>
           <span>{thread.model.name ?? thread.model.selector}</span>
           <span>{thread.effort} effort</span>
+          {/compact/i.test(thread.statusMessage ?? "") ? <span className="compaction-inline">{thread.statusMessage}</span> : null}
           <span className={node.approvalMode === "yolo" ? "approval-inline danger" : "approval-inline"}>
             {node.approvalMode === "yolo" ? "auto-approve all" : node.approvalMode === "write" ? "auto-approve writes" : "ask each time"}
           </span>
@@ -176,6 +178,17 @@ function ThreadHeader({
           <Plus size={14} /> Thread
         </Button>
         <IconButton icon={<Target size={15} />} label="Goal mode" onClick={() => state.setOverlay("goal")} />
+        <IconButton icon={<Minimize2 size={15} />} label="Compact context now" onClick={async () => {
+          if (thread.status === "running" && !confirm("Manual compaction aborts the current turn. Continue?")) return;
+          state.pushToast({ kind: "info", title: "Compacting context", body: "OMP is summarizing older history." });
+          try {
+            await window.omp.compactThread(thread.id);
+            state.pushToast({ kind: "success", title: "Context compacted" });
+            await state.refresh();
+          } catch (error) {
+            state.pushToast({ kind: "error", title: "Compaction failed", body: String(error) });
+          }
+        }} />
         <IconButton icon={<History size={15} />} label="History, fork and rewind" onClick={() => state.setOverlay("history")} />
         <IconButton icon={<Share2 size={15} />} label="Share this thread" onClick={() => void state.shareThread()} />
         {thread.kind !== "orchestrator" ? (

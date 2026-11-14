@@ -50,6 +50,7 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("thread:stop", (_event, id: string) => orchestrator.stopThread(id));
   ipcMain.handle("thread:restart", (_event, id: string) => orchestrator.restartThread(id));
   ipcMain.handle("thread:continue", (_event, id: string) => orchestrator.continueThread(id));
+  ipcMain.handle("thread:compact", (_event, id: string) => orchestrator.compactThread(id));
   ipcMain.handle("thread:set-model", (_event, id: string, selector: string) => orchestrator.setThreadModel(id, selector));
   ipcMain.handle("thread:set-effort", (_event, id: string, effort: string) => orchestrator.setThreadEffort(id, effort));
   ipcMain.handle("thread:fork", (_event, id: string, entryId?: string) => orchestrator.forkThread(id, entryId));
@@ -104,9 +105,12 @@ export function registerIpc(context: IpcContext): void {
   );
   ipcMain.handle("git:discard", (_event, nodeId: string, threadId: string) => orchestrator.gitDiscard(nodeId, threadId));
 
-  ipcMain.handle("settings:update", (_event, patch: SettingsPatch) => {
+  ipcMain.handle("settings:update", async (_event, patch: SettingsPatch) => {
     const updated = store.setSettings(patch.settings ?? {});
     if (patch.settings?.models) models.ensureDefaults();
+    if (patch.settings?.contextCompaction !== undefined) {
+      await orchestrator.setContextCompaction(!!patch.settings.contextCompaction);
+    }
     broadcast({ type: "snapshot", payload: orchestrator.snapshot() });
     return updated;
   });

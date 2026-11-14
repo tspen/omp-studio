@@ -439,6 +439,15 @@ export class Orchestrator extends EventEmitter {
     });
   }
 
+  async setContextCompaction(enabled: boolean): Promise<void> {
+    await Promise.all([...this.sessions.values()].map((session) => session.setAutoCompaction(enabled).catch(() => undefined)));
+  }
+
+  async compactThread(threadId: string): Promise<void> {
+    const session = await this.ensureSession(threadId);
+    await session.compact();
+  }
+
   async sendUserMessage(request: SendMessageRequest): Promise<void> {
     const thread = this.store.getThread(request.threadId);
     if (!thread) throw new Error("Thread not found");
@@ -1034,6 +1043,12 @@ export class Orchestrator extends EventEmitter {
     });
     session.on("prompt_result", (result: any) => this.handlePromptResult(threadId, result));
     session.on("agent_end", () => this.refreshGit(threadId));
+    session.on("compaction", (info: any) => {
+      this.deps.emit({
+        type: "thread:event",
+        payload: { id: newId("evt"), threadId, type: "compaction", timestamp: Date.now(), payload: info },
+      });
+    });
     session.on("title", (title: string) => {
       const current = this.store.getThread(threadId);
       if (current && current.titleAuto) {

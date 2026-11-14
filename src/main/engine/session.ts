@@ -153,6 +153,9 @@ export class OmpSession extends EventEmitter {
     if (process.argv.includes("--integration-test")) console.log("HOST_TOOLS", JSON.stringify(hostTools));
     await this.client.request("set_subagent_subscription", { level: "events" }).catch(() => undefined);
     await this.client.request("set_ask_dialog", { enabled: true }).catch(() => undefined);
+    await this.client
+      .request("set_auto_compaction", { enabled: this.store.settings.contextCompaction !== false })
+      .catch(() => undefined);
 
     const state = await this.client.request("get_state").catch(() => null);
     if (state) this.applyState(state);
@@ -192,6 +195,16 @@ export class OmpSession extends EventEmitter {
   async setThinking(level: string): Promise<any> {
     await this.ensureStarted();
     return this.client!.request("set_thinking_level", { level }, 30_000);
+  }
+
+  async setAutoCompaction(enabled: boolean): Promise<any> {
+    await this.ensureStarted();
+    return this.client!.request("set_auto_compaction", { enabled }, 30_000);
+  }
+
+  async compact(customInstructions?: string): Promise<any> {
+    await this.ensureStarted();
+    return this.client!.request("compact", customInstructions ? { customInstructions } : {}, 600_000);
   }
 
   async getState(): Promise<any> {
@@ -355,6 +368,17 @@ export class OmpSession extends EventEmitter {
     }
     if (type === "agent_end") {
       this.handleAgentEnd(frame);
+      return;
+    }
+    if (type === "auto_compaction_start" || type === "manual_compaction_start") {
+      const manual = type === "manual_compaction_start";
+      this.options.onStatus("running", manual ? "Compacting context…" : "Auto-compacting context…");
+      this.emit("compaction", { phase: "start", manual, ...frame });
+      return;
+    }
+    if (type === "auto_compaction_end" || type === "manual_compaction_end") {
+      this.emit("compaction", { phase: "end", manual: type === "manual_compaction_end", ...frame });
+      if (!frame.aborted) this.options.onStatus(type === "manual_compaction_end" ? "idle" : "running", type === "manual_compaction_end" ? "Compacted" : "Working…");
       return;
     }
     if (type === "turn_end") {
