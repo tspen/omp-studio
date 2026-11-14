@@ -26,12 +26,31 @@ export class NamingService {
   heuristicTitle(text: string, fallback = "New thread"): string {
     const cleaned = text
       .replace(/```[\s\S]*?```/g, " ")
+      .replace(/^\s{0,3}#{1,6}\s*/gm, " ")
       .replace(/[#*_>`]/g, " ")
       .replace(/\s+/g, " ")
+      .trim()
+      .replace(/…+$/g, "")
+      .replace(/^(objective|goal|task|brief|mission|assignment)\b[\s:–—-]*/i, "")
+      .replace(/^you are\b[^.]*\.\s*/i, "")
       .trim();
     if (!cleaned) return fallback;
-    const words = cleaned.split(" ").slice(0, 9).join(" ");
-    const clipped = words.length > 54 ? `${words.slice(0, 51).trim()}…` : words;
+    const sentence = cleaned.split(/[.;!?](?:\s|$)/)[0] ?? cleaned;
+    const filler = new Set(["the", "a", "an", "signature", "comprehensive", "complete", "robust", "full", "pure", "modern", "entire", "whole", "new"]);
+    const tokens = sentence
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((word, index) => index === 0 || !filler.has(word.toLowerCase().replace(/[^a-z0-9-]/g, "")))
+      .filter((word) => !/[\\/]/.test(word));
+    while (tokens.length > 1 && ["for", "in", "on", "with", "to", "of", "and", "the"].includes(tokens[tokens.length - 1].toLowerCase())) {
+      tokens.pop();
+    }
+    const forIndex = tokens.findIndex((word, index) => index >= 2 && word.toLowerCase() === "for");
+    if (forIndex > 0 && tokens.slice(forIndex + 1).some((word) => /^[A-Z0-9"“]/.test(word))) {
+      tokens.length = forIndex;
+    }
+    const words = tokens.slice(0, 7).join(" ");
+    const clipped = words.length > 52 ? words.slice(0, 52).trim() : words;
     return titleCase(clipped) || fallback;
   }
 
@@ -63,6 +82,28 @@ export class NamingService {
 
   suggestNodeName(text: string, fallback = "New project"): string {
     return this.heuristicTitle(text, fallback);
+  }
+
+  /** Give a freshly spawned worker a short model-written title from its brief. */
+  nameWorker(threadId: string, brief: string): void {
+    if (!this.store.settings.autoName) return;
+    const thread = this.store.getThread(threadId);
+    if (!thread?.titleAuto || thread.kind !== "worker") return;
+    const model = this.store.settings.models.naming;
+    if (!model) return;
+    this.enqueue(async () => {
+      const result = await this.ask(
+        model,
+        "You name coding work items in a task board. Return only a 3-6 word title, title case, no quotes, no trailing punctuation, maximum 48 characters. Describe the deliverable, never start with Objective, Task or Goal.",
+        `Name this work:\n\n${brief.slice(0, 2500)}`,
+      );
+      const title = sanitizeTitle(result);
+      const current = this.store.getThread(threadId);
+      if (title && current?.titleAuto && current.kind === "worker") {
+        this.store.updateThread(threadId, { title, titleAuto: true });
+        this.onUpdate?.(threadId, title);
+      }
+    });
   }
 
   autoNameNode(nodeId: string, text: string): void {

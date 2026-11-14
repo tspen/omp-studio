@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Archive,
   Boxes,
@@ -27,6 +27,18 @@ import { Badge, Button, IconButton, StatusDot, cx, formatCost, formatNumber, sta
 export function Sidebar() {
   const state = useApp();
   const snapshot = state.snapshot;
+  const [menu, setMenu] = useState<{ threadId: string; x: number; y: number } | null>(null);
+  const [showResolved, setShowResolved] = useState(false);
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("contextmenu", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("contextmenu", close);
+    };
+  }, [menu]);
   const nodes = snapshot?.nodes ?? [];
   const threads = snapshot?.threads ?? [];
   const node = selectedNode(state);
@@ -87,6 +99,7 @@ export function Sidebar() {
         <div className="sidebar-label">
           <span>Tree</span>
           <div className="sidebar-label-actions">
+            <button type="button" className={cx("resolved-toggle", showResolved && "on")} title={showResolved ? "Hide resolved threads" : "Show resolved threads"} onClick={() => setShowResolved((value) => !value)}><Archive size={13} /></button>
             <IconButton icon={<Plus size={13} />} label="New group" onClick={() => state.setOverlay("new-node")} />
             <IconButton icon={<MoreHorizontal size={14} />} label="Settings" onClick={() => state.setSettingsTab("general")} />
           </div>
@@ -100,10 +113,12 @@ export function Sidebar() {
               threads={threads}
               selectedId={state.selectedNodeId}
               selectedThreadId={state.selectedThreadId}
+              showResolved={showResolved}
               expanded={expanded}
               onToggle={toggle}
               onSelect={(id) => void state.selectNode(id)}
               onSelectThread={(threadId, nodeId) => void state.selectThread(threadId, nodeId)}
+              onThreadMenu={(threadId, x, y) => setMenu({ threadId, x, y })}
               onNewNode={() => state.setOverlay("new-node")}
               onNewThread={() => state.setOverlay("new-thread")}
             />
@@ -135,6 +150,52 @@ export function Sidebar() {
           </div>
         ) : null}
       </div>
+
+      {menu ? (() => {
+        const target = snapshot?.threads.find((item) => item.id === menu.threadId);
+        if (!target) return null;
+        return (
+          <div className="thread-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" onClick={() => { setMenu(null); void state.selectThread(target.id, target.nodeId); }}>Open thread</button>
+            {target.archived ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  setMenu(null);
+                  try {
+                    await window.omp.updateThread(target.id, { archived: false, status: "idle", statusMessage: "Reopened" });
+                    await state.refresh();
+                    state.pushToast({ kind: "info", title: "Thread reopened", body: target.title });
+                  } catch (error) {
+                    state.pushToast({ kind: "error", title: "Could not reopen thread", body: String(error) });
+                  }
+                }}
+              >
+                Reopen
+              </button>
+            ) : (
+              <button type="button" onClick={() => { setMenu(null); void state.resolveThread(target.id); }}>Resolve</button>
+            )}
+            <button
+              type="button"
+              className="danger"
+              onClick={async () => {
+                setMenu(null);
+                if (!confirm(`Delete thread "${target.title}"? Its branch and files stay on disk.`)) return;
+                try {
+                  await window.omp.deleteThread(target.id);
+                  await state.refresh();
+                  state.pushToast({ kind: "info", title: "Thread deleted", body: target.title });
+                } catch (error) {
+                  state.pushToast({ kind: "error", title: "Could not delete thread", body: String(error) });
+                }
+              }}
+            >
+              Delete thread
+            </button>
+          </div>
+        );
+      })() : null}
     </aside>
   );
 }
@@ -168,10 +229,12 @@ function TreeRow({
   threads,
   selectedId,
   selectedThreadId,
+  showResolved,
   expanded,
   onToggle,
   onSelect,
   onSelectThread,
+  onThreadMenu,
   onNewNode,
   onNewThread,
 }: {
@@ -181,10 +244,12 @@ function TreeRow({
   threads: Thread[];
   selectedId: string | null;
   selectedThreadId: string | null;
+  showResolved: boolean;
   expanded: Record<string, boolean>;
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
   onSelectThread: (threadId: string, nodeId: string) => void;
+  onThreadMenu: (threadId: string, x: number, y: number) => void;
   onNewNode: () => void;
   onNewThread: () => void;
 }) {
@@ -194,12 +259,8 @@ function TreeRow({
   const running = threads.filter((thread) => thread.nodeId === node.id && thread.status === "running").length;
   const isSelected = selectedId === node.id;
   const childThreads = threads
-    .filter((thread) => thread.nodeId === node.id && thread.kind !== "orchestrator" && !thread.archived)
-    .sort((a, b) => {
-      const rank = (value: Thread) => (value.status === "running" ? 0 : value.status === "waiting" || value.pendingApproval ? 1 : value.status === "error" ? 2 : value.status === "starting" || value.status === "queued" ? 3 : 4);
-      return rank(a) - rank(b) || b.lastActivityAt - a.lastActivityAt;
-    })
-    .slice(0, 10);
+    .filter((thread) => thread.nodeId === node.id && thread.kind !== "orchestrator" && (showResolved || !thread.archived))
+    .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0) || a.id.localeCompare(b.id));
   return (
     <div>
       <div className={cx("tree-row", isSelected && "active")} style={{ paddingLeft: 8 + depth * 14 }} onClick={() => onSelect(node.id)}>
@@ -229,10 +290,16 @@ function TreeRow({
         <button
           key={thread.id}
           type="button"
-          className={cx("tree-thread", thread.id === selectedThreadId && "active")}
+          className={cx("tree-thread", thread.id === selectedThreadId && "active", thread.archived && "resolved")}
+          data-thread-id={thread.id}
           style={{ paddingLeft: 20 + (depth + 1) * 14 }}
           title={`${thread.title} · ${thread.status}${thread.git?.branch ? ` · ${thread.git.branch}` : ""}`}
           onClick={(event) => { event.stopPropagation(); onSelectThread(thread.id, node.id); }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onThreadMenu(thread.id, event.clientX, event.clientY);
+          }}
         >
           <StatusDot status={thread.status} pulse={thread.status === "running" || thread.status === "starting"} />
           <span className="tree-thread-name">{thread.title}</span>
@@ -249,10 +316,12 @@ function TreeRow({
           threads={threads}
           selectedId={selectedId}
           selectedThreadId={selectedThreadId}
+          showResolved={showResolved}
           expanded={expanded}
           onToggle={onToggle}
           onSelect={onSelect}
           onSelectThread={onSelectThread}
+          onThreadMenu={onThreadMenu}
           onNewNode={onNewNode}
           onNewThread={onNewThread}
         />

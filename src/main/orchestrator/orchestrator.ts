@@ -94,6 +94,7 @@ export class Orchestrator extends EventEmitter {
   async init(): Promise<void> {
     this.ensureRoot();
     for (const node of this.store.nodes) this.ensureNodeThread(node);
+    this.retitleLegacyWorkers();
     this.recomputeUsage();
     this.startDigestTimer();
     this.parkingTimer = setInterval(() => void this.parkIdleSessions(), 60_000);
@@ -407,6 +408,7 @@ export class Orchestrator extends EventEmitter {
     thread.git = worktreePath ? { ...(await this.deps.git.status(worktreePath)), worktreePath, baseBranch, isolation: isolationUsed } : undefined;
     this.store.addThread(thread);
     this.deps.emit({ type: "thread:updated", payload: thread });
+    this.deps.naming.nameWorker(thread.id, input.brief);
 
     const trace = this.bus.createTrace({
       title,
@@ -833,6 +835,46 @@ export class Orchestrator extends EventEmitter {
     this.deps.emit({ type: "thread:removed", payload: { id } });
   }
 
+  /**
+   * Close a finished worker from the tree: archive it and send a result to its
+   * parent so the orchestrator sees it as done, not silently disappeared.
+   */
+  async resolveThread(id: string, note?: string): Promise<Thread> {
+    const thread = this.store.getThread(id);
+    if (!thread) throw new Error("Thread not found");
+    if (thread.kind === "orchestrator") throw new Error("Resolve the node instead; orchestrator threads are owned by their node");
+    const parent = thread.parentThreadId ? this.store.getThread(thread.parentThreadId) : undefined;
+    const updated = this.store.updateThread(id, {
+      archived: true,
+      status: "completed",
+      statusMessage: note || "Resolved by user",
+      pendingApproval: undefined,
+    });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+    if (parent) {
+      const body = [
+        "Resolved by the user from the tree.",
+        `Thread: ${thread.title} (${thread.kind})`,
+        `Status: ${thread.status} -> completed`,
+        `Model: ${thread.model.name ?? thread.model.selector}; effort: ${thread.effort}`,
+        `Usage: ${thread.tokens.toLocaleString()} tokens`,
+        thread.git?.branch ? `Git: branch ${thread.git.branch}; ${thread.git.files.length} changed file(s)` : "",
+        note ? `Note: ${note}` : "",
+      ].filter(Boolean).join("\n");
+      await this.bus.send({
+        fromThreadId: thread.id,
+        toThreadId: parent.id,
+        kind: "result",
+        subject: `${thread.title} — resolved`,
+        body,
+        priority: "normal",
+        traceId: thread.traceId,
+      });
+    }
+    await this.disposeSession(id).catch(() => undefined);
+    return updated;
+  }
+
   async updateNode(id: string, patch: Partial<TreeNode>): Promise<TreeNode> {
     const existing = this.store.getNode(id);
     if (!existing) throw new Error(`Node not found: ${id}`);
@@ -1128,6 +1170,20 @@ export class Orchestrator extends EventEmitter {
    * assistant turns, ask the cheap naming model for a better title. Throttled
    * so a chatty thread cannot burn tokens on titles.
    */
+  /**
+   * Old worker threads were titled with the raw brief ("Objective ...").
+   * Compact those once on load without spending model tokens.
+   */
+  private retitleLegacyWorkers(): void {
+    for (const thread of this.store.threads) {
+      if (thread.kind !== "worker" || !thread.titleAuto) continue;
+      if (!/^(objective|goal|task|brief|mission|assignment)\b/i.test(thread.title)) continue;
+      const trace = thread.traceId ? this.store.data.traces.find((item) => item.id === thread.traceId) : undefined;
+      const title = this.deps.naming.suggestTitle(trace?.prompt || thread.title, thread.title);
+      if (title && title !== thread.title) this.store.updateThread(thread.id, { title });
+    }
+  }
+
   private maybeRetitle(thread: Thread): void {
     if (!thread.titleAuto || thread.kind !== "worker") return;
     const state = this.retitleState.get(thread.id) ?? { turns: 0, lastAt: 0 };
@@ -1591,6 +1647,17 @@ export class Orchestrator extends EventEmitter {
             deliver: false,
           });
           return textResult(`Cancelled ${target.title}.`);
+        }
+        case "tree_resolve_thread": {
+          if (context.thread.kind !== "orchestrator") throw new Error("Only orchestrators can resolve threads");
+          const threadId = String(context.args.threadId ?? "");
+          const target = this.store.getThread(threadId);
+          if (!target) throw new Error("Thread not found");
+          if (target.kind === "orchestrator") throw new Error("Resolve the node instead; orchestrator threads are owned by their node");
+          if (target.parentThreadId !== context.thread.id) throw new Error("You can only resolve your direct child threads");
+          if (["running", "starting"].includes(target.status)) throw new Error("Stop the thread before resolving it");
+          const resolved = await this.resolveThread(threadId, context.args.note ? String(context.args.note) : undefined);
+          return textResult(`Resolved and archived "${resolved.title}".`);
         }
         case "tree_git":
           return this.handleGitTool(context);

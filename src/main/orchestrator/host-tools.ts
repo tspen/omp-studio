@@ -147,6 +147,20 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     parameters: object({ threadId: { type: "string" }, reason: { type: "string" } }, ["threadId"]),
   },
   {
+    name: "tree_resolve_thread",
+    label: "Tree: resolve thread",
+    description:
+      "Resolve (archive) one of your direct child threads once its work is finished, accepted or abandoned. Sends a result to you and hides it from the live tree. Use this to keep your thread list tidy; never resolve work that is still running.",
+    parameters: object(
+      {
+        threadId: { type: "string" },
+        note: { type: "string", description: "Optional outcome note for the result message." },
+      },
+      ["threadId"],
+    ),
+    loadMode: "essential",
+  },
+  {
     name: "tree_git",
     label: "Tree: git",
     description:

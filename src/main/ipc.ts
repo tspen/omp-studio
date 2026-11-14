@@ -46,6 +46,7 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("thread:create", (_event, req: NewThreadRequest) => orchestrator.createThread(req));
   ipcMain.handle("thread:update", (_event, id: string, patch) => orchestrator.updateThread(id, patch));
   ipcMain.handle("thread:delete", (_event, id: string) => orchestrator.deleteThread(id));
+  ipcMain.handle("thread:resolve", (_event, id: string, note?: string) => orchestrator.resolveThread(id, note));
   ipcMain.handle("thread:send", (_event, req: SendMessageRequest) => orchestrator.sendUserMessage(req));
   ipcMain.handle("thread:stop", (_event, id: string) => orchestrator.stopThread(id));
   ipcMain.handle("thread:restart", (_event, id: string) => orchestrator.restartThread(id));

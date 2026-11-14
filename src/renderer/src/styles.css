@@ -870,3 +870,13 @@ textarea { resize: vertical; line-height: 1.45; }
 .tree-thread-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-thread-tokens { font-size: 9px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
 .tree-thread-branch { color: var(--muted-2); flex: 0 0 auto; }
+.thread-menu { position: fixed; z-index: 220; min-width: 184px; padding: 4px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: var(--shadow); }
+.thread-menu button { border: 0; background: transparent; text-align: left; padding: 6px 8px; border-radius: 6px; font-size: 11px; color: var(--text-2); }
+.thread-menu button:hover { background: var(--bg-2); color: var(--text); }
+.thread-menu button.danger { color: var(--red); }
+.thread-menu button.danger:hover { background: var(--red-soft); }
+.resolved-toggle { width: 22px; height: 22px; border: 0; background: transparent; color: var(--muted); border-radius: 5px; display: grid; place-items: center; }
+.resolved-toggle:hover { background: var(--bg-2); color: var(--text); }
+.resolved-toggle.on { background: var(--accent-soft); color: var(--accent); }
+.tree-thread.resolved { opacity: 0.6; }
+.tree-thread.resolved .tree-thread-name { text-decoration: line-through; }

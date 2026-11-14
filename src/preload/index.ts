@@ -15,6 +15,7 @@ const api: OmpStudioApi = {
   createThread: (req) => invoke("thread:create", req) as Promise<any>,
   updateThread: (id, patch) => invoke("thread:update", id, patch) as Promise<any>,
   deleteThread: (id) => invoke("thread:delete", id) as Promise<any>,
+  resolveThread: (id, note) => invoke("thread:resolve", id, note) as Promise<any>,
   send: (req) => invoke("thread:send", req) as Promise<any>,
   stopThread: (id) => invoke("thread:stop", id) as Promise<any>,
   restartThread: (id) => invoke("thread:restart", id) as Promise<any>,

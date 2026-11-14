@@ -47,6 +47,7 @@ const HOST_TOOLS = [
   "tree_reply",
   "tree_wait",
   "tree_cancel",
+  "tree_resolve_thread",
   "tree_git",
   "tree_memory_write",
   "tree_memory_read",

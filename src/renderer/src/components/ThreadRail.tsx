@@ -61,9 +61,10 @@ function ThreadsTab() {
   const threads = nodeThreads(state, node.id);
   const orchestrator = threads.find((thread) => thread.kind === "orchestrator");
   const workers = threads.filter((thread) => thread.kind !== "orchestrator");
-  const active = workers.filter((thread) => ["running", "starting", "waiting", "queued"].includes(thread.status));
-  const idle = workers.filter((thread) => ["idle", "parked", "cancelled"].includes(thread.status));
-  const done = workers.filter((thread) => ["completed", "error"].includes(thread.status));
+  const active = workers.filter((thread) => !thread.archived && ["running", "starting", "waiting", "queued"].includes(thread.status));
+  const idle = workers.filter((thread) => !thread.archived && ["idle", "parked", "cancelled"].includes(thread.status));
+  const done = workers.filter((thread) => !thread.archived && ["completed", "error"].includes(thread.status));
+  const resolved = workers.filter((thread) => thread.archived);
 
   return (
     <div className="threads-tab">
@@ -92,8 +93,15 @@ function ThreadsTab() {
 
       {done.length ? (
         <div className="rail-section">
-          <div className="rail-section-head"><span>Resolved</span><span className="rail-count">{done.length}</span></div>
+          <div className="rail-section-head"><span>Finished</span><span className="rail-count">{done.length}</span></div>
           {done.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
+        </div>
+      ) : null}
+
+      {resolved.length ? (
+        <div className="rail-section">
+          <div className="rail-section-head"><span>Resolved</span><span className="rail-count">{resolved.length}</span></div>
+          {resolved.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
         </div>
       ) : null}
 

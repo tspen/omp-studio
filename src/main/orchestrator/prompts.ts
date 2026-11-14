@@ -53,6 +53,9 @@ export function buildSystemPrompt(input: {
   lines.push(
     "10. Orchestrators orchestrate. Root and group orchestrators never implement and have the coding tools denied. A project orchestrator delegates implementation to worker threads: edit, write and ast_edit are denied in its session. Do not sit in a long coding loop yourself. If code must change, spawn a worker thread.",
   );
+  lines.push(
+    "11. Keep the tree tidy like a todo list. When a worker you own is finished, cancelled or abandoned, call `tree_resolve_thread` to archive it and pass the outcome up. Resolve before you report done. Never resolve a running thread.",
+  );
   lines.push("");
   lines.push("## Messaging commands");
   lines.push("- `tree_list` — inspect the tree and statuses.");
@@ -64,6 +67,7 @@ export function buildSystemPrompt(input: {
   lines.push("- `tree_reply` — answer a message that requires a response.");
   lines.push("- `tree_wait` — wait for child threads instead of polling.");
   lines.push("- `tree_cancel` — cancel a child and explain why.");
+  lines.push("- `tree_resolve_thread` — resolve/archive a finished worker you own and pass its outcome up.");
   lines.push("- `tree_git` - status/diff/commit/merge/PR for a project or worker branch.");
   lines.push("");
   lines.push("Call these tools directly by name. Never wrap them in `eval` or another tool; direct calls are what the user sees in the tree bus.");
@@ -146,6 +150,7 @@ function roleInstructions(role: string): string {
         "- If the user says stop, do nothing, or asks a simple question, reply briefly without calling tools.",
         "- After an app restart, hand resumption to the owning project orchestrator; do not resume coding yourself.",
         "- Keep your own turns short. One short synthesis or one delegation is a complete turn.",
+        "- Resolve your direct worker threads with `tree_resolve_thread` once they are done; project and group orchestrators clean up their own children.",
         "- Maintain root memory: cross-project constraints, user preferences, portfolio-level decisions.",
         "- Every child node must ultimately report upward. If a group is not reporting, query it with `tree_message`.",
       ].join("\n");
@@ -158,7 +163,7 @@ function roleInstructions(role: string): string {
         "- Create project nodes inside this group when new work needs an owner, and move existing projects when the structure no longer matches the work. Create and assign environments shared by the group's projects when that removes repeated setup.",
         "- Aggregate project results into a group-level report. Include cross-project risks, shared decisions and anything the root must know.",
         "- Maintain group memory for shared conventions and cross-project decisions.",
-        "- Keep your own turns short and do not poll the tree.",
+        "- Keep your own turns short and do not poll the tree. Resolve your direct finished workers with `tree_resolve_thread`.",
       ].join("\n");
     case "project":
       return [
@@ -167,6 +172,7 @@ function roleInstructions(role: string): string {
         "- Use `tree_create_thread` for each independent workstream. Prefer isolated worktrees for workers; the host creates the branch.",
         "- Limit your own work to planning, reading diffs, checking status, running verification and merging worker branches. Do not enter long edit, build or debug loops in the orchestrator thread.",
         "- If a worker fails or returns weak work, send a tighter brief or spawn a replacement. Do not take over the implementation.",
+        "- Keep your worker list tidy: resolve workers that are finished or abandoned with `tree_resolve_thread`, so only live work remains in the tree.",
         "- You may create and assign an environment for this project (setup commands, env vars, shell, git isolation) and adjust this project's model or effort when the work needs more or less capability.",
         "- Keep the project's main checkout coherent. Merge worker branches only when their work is complete and verified; report conflicts upward instead of guessing.",
         "- Report concrete outcomes: files changed, tests run, branch/worktree, remaining risk. Report upward to the group/root.",

@@ -74,6 +74,7 @@ interface AppState {
   openPreview(preview: PreviewState): void;
   send(text: string, mode?: "prompt" | "steer" | "followUp"): Promise<void>;
   continueThread(threadId: string): Promise<void>;
+  resolveThread(threadId: string): Promise<void>;
   stop(): Promise<void>;
   createNode(input: any): Promise<void>;
   createThread(input: any): Promise<void>;
@@ -373,6 +374,16 @@ export const useApp = create<AppState>((set, get) => ({
       get().pushToast({ kind: "error", title: "Could not continue thread", body: String(error) });
     } finally {
       set({ sending: false });
+    }
+  },
+
+  async resolveThread(threadId) {
+    try {
+      await api().resolveThread(threadId);
+      await get().refresh();
+      get().pushToast({ kind: "success", title: "Thread resolved", body: "Result sent to its parent orchestrator" });
+    } catch (error) {
+      get().pushToast({ kind: "error", title: "Could not resolve thread", body: String(error) });
     }
   },
 

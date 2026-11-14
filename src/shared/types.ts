@@ -688,6 +688,7 @@ export interface OmpStudioApi {
   createThread(req: NewThreadRequest): Promise<Thread>;
   updateThread(id: string, patch: Partial<Thread>): Promise<Thread>;
   deleteThread(id: string): Promise<void>;
+  resolveThread(id: string, note?: string): Promise<Thread>;
   send(req: SendMessageRequest): Promise<void>;
   stopThread(id: string): Promise<void>;
   restartThread(id: string): Promise<void>;
