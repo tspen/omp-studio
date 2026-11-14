@@ -864,3 +864,9 @@ textarea { resize: vertical; line-height: 1.45; }
 .model-choice-included { font-size: 9.5px; color: var(--green); white-space: nowrap; }
 .model-choice-price { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
 .model-choice > svg { color: var(--muted); flex: 0 0 auto; }
+.tree-thread { display: flex; align-items: center; gap: 6px; width: 100%; height: 24px; padding: 0 8px; border: 0; background: transparent; border-radius: 6px; color: var(--muted); font-size: 11px; text-align: left; }
+.tree-thread:hover { background: var(--bg-2); color: var(--text); }
+.tree-thread.active { background: var(--accent-soft); color: var(--accent-2); }
+.tree-thread-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-thread-tokens { font-size: 9px; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.tree-thread-branch { color: var(--muted-2); flex: 0 0 auto; }

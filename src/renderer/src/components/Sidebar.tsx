@@ -99,9 +99,11 @@ export function Sidebar() {
               nodes={filteredNodes}
               threads={threads}
               selectedId={state.selectedNodeId}
+              selectedThreadId={state.selectedThreadId}
               expanded={expanded}
               onToggle={toggle}
               onSelect={(id) => void state.selectNode(id)}
+              onSelectThread={(threadId, nodeId) => void state.selectThread(threadId, nodeId)}
               onNewNode={() => state.setOverlay("new-node")}
               onNewThread={() => state.setOverlay("new-thread")}
             />
@@ -165,9 +167,11 @@ function TreeRow({
   nodes,
   threads,
   selectedId,
+  selectedThreadId,
   expanded,
   onToggle,
   onSelect,
+  onSelectThread,
   onNewNode,
   onNewThread,
 }: {
@@ -176,9 +180,11 @@ function TreeRow({
   nodes: TreeNode[];
   threads: Thread[];
   selectedId: string | null;
+  selectedThreadId: string | null;
   expanded: Record<string, boolean>;
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
+  onSelectThread: (threadId: string, nodeId: string) => void;
   onNewNode: () => void;
   onNewThread: () => void;
 }) {
@@ -187,18 +193,25 @@ function TreeRow({
   const status = aggregateStatus(threads, node.id);
   const running = threads.filter((thread) => thread.nodeId === node.id && thread.status === "running").length;
   const isSelected = selectedId === node.id;
+  const childThreads = threads
+    .filter((thread) => thread.nodeId === node.id && thread.kind !== "orchestrator" && !thread.archived)
+    .sort((a, b) => {
+      const rank = (value: Thread) => (value.status === "running" ? 0 : value.status === "waiting" || value.pendingApproval ? 1 : value.status === "error" ? 2 : value.status === "starting" || value.status === "queued" ? 3 : 4);
+      return rank(a) - rank(b) || b.lastActivityAt - a.lastActivityAt;
+    })
+    .slice(0, 10);
   return (
     <div>
       <div className={cx("tree-row", isSelected && "active")} style={{ paddingLeft: 8 + depth * 14 }} onClick={() => onSelect(node.id)}>
         <button
           type="button"
-          className={cx("tree-caret", !children.length && "hidden")}
+          className={cx("tree-caret", !children.length && !childThreads.length && "hidden")}
           onClick={(event) => {
             event.stopPropagation();
-            if (children.length) onToggle(node.id);
+            if (children.length || childThreads.length) onToggle(node.id);
           }}
         >
-          {children.length ? isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} /> : null}
+          {children.length || childThreads.length ? isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} /> : null}
         </button>
         <NodeIcon type={node.type} />
         <span className="tree-name">{node.name}</span>
@@ -212,6 +225,21 @@ function TreeRow({
           )}
         </div>
       </div>
+      {isOpen ? childThreads.map((thread) => (
+        <button
+          key={thread.id}
+          type="button"
+          className={cx("tree-thread", thread.id === selectedThreadId && "active")}
+          style={{ paddingLeft: 20 + (depth + 1) * 14 }}
+          title={`${thread.title} · ${thread.status}${thread.git?.branch ? ` · ${thread.git.branch}` : ""}`}
+          onClick={(event) => { event.stopPropagation(); onSelectThread(thread.id, node.id); }}
+        >
+          <StatusDot status={thread.status} pulse={thread.status === "running" || thread.status === "starting"} />
+          <span className="tree-thread-name">{thread.title}</span>
+          {thread.git?.branch ? <GitBranch size={10} className="tree-thread-branch" /> : null}
+          {thread.tokens ? <span className="tree-thread-tokens">{formatNumber(thread.tokens)}</span> : null}
+        </button>
+      )) : null}
       {isOpen && children.map((child) => (
         <TreeRow
           key={child.id}
@@ -220,9 +248,11 @@ function TreeRow({
           nodes={nodes}
           threads={threads}
           selectedId={selectedId}
+          selectedThreadId={selectedThreadId}
           expanded={expanded}
           onToggle={onToggle}
           onSelect={onSelect}
+          onSelectThread={onSelectThread}
           onNewNode={onNewNode}
           onNewThread={onNewThread}
         />
