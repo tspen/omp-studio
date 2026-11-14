@@ -57,9 +57,9 @@ export function ChatView() {
           <RotateCw size={15} />
           <div>
             <strong>This thread was interrupted when the app closed</strong>
-            <span>Continue from the last checkpoint. The model re-reads the workspace and finishes the unfinished work.</span>
+            <span>{thread.kind === "orchestrator" ? "Continue resumes its interrupted child threads, then asks it to review their reports and tidy up." : "Continue from the last checkpoint. The model re-reads the workspace and finishes the unfinished work."}</span>
           </div>
-          <Button size="sm" variant="primary" disabled={state.sending} onClick={() => void state.continueThread(thread.id)}>
+          <Button size="sm" variant="primary" disabled={state.sending || thread.status === "running" || thread.status === "starting"} onClick={() => void state.continueThread(thread.id)}>
             {state.sending ? <Spinner size={13} /> : <RotateCw size={13} />} Continue
           </Button>
           <IconButton icon={<X size={14} />} label="Dismiss" onClick={() => void window.omp.updateThread(thread.id, { interrupted: false }).then(() => state.refresh())} />

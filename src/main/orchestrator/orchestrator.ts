@@ -41,6 +41,9 @@ import type { SettingsService } from "../services/settings";
 import type { Store } from "../services/store";
 import { newId } from "../services/store";
 
+const WORKER_RESUME_PROMPT =
+  "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace and branch first, finish the unfinished work, verify it, then call tree_report with the outcome. Do not redo steps that already completed.";
+
 export interface OrchestratorDeps {
   store: Store;
   engine: EngineLocator;
@@ -435,10 +438,48 @@ export class Orchestrator extends EventEmitter {
     const thread = this.store.getThread(threadId);
     if (!thread) throw new Error("Thread not found");
     if (thread.kind === "native") throw new Error("Native subagent threads are resumed by their parent");
-    await this.sendUserMessage({
-      threadId,
-      text: "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace, files and transcript first, then finish the unfinished work, verify it, and report. Do not redo steps that already completed.",
-    });
+    if (["running", "starting"].includes(thread.status)) return;
+    if (thread.kind !== "orchestrator") {
+      await this.sendUserMessage({ threadId, text: WORKER_RESUME_PROMPT });
+      return;
+    }
+    const node = this.store.getNode(thread.nodeId);
+    if (!node) throw new Error("Node not found");
+    const resumable = this.resumableThreads(node.id);
+    for (const worker of resumable) {
+      await this.sendUserMessage({ threadId: worker.id, text: WORKER_RESUME_PROMPT }).catch(() => undefined);
+    }
+    // Nested orchestrators will wake from their workers' reports; clear their
+    // banners without spending a turn on each of them.
+    for (const descendant of this.descendantNodes(node.id)) {
+      const nested = this.store.getThread(descendant.orchestratorThreadId);
+      if (nested?.interrupted) {
+        const cleared = this.store.updateThread(nested.id, { interrupted: false, interruptedAt: undefined });
+        this.deps.emit({ type: "thread:updated", payload: cleared });
+      }
+    }
+    const names = resumable.slice(0, 8).map((worker) => `- ${worker.title}`).join("\n");
+    const summary = resumable.length
+      ? [
+          `Continue requested. ${resumable.length} interrupted child thread(s) were resumed:`,
+          names,
+          "",
+          "Monitor their reports, answer questions, resolve finished threads with tree_resolve_thread, and escalate blockers. Do not implement code or inspect files yourself.",
+        ].join("\n")
+      : "Continue requested. No interrupted child threads were found. Review current child threads and reports, resolve anything finished with tree_resolve_thread, then reply with a one-paragraph status. Do not implement code yourself.";
+    await this.sendUserMessage({ threadId, text: summary });
+  }
+
+  private resumableThreads(nodeId: string): Thread[] {
+    const nodeIds = new Set([nodeId, ...this.descendantNodes(nodeId).map((node) => node.id)]);
+    return this.store.threads.filter(
+      (thread) =>
+        nodeIds.has(thread.nodeId) &&
+        thread.kind === "worker" &&
+        thread.interrupted &&
+        !thread.archived &&
+        ["parked", "waiting", "queued", "idle"].includes(thread.status),
+    );
   }
 
   async setContextCompaction(enabled: boolean): Promise<void> {
