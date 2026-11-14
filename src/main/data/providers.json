@@ -1,0 +1,903 @@
+[
+  {
+    "id": "opencode-go",
+    "name": "OpenCode Go",
+    "login": "api-key",
+    "authUrl": "https://opencode.ai/auth",
+    "instructions": "Log in to the OpenCode Zen console and copy your OpenCode Go API key",
+    "prompt": "Paste your OpenCode Go API key",
+    "envVar": "OPENCODE_API_KEY",
+    "recommended": true
+  },
+  {
+    "id": "abliteration",
+    "name": "Abliteration",
+    "login": "api-key",
+    "authUrl": "https://abliteration.ai/console",
+    "instructions": "Copy your API key from the Abliteration console",
+    "prompt": "Paste your Abliteration API key",
+    "recommended": false
+  },
+  {
+    "id": "aiand",
+    "name": "ai&",
+    "login": "api-key",
+    "authUrl": "https://console.aiand.com/api-keys",
+    "instructions": "Copy your API key from the ai& console",
+    "prompt": "Paste your ai& API key",
+    "recommended": false
+  },
+  {
+    "id": "aimlapi",
+    "name": "AIML API",
+    "login": "none",
+    "recommended": false
+  },
+  {
+    "id": "alibaba-coding-plan",
+    "name": "Alibaba Coding Plan",
+    "login": "custom",
+    "envVar": "DASHSCOPE_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "amazon-bedrock",
+    "name": "Amazon Bedrock",
+    "login": "none",
+    "envVar": "AWS_PROFILE",
+    "recommended": false
+  },
+  {
+    "id": "bedrock-mantle",
+    "name": "Amazon Bedrock Mantle",
+    "login": "none",
+    "recommended": false
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic (Claude Pro/Max)",
+    "login": "oauth-code",
+    "instructions": "Complete login in your browser. If the browser cannot reach this machine, paste the final redirect URL or authorization code when prompted.",
+    "envVar": "ANTHROPIC_API_KEY",
+    "recommended": true
+  },
+  {
+    "id": "apple",
+    "name": "Apple Foundation Models (on-device)",
+    "login": "none",
+    "recommended": false
+  },
+  {
+    "id": "azure",
+    "name": "Azure OpenAI",
+    "login": "none",
+    "envVar": "AZURE_OPENAI_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "baseten",
+    "name": "Baseten",
+    "login": "api-key",
+    "authUrl": "https://app.baseten.co/settings/api_keys",
+    "instructions": "Copy your API key from the Baseten dashboard",
+    "prompt": "Paste your Baseten API key",
+    "envVar": "BASETEN_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "login": "api-key",
+    "authUrl": "https://cloud.cerebras.ai/platform/",
+    "instructions": "Copy your API key from the Cerebras dashboard",
+    "prompt": "Paste your Cerebras API key",
+    "envVar": "CEREBRAS_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "charm-hyper",
+    "name": "Charm Hyper",
+    "login": "api-key",
+    "authUrl": "https://hyper.charm.land/",
+    "instructions": "Create or copy an API key from the Charm Hyper dashboard",
+    "prompt": "Paste your Charm Hyper API key",
+    "envVar": "CHARM_HYPER_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "openai-codex",
+    "name": "ChatGPT Plus/Pro (Codex Subscription)",
+    "login": "oauth-code",
+    "instructions": "A browser window should open. Complete login to finish.",
+    "recommended": false
+  },
+  {
+    "id": "openai-codex-device",
+    "name": "ChatGPT Plus/Pro (Codex, headless/device)",
+    "login": "custom",
+    "recommended": false
+  },
+  {
+    "id": "chutes",
+    "name": "Chutes",
+    "login": "api-key",
+    "authUrl": "https://chutes.ai/app/settings/api-keys",
+    "instructions": "Create or copy your API key from the Chutes dashboard",
+    "prompt": "Paste your Chutes API key",
+    "recommended": false
+  },
+  {
+    "id": "cline-pass",
+    "name": "ClinePass",
+    "login": "api-key",
+    "authUrl": "https://app.cline.bot/dashboard/account",
+    "instructions": "Create an API key in the Cline dashboard under Settings → API Keys",
+    "prompt": "Paste your Cline API key",
+    "recommended": false
+  },
+  {
+    "id": "cloudflare-ai-gateway",
+    "name": "Cloudflare AI Gateway",
+    "login": "custom",
+    "recommended": false
+  },
+  {
+    "id": "cloudflare-workers-ai",
+    "name": "Cloudflare Workers AI",
+    "login": "custom",
+    "envVar": "CLOUDFLARE_API_TOKEN",
+    "recommended": false
+  },
+  {
+    "id": "commandcode",
+    "name": "Command Code",
+    "login": "api-key",
+    "authUrl": "https://commandcode.ai/studio",
+    "instructions": "Create or copy a Provider API key from Command Code Studio",
+    "prompt": "Paste your Command Code API key",
+    "recommended": false
+  },
+  {
+    "id": "coralbricks",
+    "name": "CoralBricks",
+    "login": "api-key",
+    "authUrl": "https://www.coralbricks.ai/api-keys",
+    "instructions": "Create or copy your API key from the CoralBricks dashboard (keys look like cb_...)",
+    "prompt": "Paste your CoralBricks API key",
+    "recommended": false
+  },
+  {
+    "id": "coreweave",
+    "name": "CoreWeave Serverless Inference",
+    "login": "api-key",
+    "authUrl": "https://wandb.ai/settings",
+    "instructions": "Create or select a CoreWeave Serverless Inference project, add export COREWEAVE_PROJECT=<team>/<project> to your shell startup file (for example ~/.zshrc, ~/.bashrc, or your shell's profile/rc file) for the OpenAI-Project header, then copy your API key from account settings",
+    "prompt": "Paste your CoreWeave Serverless Inference API key",
+    "envVar": "COREWEAVE_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "cursor",
+    "name": "Cursor (Claude, GPT, etc.)",
+    "login": "custom",
+    "envVar": "CURSOR_ACCESS_TOKEN",
+    "recommended": false
+  },
+  {
+    "id": "deepinfra",
+    "name": "DeepInfra",
+    "login": "api-key",
+    "authUrl": "https://deepinfra.com/dash/api_keys",
+    "instructions": "Create or copy your API key from the DeepInfra dashboard",
+    "prompt": "Paste your DeepInfra API key",
+    "envVar": "DEEPINFRA_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "login": "api-key",
+    "authUrl": "https://platform.deepseek.com/api_keys",
+    "instructions": "Create or copy your API key from the DeepSeek dashboard",
+    "prompt": "Paste your DeepSeek API key",
+    "envVar": "DEEPSEEK_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "devin",
+    "name": "Devin",
+    "login": "oauth-code",
+    "instructions": "Sign in to Devin in your browser.",
+    "prompt": "select_account",
+    "recommended": false
+  },
+  {
+    "id": "devin-cli",
+    "name": "Devin (adopt CLI credentials)",
+    "login": "custom",
+    "recommended": false
+  },
+  {
+    "id": "devin-windsurf",
+    "name": "Devin (Windsurf Enterprise)",
+    "login": "custom",
+    "recommended": false
+  },
+  {
+    "id": "exa",
+    "name": "Exa",
+    "login": "api-key",
+    "authUrl": "https://dashboard.exa.ai/api-keys",
+    "instructions": "Create or copy your API key from the Exa dashboard.",
+    "prompt": "Paste your Exa API key",
+    "recommended": false
+  },
+  {
+    "id": "factory-droid",
+    "name": "Factory Droid",
+    "login": "device-code",
+    "recommended": false
+  },
+  {
+    "id": "firepass",
+    "name": "Fire Pass (Fireworks subscription)",
+    "login": "api-key",
+    "authUrl": "https://app.fireworks.ai/settings/users/api-keys",
+    "instructions": "Create a dedicated Fire Pass API key in the Fireworks dashboard",
+    "prompt": "Paste your Fire Pass API key",
+    "recommended": false
+  },
+  {
+    "id": "fireworks",
+    "name": "Fireworks",
+    "login": "api-key",
+    "authUrl": "https://app.fireworks.ai/settings/users/api-keys",
+    "instructions": "Create or copy your Fireworks API key",
+    "prompt": "Paste your Fireworks API key",
+    "envVar": "FIREWORKS_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "github-copilot",
+    "name": "GitHub Copilot",
+    "login": "custom",
+    "envVar": "COPILOT_GITHUB_TOKEN",
+    "recommended": false
+  },
+  {
+    "id": "gitlab-duo-agent",
+    "name": "GitLab Duo Agent",
+    "login": "oauth-code",
+    "instructions": "Complete GitLab login in your browser. This uses GitLab's official VS Code OAuth application. If the redirect opens VS Code instead of returning to OMP, copy the full vscode://gitlab.gitlab-workflow/authentication?... callback URL from VS Code/browser and paste it back into OMP.",
+    "recommended": false
+  },
+  {
+    "id": "gitlab-duo",
+    "name": "GitLab Duo Non-Agentic",
+    "login": "oauth-code",
+    "instructions": "Complete GitLab login in browser. If GitLab responds with \\",
+    "recommended": false
+  },
+  {
+    "id": "gmi-cloud",
+    "name": "GMI Cloud",
+    "login": "api-key",
+    "authUrl": "https://console.gmicloud.ai",
+    "instructions": "Create or copy your GMI Cloud API key",
+    "prompt": "Paste your GMI Cloud API key",
+    "recommended": false
+  },
+  {
+    "id": "google-antigravity",
+    "name": "Google Antigravity (Gemini, Claude, GPT-OSS)",
+    "login": "oauth-code",
+    "instructions": "Complete the sign-in in your browser.",
+    "prompt": "consent",
+    "recommended": false
+  },
+  {
+    "id": "google-gemini-cli",
+    "name": "Google Cloud Code Assist (Gemini CLI)",
+    "login": "oauth-code",
+    "instructions": "Complete the sign-in in your browser.",
+    "prompt": "consent",
+    "recommended": false
+  },
+  {
+    "id": "google",
+    "name": "Google Gemini",
+    "login": "none",
+    "envVar": "GEMINI_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "google-vertex",
+    "name": "Google Vertex AI",
+    "login": "none",
+    "envVar": "GOOGLE_APPLICATION_CREDENTIALS",
+    "recommended": false
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "login": "none",
+    "envVar": "GROQ_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "helmcode",
+    "name": "Helmcode",
+    "login": "api-key",
+    "authUrl": "https://cloud.helmcode.com",
+    "instructions": "Copy your API key from the Helmcode dashboard",
+    "prompt": "Paste your Helmcode API key",
+    "recommended": false
+  },
+  {
+    "id": "huggingface",
+    "name": "Hugging Face Inference",
+    "login": "api-key",
+    "authUrl": "https://huggingface.co/settings/tokens/new?ownUserPermissions=inference.serverless.write&tokenType=fineGrained",
+    "instructions": "Create/copy a token with Make calls to Inference Providers permission (usable as HUGGINGFACE_HUB_TOKEN or HF_TOKEN)",
+    "prompt": "Paste your Hugging Face token (HUGGINGFACE_HUB_TOKEN / HF_TOKEN)",
+    "recommended": false
+  },
+  {
+    "id": "inception",
+    "name": "Inception",
+    "login": "api-key",
+    "authUrl": "https://platform.inceptionlabs.ai/dashboard/api-keys",
+    "instructions": "Create or copy your key from the Inception dashboard",
+    "prompt": "Paste your Inception API key",
+    "envVar": "INCEPTION_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "kagi",
+    "name": "Kagi",
+    "login": "api-key",
+    "authUrl": "https://kagi.com/settings/api",
+    "instructions": "Copy your Kagi Search API key from Kagi API settings. Search API access is beta-only; if unavailable, email support@kagi.com.",
+    "prompt": "Paste your Kagi API key",
+    "recommended": false
+  },
+  {
+    "id": "kilo",
+    "name": "Kilo Gateway",
+    "login": "custom",
+    "recommended": false
+  },
+  {
+    "id": "kimi-code",
+    "name": "Kimi Code",
+    "login": "device-code",
+    "instructions": "Enter code: {user_code}",
+    "envVar": "KIMI_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "liquid",
+    "name": "Liquid AI",
+    "login": "api-key",
+    "authUrl": "https://console.liquid.ai/",
+    "instructions": "Create an API key under Dashboard > API Keys in the Liquid AI console.",
+    "prompt": "Paste your Liquid AI API key",
+    "recommended": false
+  },
+  {
+    "id": "litellm",
+    "name": "LiteLLM",
+    "login": "api-key",
+    "authUrl": "https://docs.litellm.ai/docs/proxy/deploy",
+    "instructions": "Run LiteLLM proxy (default http://localhost:4000/v1; set LITELLM_BASE_URL to customize it), then copy your master key or virtual key",
+    "prompt": "Paste your LiteLLM API key (master key or virtual key)",
+    "recommended": false
+  },
+  {
+    "id": "llama.cpp",
+    "name": "llama.cpp (Local OpenAI-compatible)",
+    "login": "api-key",
+    "authUrl": "https://github.com/ggml-org/llama.cpp#quick-start",
+    "instructions": "Paste your llama.cpp API key if your server requires auth. Leave empty for local no-auth mode (default base URLs: http://127.0.0.1:8080, then http://127.0.0.1:9931; set LLAMA_CPP_BASE_URL to customize).",
+    "prompt": "Paste your llama.cpp API key (optional for local no-auth)",
+    "recommended": false
+  },
+  {
+    "id": "lm-studio",
+    "name": "LM Studio (Local OpenAI-compatible)",
+    "login": "api-key",
+    "prompt": "Optional: Paste LM Studio API key (to customize endpoint URL, set LM_STUDIO_BASE_URL env var)",
+    "recommended": false
+  },
+  {
+    "id": "local",
+    "name": "Local models",
+    "login": "none",
+    "recommended": false
+  },
+  {
+    "id": "meta",
+    "name": "Meta Model API",
+    "login": "api-key",
+    "authUrl": "https://developer.meta.com/ai/",
+    "instructions": "Create or copy your key from the Meta Model API dashboard",
+    "prompt": "Paste your Meta Model API key",
+    "recommended": false
+  },
+  {
+    "id": "minimax",
+    "name": "MiniMax",
+    "login": "none",
+    "envVar": "MINIMAX_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "minimax-code-cn",
+    "name": "MiniMax Token Plan (China)",
+    "login": "api-key",
+    "authUrl": "https://platform.minimaxi.com/subscribe/token-plan",
+    "instructions": "Subscribe to Token Plan and copy your API key",
+    "prompt": "Paste your MiniMax Token Plan API key",
+    "envVar": "MINIMAX_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "minimax-code",
+    "name": "MiniMax Token Plan (International)",
+    "login": "api-key",
+    "authUrl": "https://platform.minimax.io/subscribe/token-plan",
+    "instructions": "Subscribe to Token Plan and copy your API key",
+    "prompt": "Paste your MiniMax Token Plan API key",
+    "envVar": "MINIMAX_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral",
+    "login": "custom",
+    "envVar": "MISTRAL_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "modular",
+    "name": "Modular",
+    "login": "api-key",
+    "authUrl": "https://console.modular.com/api_keys",
+    "instructions": "Create an API key in the Modular Console",
+    "prompt": "Paste your Modular API key",
+    "recommended": false
+  },
+  {
+    "id": "moonshot",
+    "name": "Moonshot (Kimi API)",
+    "login": "api-key",
+    "authUrl": "https://platform.moonshot.ai/console/api-keys",
+    "instructions": "Copy your API key from the Moonshot dashboard",
+    "prompt": "Paste your Moonshot API key",
+    "envVar": "MOONSHOT_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "muse-code",
+    "name": "Muse Code (Subscription)",
+    "login": "device-code",
+    "instructions": "Enter code: {user_code}",
+    "recommended": false
+  },
+  {
+    "id": "nace",
+    "name": "Nace",
+    "login": "api-key",
+    "authUrl": "https://console.nace.ai/dashboard/api-keys",
+    "instructions": "Create an API key under API Keys in the Nace console.",
+    "prompt": "Paste your Nace API key",
+    "recommended": false
+  },
+  {
+    "id": "nanogpt",
+    "name": "NanoGPT",
+    "login": "api-key",
+    "authUrl": "https://nano-gpt.com/api",
+    "instructions": "Create or copy your NanoGPT API key",
+    "prompt": "Paste your NanoGPT API key",
+    "recommended": false
+  },
+  {
+    "id": "novita",
+    "name": "Novita",
+    "login": "api-key",
+    "authUrl": "https://novita.ai/settings/key-management",
+    "instructions": "Create or copy your API key from the Novita dashboard",
+    "prompt": "Paste your Novita API key",
+    "envVar": "NOVITA_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA",
+    "login": "api-key",
+    "authUrl": "https://org.ngc.nvidia.com/setup/personal-keys",
+    "instructions": "Copy your API key from NVIDIA NGC Personal Keys",
+    "prompt": "Paste your NVIDIA API key",
+    "envVar": "NVIDIA_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "ollama",
+    "name": "Ollama (Local OpenAI-compatible)",
+    "login": "api-key",
+    "authUrl": "https://github.com/ollama/ollama/blob/main/docs/api.md",
+    "instructions": "Optional: paste an Ollama API key/token for authenticated hosts. Leave empty for local no-auth mode.",
+    "prompt": "Paste your Ollama API key/token (optional)",
+    "recommended": false
+  },
+  {
+    "id": "ollama-cloud",
+    "name": "Ollama Cloud",
+    "login": "api-key",
+    "authUrl": "https://ollama.com/settings/keys",
+    "instructions": "Create an Ollama Cloud API key, then paste it here.",
+    "prompt": "Paste your Ollama Cloud API key",
+    "recommended": false
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "login": "none",
+    "envVar": "OPENAI_API_KEY",
+    "recommended": true
+  },
+  {
+    "id": "opencode-zen",
+    "name": "OpenCode Zen",
+    "login": "api-key",
+    "authUrl": "https://opencode.ai/auth",
+    "instructions": "Log in to the OpenCode Zen console and copy your OpenCode Zen API key",
+    "prompt": "Paste your OpenCode Zen API key",
+    "envVar": "OPENCODE_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "login": "oauth-code",
+    "envVar": "OPENROUTER_API_KEY",
+    "recommended": true
+  },
+  {
+    "id": "otari",
+    "name": "Otari",
+    "login": "api-key",
+    "authUrl": "https://app.otari.ai/settings/api-keys",
+    "instructions": "Create a workspace API key in Otari (Settings → API keys) and paste it here",
+    "prompt": "Paste your Otari workspace API key",
+    "recommended": false
+  },
+  {
+    "id": "parallel",
+    "name": "Parallel",
+    "login": "api-key",
+    "authUrl": "https://platform.parallel.ai/settings?tab=api-keys",
+    "instructions": "Copy your Parallel API key from the Parallel settings page.",
+    "prompt": "Paste your Parallel API key",
+    "recommended": false
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity (Pro/Max)",
+    "login": "custom",
+    "recommended": false
+  },
+  {
+    "id": "qianfan",
+    "name": "Qianfan",
+    "login": "api-key",
+    "authUrl": "https://console.bce.baidu.com/qianfan/ais/console/apiKey",
+    "instructions": "Copy your Qianfan API key from the console",
+    "prompt": "Paste your Qianfan API key",
+    "envVar": "QIANFAN_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "qwen-portal",
+    "name": "Qwen Portal",
+    "login": "api-key",
+    "authUrl": "https://chat.qwen.ai",
+    "instructions": "Copy your Qwen OAuth token or API key",
+    "prompt": "Paste your Qwen OAuth token or API key",
+    "envVar": "QWEN_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "alibaba-token-plan",
+    "name": "QwenCloud Token Plan",
+    "login": "custom",
+    "envVar": "DASHSCOPE_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "sakana",
+    "name": "Sakana AI",
+    "login": "api-key",
+    "authUrl": "https://console.sakana.ai/api-keys",
+    "instructions": "Copy your API key from the Sakana AI console",
+    "prompt": "Paste your Sakana AI API key",
+    "recommended": false
+  },
+  {
+    "id": "sambanova",
+    "name": "SambaNova",
+    "login": "api-key",
+    "authUrl": "https://cloud.sambanova.ai/apis",
+    "instructions": "Copy your API key from the SambaNova Cloud dashboard",
+    "prompt": "Paste your SambaNova API key",
+    "envVar": "SAMBANOVA_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "scaleway",
+    "name": "Scaleway",
+    "login": "api-key",
+    "authUrl": "https://console.scaleway.com/iam/api-keys",
+    "instructions": "Create an API key on the Scaleway console and paste its Secret Key (SCW_SECRET_KEY)",
+    "prompt": "Paste your Scaleway secret key",
+    "envVar": "SCALEWAY_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "siliconflow",
+    "name": "SiliconFlow",
+    "login": "api-key",
+    "authUrl": "https://cloud.siliconflow.com/account/ak",
+    "instructions": "Create or copy your API key from the SiliconFlow console",
+    "prompt": "Paste your SiliconFlow API key",
+    "envVar": "SILICONFLOW_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "siliconflow-cn",
+    "name": "SiliconFlow (China)",
+    "login": "api-key",
+    "authUrl": "https://cloud.siliconflow.cn/account/ak",
+    "instructions": "Create or copy your API key from the SiliconFlow console",
+    "prompt": "Paste your SiliconFlow API key",
+    "envVar": "SILICONFLOW_CN_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "singularityapi-dev",
+    "name": "SingularityAPI",
+    "login": "api-key",
+    "authUrl": "https://app.singularityapi.dev",
+    "instructions": "Create an API key from the SingularityAPI dashboard, then paste it here",
+    "prompt": "Paste your SingularityAPI API key",
+    "envVar": "SINGULARITYAPI_DEV_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "singularityapi-tech",
+    "name": "SingularityAPI Reserved Lanes",
+    "login": "api-key",
+    "authUrl": "https://app.singularityapi.tech/compute/billing",
+    "instructions": "Create a key from the SingularityAPI lanes dashboard, then paste it here",
+    "prompt": "Paste your SingularityAPI lanes key",
+    "envVar": "SINGULARITYAPI_TECH_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "snowflake",
+    "name": "Snowflake Cortex",
+    "login": "custom",
+    "envVar": "SNOWFLAKE_PAT",
+    "recommended": false
+  },
+  {
+    "id": "stencil",
+    "name": "Stencil (invite only)",
+    "login": "oauth-code",
+    "authUrl": "https://auth.stencil.so",
+    "instructions": "Sign in to your stencil.so account in the browser. If the browser cannot reach this machine, paste the final redirect URL when prompted.",
+    "recommended": false
+  },
+  {
+    "id": "stepfun",
+    "name": "StepFun",
+    "login": "api-key",
+    "authUrl": "https://platform.stepfun.ai/interface-key",
+    "instructions": "Copy your API key from the StepFun Open Platform",
+    "prompt": "Paste your StepFun API key",
+    "recommended": false
+  },
+  {
+    "id": "synthetic",
+    "name": "Synthetic",
+    "login": "api-key",
+    "authUrl": "https://dev.synthetic.new/docs/api/overview",
+    "instructions": "Copy your API key from the Synthetic dashboard",
+    "prompt": "Paste your Synthetic API key",
+    "recommended": false
+  },
+  {
+    "id": "tavily",
+    "name": "Tavily",
+    "login": "api-key",
+    "authUrl": "https://app.tavily.com/home",
+    "instructions": "Copy your Tavily API key from the API Keys page.",
+    "prompt": "Paste your Tavily API key",
+    "recommended": false
+  },
+  {
+    "id": "together",
+    "name": "Together",
+    "login": "api-key",
+    "authUrl": "https://api.together.xyz/settings/api-keys",
+    "instructions": "Copy your API key from the Together dashboard",
+    "prompt": "Paste your Together API key",
+    "envVar": "TOGETHER_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "typesafe",
+    "name": "TypeSafe",
+    "login": "api-key",
+    "authUrl": "https://console.typesafe.ai/",
+    "instructions": "Create or copy your API key from the TypeSafe console.",
+    "prompt": "Paste your TypeSafe API key",
+    "recommended": false
+  },
+  {
+    "id": "umans",
+    "name": "Umans AI Coding Plan",
+    "login": "api-key",
+    "authUrl": "https://app.umans.ai/billing",
+    "instructions": "Create or copy your Umans API key from Dashboard → API Keys.",
+    "prompt": "Paste your Umans API key",
+    "envVar": "UMANS_AI_CODING_PLAN_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "venice",
+    "name": "Venice",
+    "login": "api-key",
+    "authUrl": "https://venice.ai/settings/api",
+    "instructions": "Copy your API key from the Venice dashboard",
+    "prompt": "Paste your Venice API key",
+    "recommended": false
+  },
+  {
+    "id": "vercel-ai-gateway",
+    "name": "Vercel AI Gateway",
+    "login": "api-key",
+    "authUrl": "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys&title=AI+Gateway+API+Keys",
+    "instructions": "Copy your Vercel AI Gateway API key from the Vercel dashboard",
+    "prompt": "Paste your Vercel AI Gateway API key",
+    "envVar": "AI_GATEWAY_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "vllm",
+    "name": "vLLM (Local OpenAI-compatible)",
+    "login": "api-key",
+    "authUrl": "https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html",
+    "instructions": "Paste your vLLM API key if your server requires auth. Leave empty for local no-auth mode (default base URL: http://127.0.0.1:8000/v1).",
+    "prompt": "Paste your vLLM API key (optional for local no-auth)",
+    "recommended": false
+  },
+  {
+    "id": "wafer-serverless",
+    "name": "Wafer Serverless (pay-as-you-go)",
+    "login": "api-key",
+    "authUrl": "https://app.wafer.ai/usage",
+    "instructions": "Create or copy your Wafer Serverless API key from the Wafer dashboard",
+    "prompt": "Paste your Wafer Serverless API key",
+    "envVar": "WAFER_SERVERLESS_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "web",
+    "name": "Web search engines",
+    "login": "none",
+    "recommended": false
+  },
+  {
+    "id": "xai",
+    "name": "xAI API",
+    "login": "api-key",
+    "authUrl": "https://console.x.ai/team/default/api-keys",
+    "instructions": "Create or copy your API key from the xAI Console",
+    "prompt": "Paste your xAI API key",
+    "envVar": "XAI_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "xai-oauth",
+    "name": "xAI Grok OAuth (SuperGrok or X Premium+)",
+    "login": "device-code",
+    "instructions": "Enter code: {user_code}",
+    "recommended": false
+  },
+  {
+    "id": "xiaomi",
+    "name": "Xiaomi MiMo",
+    "login": "custom",
+    "envVar": "XIAOMI_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "xiaomi-token-plan-cn",
+    "name": "Xiaomi Token Plan (China)",
+    "login": "api-key",
+    "authUrl": "https://platform.xiaomimimo.com/console/plan-manage",
+    "instructions": "Copy your token-plan API key for the China region",
+    "prompt": "Paste your Xiaomi Token Plan China API key (tp-...)",
+    "envVar": "XIAOMI_TOKEN_PLAN_CN_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "xiaomi-token-plan-ams",
+    "name": "Xiaomi Token Plan (Europe)",
+    "login": "api-key",
+    "authUrl": "https://platform.xiaomimimo.com/console/plan-manage",
+    "instructions": "Copy your token-plan API key for the Europe region",
+    "prompt": "Paste your Xiaomi Token Plan Europe API key (tp-...)",
+    "envVar": "XIAOMI_TOKEN_PLAN_AMS_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "xiaomi-token-plan-sgp",
+    "name": "Xiaomi Token Plan (Singapore)",
+    "login": "api-key",
+    "authUrl": "https://platform.xiaomimimo.com/console/plan-manage",
+    "instructions": "Copy your token-plan API key for the Singapore region",
+    "prompt": "Paste your Xiaomi Token Plan Singapore API key (tp-...)",
+    "envVar": "XIAOMI_TOKEN_PLAN_SGP_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "yolo-auto",
+    "name": "Yolo-Auto",
+    "login": "api-key",
+    "authUrl": "https://yolo-auto.com/app",
+    "instructions": "Create or copy your Yolo-Auto API key (yolo_...)",
+    "prompt": "Paste your Yolo-Auto API key",
+    "envVar": "YOLO_AUTO_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "zai-coding-plan",
+    "name": "Z.AI (GLM Coding Plan · Sign in)",
+    "login": "oauth-code",
+    "instructions": "Complete Z.ai login in your browser. On supported local desktops, omp captures the zcode:// callback and restores its previous handler automatically. You can also paste the final redirect URL or authorization code when prompted.",
+    "envVar": "ZAI_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "zai",
+    "name": "Z.AI (GLM Coding Plan)",
+    "login": "api-key",
+    "authUrl": "https://z.ai/manage-apikey/apikey-list",
+    "instructions": "Copy your API key from the dashboard",
+    "prompt": "Paste your Z.AI API key",
+    "envVar": "ZAI_API_KEY",
+    "recommended": false
+  },
+  {
+    "id": "zenmux",
+    "name": "ZenMux",
+    "login": "api-key",
+    "authUrl": "https://zenmux.ai/settings/keys",
+    "instructions": "Create or copy your ZenMux API key",
+    "prompt": "Paste your ZenMux API key",
+    "recommended": false
+  },
+  {
+    "id": "zhipu-coding-plan",
+    "name": "Zhipu Coding Plan (智谱)",
+    "login": "api-key",
+    "authUrl": "https://bigmodel.cn/coding-plan/personal/overview",
+    "instructions": "Copy your API key from the Coding Plan dashboard",
+    "prompt": "Paste your Zhipu API key",
+    "envVar": "ZAI_API_KEY",
+    "recommended": false
+  }
+]

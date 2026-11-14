@@ -5,6 +5,7 @@ import { ChatView } from "./components/ChatView";
 import { ThreadRail } from "./components/ThreadRail";
 import { SettingsModal } from "./components/SettingsModal";
 import { ApprovalModal, Modals } from "./components/Modals";
+import { Onboarding } from "./components/Onboarding";
 import { Badge, IconButton, Logo, Toasts, cx, formatCost, formatNumber } from "./components/Common";
 import { selectedNode, selectedThread, useApp } from "./store";
 
@@ -20,6 +21,7 @@ export function App() {
     const apply = () => {
       const resolved = theme === "system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
       document.documentElement.dataset.theme = resolved;
+      void window.omp.setWindowTheme(resolved);
     };
     apply();
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -55,6 +57,10 @@ export function App() {
         <div className="boot-bar"><i /></div>
       </div>
     );
+  }
+
+  if (!state.snapshot.settings.onboardingCompleted) {
+    return <Onboarding />;
   }
 
   const node = selectedNode(state);

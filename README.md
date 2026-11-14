@@ -4,10 +4,10 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 
 ## What is in the box
 
-- **Tree orchestrators**: Root → Groups → Projects → Worker threads. Each level has its own OMP session, context, model, environment and memory.
+- **Tree orchestrators**: Root -> Groups -> Projects -> Worker threads. Each level has its own OMP session, context, model, environment and memory.
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
 - **OMP under the hood**: The app launches the real `omp.exe` in `--mode rpc-ui`, uses OMP's model catalog, tools, skills, auth, session files, subagents, goal mode and approvals. It does not reimplement the agent loop.
-- **Explicit model selection**: Per-thread model and reasoning effort, plus role defaults for root/group/project/worker/naming/memory. Defaults are ordered by Artificial Analysis data, fetched daily from the public leaderboard; unmatched models fall back to a local quality estimate labelled `Q`.
+- **Explicit model selection**: Per-thread model and reasoning effort, plus role defaults for root/group/project/worker/naming/memory.
 - **Git-aware threads**: Project repositories, worker branches and worktrees, status, diffs, commit, merge and PR actions. Worktrees live outside the repository so unmerged work is not silently destroyed.
 - **Environments**: Local env vars, secrets, setup/teardown commands, shell, git isolation and approval mode, assignable per node and inherited.
 - **Memory**: Per-node durable memory, visible and editable. Orchestrators write through `tree_memory_write`; completed thread outcomes are auto-captured as low-importance entries.
@@ -15,9 +15,25 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 - **Thread history**: Fork from an entry or rewind the leaf; goal mode; live read-only share over a local token URL.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 
-## Run it
+## First run
 
-Requirements: Windows 10/11 x64, Node.js 22+ (built with Node 24), git, and an OMP-authenticated provider.
+OMP Studio opens a setup wizard before Mission Control:
+
+1. **Connect a provider**. The list comes from the providers OMP knows about, with OpenCode Go first. API-key providers use OMP's own `omp login <provider>` flow, so credentials land in `~/.omp/agent/agent.db`, not in the app. OpenCode Go keys are validated against the provider model endpoint before being saved.
+2. **Pick models**. Root, worker and naming defaults are selected from the connected provider using Artificial Analysis agentic value, with cost caps, free-router/batch filtering and a quality floor. Every role can still be overridden.
+3. **Ready**. Notifications, auto-naming and an optional first project.
+
+The wizard is skippable and can be re-run from Settings -> General.
+
+## Model defaults
+
+Defaults are not simply "highest AA score". They use an **agentic value** score derived from Artificial Analysis terminal-bench, tau2-bench, IFBench, long-context reasoning and GPQA, divided by blended cost. Auto-defaults exclude batch routes, free routers and models above the per-role cost cap; expensive models remain available by explicit choice. Current fresh defaults are typically MiniMax M3 for orchestrators/workers and a cheap model for naming.
+
+## Requirements
+
+Windows 10/11 x64, Node.js 22+ (built with Node 24), git, and an OMP-authenticated provider.
+
+## Run it
 
 ```powershell
 npm install
@@ -25,7 +41,7 @@ npm run fetch:omp   # downloads omp-windows-x64.exe into vendor/omp (skips if pr
 npm run dev
 ```
 
-The app also detects an existing install at `%LOCALAPPDATA%\omp\omp.exe` or `omp.exe` on `PATH`. If none is found, Settings → Engine can download it.
+The app also detects an existing install at `%LOCALAPPDATA%\omp\omp.exe` or `omp.exe` on `PATH`. If none is found, Settings -> Engine can download it.
 
 ## Build a Windows installer
 
@@ -37,19 +53,19 @@ The NSIS installer is written to `dist/`. The OMP engine is bundled as an extra 
 
 ## Architecture
 
-```
+```text
 React renderer
-   │ typed IPC (contextIsolation)
+   | typed IPC (contextIsolation)
 Electron main
-   ├─ OMP Supervisor ── one omp.exe session per active thread, RPC v2 framing
-   ├─ Orchestrator ───── tree, host tools, scheduling, auto-reports, budgets
-   ├─ MessageBus ─────── envelopes, traces, questions, answers, directions
-   ├─ GitService ─────── status/diff/worktrees/branches/merge/PR
-   ├─ MemoryService ──── per-node memory and recall
-   ├─ ModelService ───── OMP catalog + AA daily refresh + role defaults
-   ├─ EnvironmentService local env profiles + DPAPI secrets
-   ├─ NotificationService Windows toasts / tray / inbox
-   └─ ShareService ───── read-only live transcript over 127.0.0.1
+   |- OMP Supervisor ---- one omp.exe session per active thread, RPC v2 framing
+   |- Orchestrator ------ tree, host tools, scheduling, auto-reports, budgets
+   |- MessageBus -------- envelopes, traces, questions, answers, directions
+   |- GitService -------- status/diff/worktrees/branches/merge/PR
+   |- MemoryService ----- per-node memory and recall
+   |- ModelService ------ OMP catalog + AA daily refresh + agentic value defaults
+   |- EnvironmentService  local env profiles + DPAPI secrets
+   |- NotificationService Windows toasts / tray / inbox
+   |- ShareService ------ read-only live transcript over 127.0.0.1
 ```
 
 OMP session files remain the transcript source of truth. OMP Studio keeps a compact message/envelope log, a normalized transcript cache for fast paint, and app metadata in `%APPDATA%\omp-studio\omp-studio`.
@@ -67,6 +83,7 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 - The tree is logically unlimited, but concurrent OMP sessions are capped in Settings (default 8) and idle sessions are parked.
 - Plan mode is disabled by policy. Goal mode, advisor, history/fork, artifacts, terminal, diffs and live sharing are exposed.
 - Live sharing is read-only. Steering guests is not implemented.
+- Provider login is driven through OMP's local CLI auth flow. OpenCode Go keys are validated before saving; other API-key providers rely on OMP's login behavior.
 
 ## Attribution
 

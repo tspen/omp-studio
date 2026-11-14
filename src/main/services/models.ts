@@ -9,6 +9,7 @@ interface RawAAModel {
   slug: string;
   name: string;
   shortName?: string;
+  release?: { slug?: string };
   deprecated?: boolean;
   isReasoning?: boolean;
   contextWindowTokens?: number;
@@ -16,6 +17,7 @@ interface RawAAModel {
   price1mInputTokens?: number | null;
   price1mOutputTokens?: number | null;
   outputSpeed?: number | null;
+  scores?: Record<string, number | null>;
 }
 
 interface AACache {
@@ -148,7 +150,7 @@ export class ModelService {
       const resolved = current[role] ? this.resolve(current[role]) : undefined;
       const invalid = !resolved || resolved.cost.input < 0 || resolved.cost.output < 0 || /auto-code|auto router/i.test(`${resolved.id} ${resolved.name}`);
       if (!current[role] || invalid) {
-        patch[role] = defaultForRole(role, models);
+        patch[role] = defaultForRole(role, models, current.preferredProvider ?? "");
       }
     }
     if (Object.keys(patch).length) this.store.setSettings({ models: { ...current, ...patch } });
@@ -160,7 +162,7 @@ export class ModelService {
     const current = this.store.settings.models;
     const patch: Record<string, string> = {};
     for (const role of ["root", "group", "project", "worker", "naming", "memory"] as const) {
-      patch[role] = defaultForRole(role, models);
+      patch[role] = defaultForRole(role, models, current.preferredProvider ?? "");
     }
     this.store.setSettings({ models: { ...current, ...patch } });
     this.applyRecommendations(models);
@@ -168,12 +170,13 @@ export class ModelService {
   }
 
   async refreshAA(force = false): Promise<{ ok: boolean; source: string; count: number; error?: string }> {
-    if (!force && this.aaCache && Date.now() - this.aaCache.fetchedAt < AA_CACHE_HOURS * 3_600_000) {
+    if (!force && this.aaCache && this.aaCache.models.length >= 20 && Date.now() - this.aaCache.fetchedAt < AA_CACHE_HOURS * 3_600_000) {
       await this.refresh();
       return { ok: true, source: this.aaCache.source, count: this.aaCache.models.length };
     }
     try {
       const models = await fetchAA();
+      if (models.length < 20) throw new Error("Artificial Analysis returned an empty or incomplete model list");
       const wasHeuristic = this.store.settings.models.aaSource !== "artificial-analysis";
       this.aaCache = { fetchedAt: Date.now(), source: "artificialanalysis.ai", models };
       this.saveAACache();
@@ -189,7 +192,7 @@ export class ModelService {
       return { ok: true, source: "artificialanalysis.ai", count: models.length || this.list().length };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (this.aaCache) {
+      if (this.aaCache && this.aaCache.models.length >= 20) {
         await this.refresh();
         return { ok: true, source: this.aaCache.source, count: this.aaCache.models.length, error: message };
       }
@@ -268,49 +271,55 @@ export class ModelService {
 
   private applyRecommendations(models: ModelInfo[]): void {
     const roles = ["root", "group", "project", "worker", "naming", "memory"] as const;
+    const preferred = this.store.settings.models.preferredProvider ?? "";
     for (const role of roles) {
-      const selector = defaultForRole(role, models);
+      const selector = defaultForRole(role, models, preferred);
       const model = models.find((m) => m.selector === selector);
       if (model) model.recommended = role;
     }
   }
 }
 
-function defaultForRole(role: string, models: ModelInfo[]): string {
+function defaultForRole(role: string, models: ModelInfo[], preferredProvider = ""): string {
   const isRouter = (model: ModelInfo) => /(^|[/-])(auto|router|auto-code)([/-]|$)/i.test(`${model.id} ${model.name}`) || /free models router/i.test(model.name);
-  const clean = models.filter(
+  const caps =
+    role === "naming" || role === "memory"
+      ? { output: 1, input: 0.5 }
+      : { output: 15, input: 5 };
+  const qualityFloor = role === "root" || role === "group" ? 55 : role === "project" || role === "worker" ? 40 : 0;
+  const base = models.filter(
     (model) =>
       model.available &&
       model.input.includes("text") &&
       model.cost.input >= 0 &&
       model.cost.output >= 0 &&
       !model.id.includes(":batch") &&
+      !/\(batch\)/i.test(model.name) &&
+      !model.id.endsWith(":free") &&
       !model.id.includes("~") &&
       !/latest/i.test(model.id) &&
       model.contextWindow >= (role === "naming" ? 32_000 : 100_000),
   );
-  const withoutRouters = clean.filter((model) => !isRouter(model));
-  const usable = withoutRouters.length ? withoutRouters : clean;
-  const pool = usable.length ? usable : models.filter((model) => model.cost.input >= 0 && model.cost.output >= 0);
+  const preferredModels = preferredProvider ? base.filter((model) => model.provider === preferredProvider) : [];
+  const preferredClean = preferredModels.filter((model) => !isRouter(model));
+  const clean = preferredClean.length ? preferredClean : base.filter((model) => !isRouter(model));
+  const capped = clean.filter((model) => model.cost.output <= caps.output && model.cost.input <= caps.input);
+  const pool = capped.length ? capped : clean.length ? clean : base;
   if (!pool.length) return "";
-  if (role === "naming" || role === "memory") {
-    const cheap = [...pool].sort((a, b) => {
-      const aCost = a.cost.output + a.cost.input * 4;
-      const bCost = b.cost.output + b.cost.input * 4;
-      const aScore = a.quality - aCost * (role === "naming" ? 1.4 : 0.8) + (a.aa?.intelligence != null ? 3 : 0);
-      const bScore = b.quality - bCost * (role === "naming" ? 1.4 : 0.8) + (b.aa?.intelligence != null ? 3 : 0);
-      return bScore - aScore;
-    });
-    return cheap[0]?.selector ?? "";
-  }
-  const scored = pool.map((model) => {
+  const aaPool = pool.filter((model) => model.aa?.agentic != null || model.aa?.intelligence != null);
+  const qualityPool = qualityFloor > 0 ? aaPool.filter((model) => (model.aa?.agentic ?? model.aa?.intelligence ?? model.quality) >= qualityFloor) : aaPool;
+  const target = role === "naming" || role === "memory" ? pool : qualityPool.length ? qualityPool : aaPool.length ? aaPool : pool;
+  const exponent =
+    role === "root" ? 0.18 : role === "group" ? 0.28 : role === "project" ? 0.42 : role === "worker" ? 0.55 : 0.8;
+  const scored = target.map((model) => {
     const outputCost = Math.max(0, model.cost.output || 0);
     const inputCost = Math.max(0, model.cost.input || 0);
-    const cheapness = role === "worker" ? 0.65 : role === "project" ? 0.35 : role === "group" ? 0.1 : 0.05;
-    const reasoningBonus = model.reasoning ? (role === "worker" ? 2 : 4) : 0;
-    const contextBonus = Math.min(4, Math.log2(Math.max(1, model.contextWindow / 100_000)) * 1.2);
-    const aaBonus = model.aa?.intelligence != null ? 6 : 0;
-    return { model, score: model.quality + reasoningBonus + contextBonus + aaBonus - (outputCost * 0.8 + inputCost * 4) * cheapness };
+    const blended = inputCost * 0.3 + outputCost * 0.7;
+    const agentic = model.aa?.agentic ?? model.aa?.intelligence ?? model.quality * 0.9;
+    const value = agentic / Math.pow(blended + 1, exponent);
+    const reasoningBonus = model.reasoning ? (role === "worker" ? 0.4 : 0.8) : 0;
+    const contextBonus = Math.min(1.2, Math.log2(Math.max(1, model.contextWindow / 100_000)) * 0.3);
+    return { model, score: value * 10 + reasoningBonus + contextBonus };
   });
   scored.sort((a, b) => b.score - a.score);
   return scored[0]?.model.selector ?? "";
@@ -346,13 +355,41 @@ function heuristicQuality(selector: string, name: string): number {
 }
 
 function toAAScore(model: RawAAModel, source: string): AAScore {
+  const agentic = computeAgenticScore(model);
+  const input = Math.max(0, model.price1mInputTokens ?? 0);
+  const output = Math.max(0, model.price1mOutputTokens ?? 0);
+  const blended = input * 0.3 + output * 0.7;
   return {
     intelligence: model.intelligenceIndex ?? undefined,
+    agentic,
     price: model.price1mOutputTokens ?? undefined,
     speed: model.outputSpeed ?? undefined,
+    value: agentic != null ? Math.round((agentic / Math.pow(blended + 1, 0.45)) * 100) / 100 : undefined,
     source: source === "artificialanalysis.ai" ? "artificial-analysis" : "baseline",
     updatedAt: new Date().toISOString(),
   };
+}
+
+function computeAgenticScore(model: RawAAModel): number | undefined {
+  const scores = model.scores ?? {};
+  const parts: Array<[number | null | undefined, number]> = [
+    [scores["terminalbench-hard"], 0.35],
+    [scores["tau2-bench"], 0.25],
+    [scores["ifbench"], 0.15],
+    [scores["artificial-analysis-long-context-reasoning"], 0.15],
+    [scores["gpqa-diamond"], 0.1],
+  ];
+  let total = 0;
+  let weight = 0;
+  for (const [value, partWeight] of parts) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      total += value * partWeight;
+      weight += partWeight;
+    }
+  }
+  if (weight >= 0.4) return (total / weight) * 100;
+  if (model.intelligenceIndex != null) return model.intelligenceIndex;
+  return undefined;
 }
 
 function normalizeModelName(value: string): string {
@@ -388,6 +425,7 @@ async function fetchAA(): Promise<RawAAModel[]> {
           price1mInputTokens: item.pricing?.price_1m_input_tokens ?? null,
           price1mOutputTokens: item.pricing?.price_1m_output_tokens ?? null,
           outputSpeed: item.performance?.mean_output_tokens_per_second ?? null,
+          scores: item.evaluations ?? {},
         });
       }
       if (!json.pagination?.has_more) break;
@@ -437,5 +475,10 @@ function parseAAHtml(html: string): RawAAModel[] {
   if (end < 0) throw new Error("Artificial Analysis data block is incomplete");
   const segment = html.slice(start, end).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   const parsed = JSON.parse(segment) as RawAAModel[];
-  return parsed.filter((model) => model && model.slug && model.name);
+  return parsed
+    .map((model) => ({
+      ...model,
+      slug: model.slug ?? model.release?.slug ?? "",
+    }))
+    .filter((model) => model && model.slug && model.name);
 }

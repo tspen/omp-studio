@@ -61,6 +61,7 @@ export interface AAScore {
   agentic?: number;
   price?: number;
   speed?: number;
+  value?: number;
   source: "artificial-analysis" | "baseline" | "heuristic";
   updatedAt: string;
   version?: number;
@@ -81,6 +82,19 @@ export interface ModelInfo {
   aa?: AAScore;
   quality: number;
   recommended?: "root" | "group" | "project" | "worker" | "naming" | "memory";
+}
+
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  login: string;
+  authUrl?: string;
+  instructions?: string;
+  prompt?: string;
+  envVar?: string;
+  recommended: boolean;
+  connected: boolean;
+  modelCount: number;
 }
 
 export interface TreeNode {
@@ -270,6 +284,11 @@ export interface ModelSettings {
   worker: string;
   naming: string;
   memory: string;
+  rootEffort: string;
+  groupEffort: string;
+  projectEffort: string;
+  workerEffort: string;
+  preferredProvider?: string;
   autoUpdateAA: boolean;
   aaKeySet: boolean;
   lastAAUpdate?: string;
@@ -296,6 +315,7 @@ export interface UsageSettings {
 
 export interface AppSettings {
   theme: "light" | "dark" | "system";
+  onboardingCompleted: boolean;
   enginePath?: string;
   autoName: boolean;
   autoReport: boolean;
@@ -620,6 +640,31 @@ export interface SettingsPatch {
   clearAAKey?: boolean;
 }
 
+export interface OnboardingPayload {
+  models: {
+    root: string;
+    group?: string;
+    project?: string;
+    worker: string;
+    naming: string;
+    memory?: string;
+  };
+  efforts: {
+    root: string;
+    group?: string;
+    project?: string;
+    worker: string;
+  };
+  notificationsEnabled: boolean;
+  autoName: boolean;
+  firstProject?: {
+    name?: string;
+    path?: string;
+    brief?: string;
+    gitInit?: boolean;
+  };
+}
+
 export interface OmpStudioApi {
   getSnapshot(): Promise<Snapshot>;
   getThreadMessages(threadId: string): Promise<ChatMessage[]>;
@@ -666,6 +711,7 @@ export interface OmpStudioApi {
   gitDiscard(nodeId: string, threadId: string): Promise<{ ok: boolean; output: string }>;
 
   updateSettings(patch: SettingsPatch): Promise<AppSettings>;
+  completeOnboarding(payload: OnboardingPayload): Promise<{ snapshot: Snapshot; node?: TreeNode }>;
   getOmpConfig(): Promise<OmpConfigSnapshot>;
   setOmpConfig(key: string, value: unknown): Promise<OmpConfigSnapshot>;
   resetOmpConfig(key: string): Promise<OmpConfigSnapshot>;
@@ -675,6 +721,8 @@ export interface OmpStudioApi {
   listSkills(): Promise<SkillInfo[]>;
   listMcpServers(): Promise<McpServerInfo[]>;
 
+  listProviders(): Promise<ProviderInfo[]>;
+  connectProvider(id: string, apiKey?: string): Promise<{ ok: boolean; output: string; providers: ProviderInfo[] }>;
   refreshModels(): Promise<ModelInfo[]>;
   getModelDefaults(): Promise<Record<string, string>>;
   setModelDefault(role: string, selector: string): Promise<AppSettings>;
@@ -699,6 +747,7 @@ export interface OmpStudioApi {
   stopShare(): Promise<void>;
 
   pickDirectory(): Promise<string | null>;
+  setWindowTheme(theme: "light" | "dark"): Promise<void>;
   openExternal(url: string): Promise<void>;
   openPath(path: string): Promise<void>;
   downloadEngine(): Promise<EngineStatus>;

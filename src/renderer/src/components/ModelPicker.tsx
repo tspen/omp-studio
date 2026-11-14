@@ -23,13 +23,17 @@ export function ModelPicker({
     inputRef.current?.focus();
   }, []);
   const providers = useMemo(() => ["all", ...new Set(models.map((model) => model.provider))], [models]);
+  const candidates = useMemo(
+    () => models.filter((model) => !model.id.includes(":batch") && !/\(batch\)/i.test(model.name) && !model.id.includes("~")),
+    [models],
+  );
   const filtered = useMemo(() => {
     const lower = query.toLowerCase();
-    return models
+    return candidates
       .filter((model) => provider === "all" || model.provider === provider)
       .filter((model) => !lower || model.name.toLowerCase().includes(lower) || model.selector.toLowerCase().includes(lower))
       .sort((a, b) => b.quality - a.quality);
-  }, [models, provider, query]);
+  }, [candidates, provider, query]);
   const recommended = filtered.filter((model) => model.recommended).slice(0, 6);
 
   return (
@@ -82,7 +86,8 @@ function ModelRow({ model, active, onSelect }: { model: ModelInfo; active: boole
         <span className="model-sub">{model.selector}</span>
       </div>
       <div className="model-metrics">
-        <Badge tone={scoreTone(model.quality)}>{model.aa?.intelligence != null ? `AA ${model.quality.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge>
+        <Badge tone={scoreTone(model.aa?.agentic ?? model.quality)}>{model.aa?.agentic != null ? `AG ${model.aa.agentic.toFixed(0)}` : model.aa?.intelligence != null ? `AA ${model.aa.intelligence.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge>
+        {model.aa?.value != null ? <Badge tone="purple">V {model.aa.value.toFixed(1)}</Badge> : null}
         <span>{formatNumber(model.contextWindow)} ctx</span>
         <span>{formatCost(model.cost.input)}/{formatCost(model.cost.output)}</span>
         {model.reasoning ? <Badge tone="purple">reasoning</Badge> : null}

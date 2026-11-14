@@ -117,7 +117,13 @@ export class Orchestrator extends EventEmitter {
       const selector = node.type === "root" ? this.store.settings.models.root : node.type === "group" ? this.store.settings.models.group : this.store.settings.models.project;
       const model = this.deps.models.resolve(selector);
       if (!model) continue;
-      const effort = normalizeEffort(thread.effort, model);
+      const preferredEffort =
+        node.type === "root"
+          ? this.store.settings.models.rootEffort
+          : node.type === "group"
+            ? this.store.settings.models.groupEffort
+            : this.store.settings.models.projectEffort;
+      const effort = normalizeEffort(preferredEffort || "high", model);
       const updatedNode = this.store.updateNode(node.id, { model: model.selector, effort });
       const updatedThread = this.store.updateThread(thread.id, {
         model: { provider: model.provider, id: model.id, selector: model.selector, name: model.name },
@@ -144,7 +150,7 @@ export class Orchestrator extends EventEmitter {
         path: rootPath,
         orchestratorThreadId: threadId,
         model: model?.selector ?? "",
-        effort: "high",
+        effort: this.store.settings.models.rootEffort || "high",
         gitMode: "shared",
         approvalMode: "write",
         collapsed: false,
@@ -161,7 +167,7 @@ export class Orchestrator extends EventEmitter {
         kind: "orchestrator",
         title: "Mission Control",
         model: model?.selector ?? "",
-        effort: "high",
+        effort: this.store.settings.models.rootEffort || "high",
         sessionDir: join(this.store.sessionsDir, "root"),
         status: "idle",
       }));
@@ -300,7 +306,7 @@ export class Orchestrator extends EventEmitter {
       environmentId: input.environmentId ?? parent.environmentId,
       orchestratorThreadId: threadId,
       model: model?.selector ?? "",
-      effort: input.effort || "high",
+      effort: input.effort || (type === "group" ? this.store.settings.models.groupEffort : this.store.settings.models.projectEffort) || "high",
       gitMode: type === "project" ? this.store.settings.git.defaultMode : "shared",
       approvalMode: input.approvalMode ?? "write",
       collapsed: false,
@@ -387,7 +393,7 @@ export class Orchestrator extends EventEmitter {
       kind: "worker",
       title,
       model: model?.selector ?? "",
-      effort: input.effort || "high",
+      effort: input.effort || this.store.settings.models.workerEffort || "high",
       sessionDir: join(this.store.sessionsDir, threadId),
       status: "queued",
       branch,
@@ -517,6 +523,7 @@ export class Orchestrator extends EventEmitter {
   }
 
   async getThreadEntries(threadId: string): Promise<any[]> {
+    if (this.store.getChat(threadId).length === 0) return [];
     const session = await this.ensureSession(threadId);
     const entries = await session.getEntries();
     return entries.map((entry) => {

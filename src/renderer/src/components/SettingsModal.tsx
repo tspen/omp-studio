@@ -101,7 +101,7 @@ function settingsBlurb(tab: string): string {
     case "general":
       return "Tree behavior, this node, and the app shell.";
     case "models":
-      return "Explicit model and reasoning defaults for every level. Scores come from Artificial Analysis and refresh daily.";
+      return "Explicit model and reasoning defaults for every level. Defaults use Artificial Analysis agentic value within sane cost caps.";
     case "usage":
       return "Provider windows, token/cost totals, budgets and auto-resume behavior.";
     case "tools":
@@ -190,6 +190,9 @@ function GeneralTab() {
         </Row>
         <Row label="Show thinking blocks" hint="Display model reasoning inline.">
           <Toggle checked={settings.ui.showThinking} onChange={(value) => update({ ui: { ...settings.ui, showThinking: value } })} />
+        </Row>
+        <Row label="Setup wizard" hint="Re-run provider connection and model selection.">
+          <Button size="sm" variant="soft" onClick={() => void state.updateSettings({ settings: { onboardingCompleted: false } })}>Run setup again</Button>
         </Row>
       </Section>
 
@@ -282,8 +285,17 @@ function ModelsTab() {
                 <div className="role-model">
                   <Sparkles size={13} />
                   <span>{model?.name ?? (selector || "Not set")}</span>
-                  {model ? <Badge tone={model.quality >= 80 ? "green" : "blue"}>{model.aa?.intelligence != null ? `AA ${model.quality.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge> : null}
-                  {model ? <span className="muted">{formatCost(model.cost.input)}/{formatCost(model.cost.output)}  {formatNumber(model.contextWindow)} ctx</span> : null}
+                  {model ? <Badge tone={model.quality >= 80 ? "green" : "blue"}>{model.aa?.agentic != null ? `AG ${model.aa.agentic.toFixed(0)}` : model.aa?.intelligence != null ? `AA ${model.quality.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge> : null}
+                  {model?.aa?.value != null ? <Badge tone="purple">V {model.aa.value.toFixed(1)}</Badge> : null}
+                  {model ? <span className="muted">{formatCost(model.cost.input)}/{formatCost(model.cost.output)} · {formatNumber(model.contextWindow)} ctx</span> : null}
+                  {model && role.key !== "naming" && role.key !== "memory" ? (
+                    <Select
+                      value={(settings.models as any)[`${role.key}Effort`] ?? "high"}
+                      onChange={(value) => state.updateSettings({ settings: { models: { ...settings.models, [`${role.key}Effort`]: value } as any } })}
+                    >
+                      {["off", ...(model.thinking ?? [])].filter((item, index, list) => list.indexOf(item) === index).map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+                    </Select>
+                  ) : null}
                 </div>
               </div>
               <Button size="sm" variant="soft" onClick={() => setPick(pick === role.key ? null : role.key)}>Change</Button>
@@ -315,7 +327,7 @@ function ModelsTab() {
         <Row label="Auto-update daily" hint="Refreshes the AA leaderboard every 24 hours.">
           <Toggle checked={settings.models.autoUpdateAA} onChange={(value) => state.updateSettings({ settings: { models: { ...settings.models, autoUpdateAA: value } } })} />
         </Row>
-        <div className="aa-note">Scores and pricing are attributed to artificialanalysis.ai. When a model has no AA match, OMP Studio uses a local quality estimate and labels it Q.</div>
+        <div className="aa-note">Defaults rank by AA agentic score (terminal-bench, τ²-bench, IFBench, long-context) divided by blended cost. Batch routes, free routers, and models above $15/M output are excluded from auto-defaults. Data and pricing are attributed to artificialanalysis.ai; unmatched models use a local estimate labelled Q.</div>
       </Section>
     </>
   );

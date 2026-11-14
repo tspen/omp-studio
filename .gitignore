@@ -20,3 +20,4 @@ tmp*.png
 vendor/omp/omp.exe
 vendor/omp/omp.exe.part
 vendor/omp/LICENSE
+login-*.txt

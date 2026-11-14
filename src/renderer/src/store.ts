@@ -77,6 +77,7 @@ interface AppState {
   createNode(input: any): Promise<void>;
   createThread(input: any): Promise<void>;
   updateSettings(patch: any): Promise<void>;
+  completeOnboarding(payload: any): Promise<void>;
   refreshModels(): Promise<void>;
   refreshAA(): Promise<void>;
   refreshUsage(): Promise<void>;
@@ -402,6 +403,18 @@ export const useApp = create<AppState>((set, get) => ({
       await get().refresh();
     } catch (error) {
       get().pushToast({ kind: "error", title: "Settings update failed", body: String(error) });
+    }
+  },
+
+  async completeOnboarding(payload) {
+    try {
+      const result = await api().completeOnboarding(payload);
+      set({ snapshot: result.snapshot, models: result.snapshot.models });
+      if (result.node?.orchestratorThreadId) await get().selectThread(result.node.orchestratorThreadId, result.node.id);
+      else await get().selectRoot();
+    } catch (error) {
+      get().pushToast({ kind: "error", title: "Onboarding failed", body: String(error) });
+      throw error;
     }
   },
 

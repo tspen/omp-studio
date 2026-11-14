@@ -440,7 +440,10 @@ function HistoryModal() {
   useEffect(() => {
     if (!thread) return;
     setLoading(true);
-    void window.omp.getThreadEntries(thread.id).then(setEntries).finally(() => setLoading(false));
+    void window.omp.getThreadEntries(thread.id)
+      .then(setEntries)
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
   }, [thread?.id]);
   if (!thread) return null;
   return (

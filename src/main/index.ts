@@ -17,6 +17,7 @@ import { ShareService } from "./services/share";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
 import { UsageService } from "./services/usage";
+import { ProviderService } from "./services/providers";
 import type { AppEvent } from "../shared/types";
 
 let mainWindow: BrowserWindow | null = null;
@@ -204,6 +205,7 @@ async function bootstrap(): Promise<void> {
   const models = new ModelService(dataStore, engine);
   const settings = new SettingsService(dataStore, engine);
   const usage = new UsageService(dataStore, engine);
+  const providers = new ProviderService(dataStore, engine, models);
   const shareService = new ShareService(dataStore);
   share = shareService;
   const notificationService = new NotificationService(dataStore, broadcast);
@@ -256,6 +258,7 @@ async function bootstrap(): Promise<void> {
     orchestrator,
     environments,
     models,
+    providers,
     settings,
     git,
     artifacts,

@@ -41,6 +41,7 @@ interface PersistedState {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
+  onboardingCompleted: false,
   autoName: true,
   autoReport: true,
   autoWakeParent: true,
@@ -65,6 +66,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
     worker: "",
     naming: "",
     memory: "",
+    rootEffort: "high",
+    groupEffort: "high",
+    projectEffort: "high",
+    workerEffort: "high",
+    preferredProvider: "",
     autoUpdateAA: true,
     aaKeySet: false,
   },

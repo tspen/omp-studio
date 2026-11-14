@@ -1,5 +1,5 @@
-import { app, dialog, ipcMain, shell } from "electron";
-import type { AppEvent, NewNodeRequest, NewThreadRequest, SendMessageRequest, SettingsPatch } from "../shared/types";
+import { app, dialog, ipcMain, shell, BrowserWindow } from "electron";
+import type { AppEvent, NewNodeRequest, NewThreadRequest, OnboardingPayload, SendMessageRequest, SettingsPatch } from "../shared/types";
 import type { EngineLocator } from "./engine/engine-locator";
 import type { Orchestrator } from "./orchestrator/orchestrator";
 import type { ArtifactService } from "./services/artifacts";
@@ -12,6 +12,7 @@ import type { ShareService } from "./services/share";
 import type { Store } from "./services/store";
 import type { TerminalService } from "./services/terminal";
 import type { UsageService } from "./services/usage";
+import type { ProviderService } from "./services/providers";
 
 export interface IpcContext {
   store: Store;
@@ -19,6 +20,7 @@ export interface IpcContext {
   orchestrator: Orchestrator;
   environments: EnvironmentService;
   models: ModelService;
+  providers: ProviderService;
   settings: SettingsService;
   git: GitService;
   artifacts: ArtifactService;
@@ -30,7 +32,7 @@ export interface IpcContext {
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, settings, git, artifacts, notifications, terminal, share, engine, usage, broadcast } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, engine, usage, broadcast } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => store.getChat(threadId));
@@ -106,6 +108,47 @@ export function registerIpc(context: IpcContext): void {
     broadcast({ type: "snapshot", payload: orchestrator.snapshot() });
     return updated;
   });
+  ipcMain.handle("settings:complete-onboarding", async (_event, payload: OnboardingPayload) => {
+    const current = store.settings;
+    const models = {
+      ...current.models,
+      ...payload.models,
+      group: payload.models.group ?? payload.models.root,
+      project: payload.models.project ?? payload.models.worker,
+      memory: payload.models.memory ?? payload.models.naming,
+      rootEffort: payload.efforts.root,
+      groupEffort: payload.efforts.group ?? payload.efforts.root,
+      projectEffort: payload.efforts.project ?? payload.efforts.worker,
+      workerEffort: payload.efforts.worker,
+    };
+    store.setSettings({
+      onboardingCompleted: true,
+      autoName: payload.autoName,
+      notifications: { ...current.notifications, enabled: payload.notificationsEnabled },
+      models,
+    });
+    orchestrator.applyDefaultsToEmptyTree();
+    let node: any;
+    const first = payload.firstProject;
+    if (first && (first.name?.trim() || first.brief?.trim())) {
+      const root = store.nodes.find((item) => item.type === "root");
+      if (root) {
+        node = await orchestrator.createNode({
+          parentId: root.id,
+          type: "project",
+          name: first.name?.trim() ?? "",
+          path: first.path?.trim() || undefined,
+          brief: first.brief?.trim() || undefined,
+          model: models.project,
+          effort: models.projectEffort,
+          gitInit: !!first.gitInit,
+        });
+      }
+    }
+    const snapshot = orchestrator.snapshot();
+    broadcast({ type: "snapshot", payload: snapshot });
+    return { snapshot, node };
+  });
   ipcMain.handle("omp-config:get", async () => {
     const cached = store.data.ompConfig;
     if (cached.fetchedAt && Date.now() - cached.fetchedAt < 5 * 60_000) return cached;
@@ -129,6 +172,16 @@ export function registerIpc(context: IpcContext): void {
   });
   ipcMain.handle("skills:list", () => settings.skills());
   ipcMain.handle("mcp:list", () => settings.mcpServers());
+  ipcMain.handle("providers:list", () => providers.list());
+  ipcMain.handle("providers:connect", async (_event, id: string, apiKey?: string) => {
+    const result = await providers.connect(id, apiKey);
+    if (result.ok) {
+      const list = await models.refresh().catch(() => models.list());
+      broadcast({ type: "models:updated", payload: { models: list, updatedAt: Date.now() } });
+      broadcast({ type: "snapshot", payload: orchestrator.snapshot() });
+    }
+    return result;
+  });
 
   ipcMain.handle("models:refresh", async () => {
     const list = await models.refresh();
@@ -197,4 +250,15 @@ export function registerIpc(context: IpcContext): void {
 
   ipcMain.handle("window:minimize", () => undefined);
   ipcMain.handle("window:maximize", () => undefined);
+  ipcMain.handle("window:theme", (_event, theme: "light" | "dark") => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    const dark = theme === "dark";
+    win.setBackgroundColor(dark ? "#141417" : "#f7f7f8");
+    win.setTitleBarOverlay({
+      color: dark ? "#17171b" : "#f7f7f8",
+      symbolColor: dark ? "#e6e6ef" : "#3b3b43",
+      height: 40,
+    });
+  });
 }

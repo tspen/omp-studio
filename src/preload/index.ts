@@ -49,6 +49,7 @@ const api: OmpStudioApi = {
   gitDiscard: (nodeId, threadId) => invoke("git:discard", nodeId, threadId) as Promise<any>,
 
   updateSettings: (patch) => invoke("settings:update", patch) as Promise<any>,
+  completeOnboarding: (payload) => invoke("settings:complete-onboarding", payload) as Promise<any>,
   getOmpConfig: () => invoke("omp-config:get") as Promise<any>,
   setOmpConfig: (key, value) => invoke("omp-config:set", key, value) as Promise<any>,
   resetOmpConfig: (key) => invoke("omp-config:reset", key) as Promise<any>,
@@ -57,6 +58,8 @@ const api: OmpStudioApi = {
   setTool: (name, enabled, approval) => invoke("tools:set", name, enabled, approval) as Promise<any>,
   listSkills: () => invoke("skills:list") as Promise<any>,
   listMcpServers: () => invoke("mcp:list") as Promise<any>,
+  listProviders: () => invoke("providers:list") as Promise<any>,
+  connectProvider: (id, apiKey) => invoke("providers:connect", id, apiKey) as Promise<any>,
 
   refreshModels: () => invoke("models:refresh") as Promise<any>,
   getModelDefaults: () => invoke("models:defaults") as Promise<any>,
@@ -82,6 +85,7 @@ const api: OmpStudioApi = {
   stopShare: () => invoke("share:stop") as Promise<any>,
 
   pickDirectory: () => invoke("dialog:pick-directory") as Promise<any>,
+  setWindowTheme: (theme) => invoke("window:theme", theme) as Promise<any>,
   openExternal: (url) => invoke("shell:open-external", url) as Promise<any>,
   openPath: (path) => invoke("shell:open-path", path) as Promise<any>,
   downloadEngine: () => invoke("engine:download") as Promise<any>,

@@ -107,7 +107,7 @@ function ThreadHeader({
               {index > 0 ? <ChevronRight size={12} /> : null}
               <button type="button" onClick={() => void state.selectNode(ancestor.id)} className={ancestor.id === node.id ? "current" : ""}>
                 {ancestor.type === "root" ? <Sparkles size={12} /> : ancestor.type === "group" ? <Users size={12} /> : <FolderGit2 size={12} />}
-                {ancestor.name}
+                {ancestor.type === "root" ? "Root" : ancestor.name}
               </button>
             </React.Fragment>
           ))}
