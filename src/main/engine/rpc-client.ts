@@ -17,11 +17,14 @@ interface PendingRequest {
   command: string;
 }
 
-const MAX_FRAME = 80 * 1024 * 1024;
+const MAX_FRAME = 16 * 1024 * 1024;
+const MAX_PENDING_CHUNKS = 64 * 1024 * 1024;
 
 class FrameDecoder {
   private buffer = "";
   private chunks = new Map<string, { count: number; parts: Buffer[]; byteLength: number }>();
+  private pendingBytes = 0;
+  private pushes = 0;
   private onObject: (value: any) => void;
 
   constructor(onObject: (value: any) => void) {
@@ -30,12 +33,24 @@ class FrameDecoder {
 
   push(data: Buffer | string): void {
     this.buffer += data.toString();
+    this.pushes += 1;
+    if (this.pushes % 40 === 0 && process.memoryUsage().rss > 2_500_000_000) {
+      console.error(`[rpc] memory guard cleared decoder (rss ${Math.round(process.memoryUsage().rss / 1_048_576)}MB)`);
+      this.buffer = "";
+      this.chunks.clear();
+      this.pendingBytes = 0;
+    }
     for (;;) {
       const index = this.buffer.indexOf("\n");
       if (index < 0) break;
       const line = this.buffer.slice(0, index).trim();
       this.buffer = this.buffer.slice(index + 1);
       if (!line) continue;
+      if (line.length > MAX_FRAME) {
+        const type = /"type"\s*:\s*"([^"]+)"/.exec(line)?.[1] ?? "?";
+        console.error(`[rpc] dropped oversized frame ${(line.length / 1_048_576).toFixed(1)}MB type=${type}`);
+        continue;
+      }
       let frame: any;
       try {
         frame = JSON.parse(line);
@@ -52,6 +67,7 @@ class FrameDecoder {
       }
     }
     if (this.buffer.length > MAX_FRAME) {
+      console.error(`[rpc] dropped unterminated buffer ${(this.buffer.length / 1_048_576).toFixed(1)}MB`);
       this.buffer = "";
     }
   }
@@ -63,18 +79,30 @@ class FrameDecoder {
     if (!chunkId || !Number.isInteger(index) || !Number.isInteger(count) || index < 0 || count < 1) return;
     let entry = this.chunks.get(chunkId);
     if (!entry) {
-      entry = { count, parts: new Array(count), byteLength: Number(frame.byteLength) || 0 };
+      entry = { count, parts: new Array(count), byteLength: 0 };
       this.chunks.set(chunkId, entry);
     }
     if (entry.count !== count) return;
+    let part: Buffer;
     try {
-      entry.parts[index] = Buffer.from(String(frame.data ?? ""), "base64");
+      part = Buffer.from(String(frame.data ?? ""), "base64");
     } catch {
+      this.pendingBytes -= entry.byteLength;
       this.chunks.delete(chunkId);
       return;
     }
+    if (part.length > MAX_FRAME || this.pendingBytes + part.length > MAX_PENDING_CHUNKS) {
+      console.error(`[rpc] dropped oversized chunked frame ${(part.length / 1_048_576).toFixed(1)}MB`);
+      this.pendingBytes -= entry.byteLength;
+      this.chunks.delete(chunkId);
+      return;
+    }
+    entry.parts[index] = part;
+    entry.byteLength += part.length;
+    this.pendingBytes += part.length;
     if (entry.parts.filter(Boolean).length !== count) return;
     this.chunks.delete(chunkId);
+    this.pendingBytes -= entry.byteLength;
     const buffer = Buffer.concat(entry.parts);
     if (buffer.length > MAX_FRAME) return;
     if (buffer.length > 4_000_000) console.error(`[rpc] large reassembled frame ${(buffer.length / 1_048_576).toFixed(1)}MB`);

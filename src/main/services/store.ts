@@ -725,7 +725,7 @@ function deepMerge<T>(base: T, patch: Partial<T>): T {
 }
 
 function compactChatMessage(message: ChatMessage): ChatMessage {
-  const blocks = message.blocks.map((block) => {
+  const blocks = message.blocks.slice(0, 200).map((block) => {
     if (block.type === "thinking" && block.text.length > 30_000) return { ...block, text: block.text.slice(0, 30_000) };
     if (block.type === "text" && block.text.length > 100_000) return { ...block, text: block.text.slice(0, 100_000) };
     if (block.type === "tool") {
