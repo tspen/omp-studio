@@ -445,9 +445,34 @@ export class Orchestrator extends EventEmitter {
     }
     const node = this.store.getNode(thread.nodeId);
     if (!node) throw new Error("Node not found");
+    this.cleanupFinishedThreads(node.id);
+    const subtreeIds = new Set([node.id, ...this.descendantNodes(node.id).map((item) => item.id)]);
+    const active = this.store.threads.filter(
+      (item) => subtreeIds.has(item.nodeId) && item.kind === "worker" && !item.archived && ["running", "starting", "waiting"].includes(item.status),
+    );
+    const claimed = new Map<string, string>();
+    for (const running of active) for (const key of this.conflictKeys(running)) claimed.set(key, running.title);
+    const slots = Math.max(1, this.store.settings.maxConcurrentThreads - active.length);
     const resumable = this.resumableThreads(node.id);
+    const resumed: Thread[] = [];
+    const paused: Array<{ thread: Thread; reason: string }> = [];
     for (const worker of resumable) {
+      const conflict = this.conflictKeys(worker).map((key) => ({ key, owner: claimed.get(key) })).find((item) => item.owner);
+      if (conflict?.owner) {
+        const reason = `Paused: overlaps "${conflict.owner}" on ${conflict.key.startsWith("title:") ? "the same task" : "the same checkout or branch"}`;
+        await this.pauseThread(worker, reason);
+        paused.push({ thread: worker, reason });
+        continue;
+      }
+      if (resumed.length >= slots) {
+        const reason = `Paused: concurrency limit (${slots} slot${slots === 1 ? "" : "s"} free)`;
+        await this.pauseThread(worker, reason);
+        paused.push({ thread: worker, reason });
+        continue;
+      }
       await this.sendUserMessage({ threadId: worker.id, text: WORKER_RESUME_PROMPT }).catch(() => undefined);
+      for (const key of this.conflictKeys(worker)) claimed.set(key, worker.title);
+      resumed.push(worker);
     }
     // Nested orchestrators will wake from their workers' reports; clear their
     // banners without spending a turn on each of them.
@@ -458,16 +483,50 @@ export class Orchestrator extends EventEmitter {
         this.deps.emit({ type: "thread:updated", payload: cleared });
       }
     }
-    const names = resumable.slice(0, 8).map((worker) => `- ${worker.title}`).join("\n");
-    const summary = resumable.length
-      ? [
-          `Continue requested. ${resumable.length} interrupted child thread(s) were resumed:`,
-          names,
-          "",
-          "Monitor their reports, answer questions, resolve finished threads with tree_resolve_thread, and escalate blockers. Do not implement code or inspect files yourself.",
-        ].join("\n")
-      : "Continue requested. No interrupted child threads were found. Review current child threads and reports, resolve anything finished with tree_resolve_thread, then reply with a one-paragraph status. Do not implement code yourself.";
+    const resumedLines = resumed.slice(0, 8).map((worker) => `- ${worker.title}`).join("\n");
+    const pausedLines = paused.slice(0, 8).map((item) => `- ${item.thread.title}: ${item.reason}`).join("\n");
+    const summary = [
+      resumed.length
+        ? `Continue requested. Resumed ${resumed.length} interrupted child thread(s):\n${resumedLines}`
+        : "Continue requested. No child threads were resumed.",
+      paused.length ? `Paused ${paused.length} overlapping or over-limit thread(s):\n${pausedLines}` : "",
+      "",
+      "Monitor their reports, answer questions, resolve finished threads with tree_resolve_thread, and escalate blockers. Do not implement code or inspect files yourself.",
+    ].filter(Boolean).join("\n");
     await this.sendUserMessage({ threadId, text: summary });
+  }
+
+  private async pauseThread(thread: Thread, reason: string): Promise<void> {
+    await this.disposeSession(thread.id).catch(() => undefined);
+    const updated = this.store.updateThread(thread.id, {
+      status: "parked",
+      statusMessage: reason,
+    });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+  }
+
+  private cleanupFinishedThreads(nodeId: string): void {
+    const nodeIds = new Set([nodeId, ...this.descendantNodes(nodeId).map((node) => node.id)]);
+    for (const thread of this.store.threads) {
+      if (!nodeIds.has(thread.nodeId) || thread.kind !== "worker" || thread.archived) continue;
+      if (!thread.interrupted || !["completed", "cancelled", "error"].includes(thread.status)) continue;
+      const cleared = this.store.updateThread(thread.id, {
+        interrupted: false,
+        interruptedAt: undefined,
+        statusMessage: thread.statusMessage ?? "Finished before restart",
+      });
+      this.deps.emit({ type: "thread:updated", payload: cleared });
+    }
+  }
+
+  private conflictKeys(thread: Thread): string[] {
+    const keys: string[] = [];
+    if (thread.worktreePath) keys.push(`worktree:${thread.worktreePath.toLowerCase()}`);
+    if (thread.branch) keys.push(`branch:${thread.branch.toLowerCase()}`);
+    if (!thread.worktreePath) keys.push(`checkout:${thread.nodeId}`);
+    const title = thread.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (title) keys.push(`title:${thread.nodeId}:${title}`);
+    return keys;
   }
 
   private resumableThreads(nodeId: string): Thread[] {

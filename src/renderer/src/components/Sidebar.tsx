@@ -293,7 +293,7 @@ function TreeRow({
           className={cx("tree-thread", thread.id === selectedThreadId && "active", thread.archived && "resolved")}
           data-thread-id={thread.id}
           style={{ paddingLeft: 20 + (depth + 1) * 14 }}
-          title={`${thread.title} · ${thread.status}${thread.git?.branch ? ` · ${thread.git.branch}` : ""}`}
+          title={`${thread.title} · ${thread.status}${thread.statusMessage ? ` · ${thread.statusMessage}` : ""}${thread.git?.branch ? ` · ${thread.git.branch}` : ""}`}
           onClick={(event) => { event.stopPropagation(); onSelectThread(thread.id, node.id); }}
           onContextMenu={(event) => {
             event.preventDefault();
