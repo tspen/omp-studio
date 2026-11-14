@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import type { ChatMessage } from "../../shared/types";
 import type { EngineLocator } from "../engine/engine-locator";
 import type { Store } from "./store";
 
@@ -42,6 +43,7 @@ export class NamingService {
     if (!this.store.settings.autoName) return;
     const thread = this.store.getThread(threadId);
     if (!thread?.titleAuto) return;
+    if (!isPlaceholderTitle(thread.title)) return;
     const model = this.store.settings.models.naming;
     if (!model) return;
     this.enqueue(async () => {
@@ -83,6 +85,51 @@ export class NamingService {
         if (thread) this.store.updateThread(thread.id, { title: name });
         this.onNodeUpdate?.(nodeId, name);
       }
+    });
+  }
+
+  /**
+   * Re-title a long-running thread from a compact digest of its own chat. Uses
+   * the cheap naming model with thinking off, so the cost stays negligible.
+   */
+  refreshTitle(threadId: string): void {
+    if (!this.store.settings.autoName) return;
+    const thread = this.store.getThread(threadId);
+    if (!thread?.titleAuto || thread.kind !== "worker") return;
+    const model = this.store.settings.models.naming;
+    if (!model) return;
+    const chat = this.store.getChat(threadId);
+    const users = chat
+      .filter((message) => message.role === "user")
+      .map((message) => messageText(message))
+      .filter(Boolean);
+    const assistants = chat
+      .filter((message) => message.role === "assistant")
+      .map((message) => messageText(message))
+      .filter((text) => text.length > 20);
+    if (users.length < 2 || !assistants.length) return;
+    const digest = [
+      `Current title: ${thread.title}`,
+      "",
+      "User requests:",
+      ...users.slice(-6).map((text) => `- ${truncate(text, 220)}`),
+      "",
+      "Latest progress:",
+      truncate(assistants[assistants.length - 1], 360),
+      "",
+      "Return the best title for this work.",
+    ].join("\n");
+    this.enqueue(async () => {
+      const result = await this.ask(
+        model,
+        "You maintain thread titles in a coding cockpit. Describe the work, not the process: 3-6 words, title case, no quotes, no trailing punctuation, maximum 48 characters. If the current title already fits, return it unchanged. Return only the title.",
+        digest,
+      );
+      const title = sanitizeTitle(result);
+      const current = this.store.getThread(threadId);
+      if (!title || !current?.titleAuto || title.toLowerCase() === current.title.toLowerCase()) return;
+      this.store.updateThread(threadId, { title, titleAuto: true });
+      this.onUpdate?.(threadId, title);
     });
   }
 
@@ -152,6 +199,24 @@ export class NamingService {
 
 function stripAnsi(value: string): string {
   return value.replace(/\u001b\[[0-9;]*m/g, "").replace(/^Working\.\.\.\s*/i, "").trim();
+}
+
+function messageText(message: ChatMessage): string {
+  return message.blocks
+    .filter((block) => block.type === "text")
+    .map((block) => (block as { text?: string }).text ?? "")
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncate(value: string, length: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  return clean.length > length ? `${clean.slice(0, length - 1).trim()}…` : clean;
+}
+
+function isPlaceholderTitle(title: string): boolean {
+  return /^(new thread|new group|new project|mission control|untitled|thread \d+)$/i.test(title.trim());
 }
 
 function sanitizeTitle(value: string): string {

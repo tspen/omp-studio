@@ -1,5 +1,5 @@
 import { app, BrowserWindow, nativeImage } from "electron";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { EngineLocator } from "./engine/engine-locator";
@@ -28,6 +28,10 @@ let store: Store | null = null;
 
 const smokeTest = process.argv.includes("--smoke-test");
 const integrationTest = process.argv.includes("--integration-test");
+if (process.env.OMP_STUDIO_USER_DATA) {
+  mkdirSync(process.env.OMP_STUDIO_USER_DATA, { recursive: true });
+  app.setPath("userData", process.env.OMP_STUDIO_USER_DATA);
+}
 
 function broadcast(event: AppEvent): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("omp:event", event);
@@ -120,6 +124,67 @@ async function runIntegration(
   const envelopes = dataStore.listEnvelopes({ limit: 200 });
   const childReport = envelopes.find((envelope) => envelope.fromThreadId === project.orchestratorThreadId && envelope.kind === "result");
   const workerReport = envelopes.find((envelope) => envelope.fromThreadId === worker.id && envelope.kind === "result");
+  console.log("INTEGRATION: chat autonomy tools");
+  const autonomyRoot = join(dataStore.baseDir, "workspaces");
+  dataStore.setSettings({ workspaceRoot: autonomyRoot });
+  const defaultPathNode = await orchestrator.createNode({
+    parentId: rootNode.id,
+    type: "project",
+    name: "Default Path Check",
+    gitInit: true,
+  });
+  const defaultProjectPath = defaultPathNode.path;
+  if (!defaultProjectPath.toLowerCase().startsWith(autonomyRoot.toLowerCase())) {
+    throw new Error(`Default project path is outside the workspace root: ${defaultProjectPath}`);
+  }
+  if (basename(defaultProjectPath) !== "default-path-check") {
+    throw new Error(`Default project path is not named after the project: ${defaultProjectPath}`);
+  }
+  if (!existsSync(join(defaultProjectPath, ".git"))) throw new Error("Default project path was not git-initialised");
+  await orchestrator.deleteNode(defaultPathNode.id);
+  const toolGroupName = `Tool Group ${Date.now().toString(36)}`;
+  const prompt = [
+    "You are being tested. Use the tree tools, in order, without asking questions.",
+    '1. Call tree_create_environment with name "Integration Env" and setupCommands ["echo setup-ok"].',
+    '2. Call tree_list_environments and note the id of "Integration Env".',
+    '3. Call tree_create_node with type "project", name "Tool Project", gitInit true, environmentId set to that environment id, and brief "Reply with exactly TOOL_PROJECT_OK". Do not pass a path; let OMP Studio pick the default folder.',
+    `4. Call tree_create_node with type "group" and name ${JSON.stringify(toolGroupName)}.`,
+    "5. Call tree_move_node to move the Tool Project node under the new group.",
+    '6. Call tree_update_node on Tool Project with effort "high".',
+    "7. Reply with exactly TOOL_SETUP_DONE. If any tool fails, report the exact error instead.",
+  ].join("\n");
+  await orchestrator.sendUserMessage({ threadId: rootThread.id, text: prompt });
+  const deadline = Date.now() + 6 * 60_000;
+  const latestNode = (name: string) =>
+    dataStore.nodes.filter((node) => node.name === name).sort((a, b) => b.createdAt - a.createdAt)[0];
+  let env = dataStore.environments.find((item) => item.name === "Integration Env");
+  let toolProject = latestNode("Tool Project");
+  let toolGroup = latestNode(toolGroupName);
+  while (Date.now() < deadline) {
+    env = dataStore.environments.find((item) => item.name === "Integration Env");
+    toolProject = latestNode("Tool Project");
+    toolGroup = latestNode(toolGroupName);
+    if (env && toolProject && toolGroup && toolProject.parentId === toolGroup.id && toolProject.effort === "high") break;
+    const rootState = dataStore.getThread(rootThread.id);
+    if (rootState?.status === "error") throw new Error(`Autonomy prompt failed: ${rootState.statusMessage ?? "unknown"}`);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  if (!env) throw new Error("Chat did not create an environment with tree_create_environment");
+  if (!toolProject) throw new Error("Chat did not create a project with tree_create_node");
+  if (!toolGroup) throw new Error("Chat did not create a group with tree_create_node");
+  if (toolProject.parentId !== toolGroup.id) throw new Error("Chat did not move the project under the group with tree_move_node");
+  if (toolProject.environmentId !== env.id) throw new Error("Chat did not attach the environment to the project");
+  if (toolProject.effort !== "high") throw new Error(`Chat did not update effort (got ${toolProject.effort})`);
+  if (!existsSync(join(toolProject.path, ".git"))) throw new Error("Chat did not initialise git for the new project");
+  console.log("INTEGRATION_TOOLS_OK", {
+    environment: env.id,
+    environmentSetup: env.setupCommands,
+    project: toolProject.id,
+    projectPath: toolProject.path,
+    group: toolGroup.id,
+    effort: toolProject.effort,
+  });
+
   console.log("INTEGRATION_OK", {
     rootThread: rootThread.id,
     project: project.id,

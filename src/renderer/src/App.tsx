@@ -83,7 +83,7 @@ export function App() {
         <div className="statusbar-left">
           <span className="statusbar-item"><span className={cx("engine-dot", state.engine?.found ? "ok" : "bad")} /> {state.engine?.found ? `OMP ${state.engine.version}` : "OMP not found"}</span>
           <span className="statusbar-item">{groups} groups · {projects} projects · {running} running · {waiting} waiting</span>
-          <span className="statusbar-item">{formatNumber(state.snapshot.usage.totalTokens)} tokens · {formatCost(state.snapshot.usage.totalCost)}</span>
+          <span className="statusbar-item">{formatNumber(state.snapshot.usage.totalTokens)} tokens · {formatCost(state.snapshot.usage.totalCost)} metered{state.snapshot.usage.referenceCost ? ` · ${formatCost(state.snapshot.usage.referenceCost)} included ref` : ""}</span>
         </div>
         <div className="statusbar-right">
           <span>{node ? `${node.type}: ${node.name}` : "No node"}</span>

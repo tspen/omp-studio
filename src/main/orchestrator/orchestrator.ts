@@ -63,6 +63,7 @@ export class Orchestrator extends EventEmitter {
   private starting = new Map<string, Promise<OmpSession>>();
   private gitTimers = new Map<string, NodeJS.Timeout>();
   private autoContinueTimers = new Map<string, NodeJS.Timeout>();
+  private retitleState = new Map<string, { turns: number; lastAt: number }>();
   private digestTimer: NodeJS.Timeout | null = null;
   private parkingTimer: NodeJS.Timeout | null = null;
   private bus: MessageBus;
@@ -287,7 +288,7 @@ export class Orchestrator extends EventEmitter {
     const type = input.type;
     const autoName = !input.name?.trim();
     const name = input.name.trim() || (type === "group" ? "New group" : "New project");
-    const path = input.path?.trim() || join(this.store.baseDir, "workspaces", type === "group" ? "groups" : "projects", `${slug(name)}-${randomUUID().slice(0, 6)}`);
+    const path = input.path?.trim() || this.uniqueWorkspacePath(join(this.store.workspaceRoot, slug(name)));
     mkdirSync(path, { recursive: true });
     if (type === "project" && input.gitInit && !(await this.deps.git.isRepo(path))) {
       await this.deps.git.run(path, ["init"]);
@@ -617,6 +618,81 @@ export class Orchestrator extends EventEmitter {
     return this.deps.memory.consolidate(nodeId);
   }
 
+  createEnvironment(input: {
+    name: string;
+    cwd?: string;
+    envVars?: Array<{ key: string; value: string }>;
+    setupCommands?: string[];
+    teardownCommands?: string[];
+    shell?: string;
+    inheritEnv?: boolean;
+    gitMode?: GitMode;
+    approvalMode?: Environment["approvalMode"];
+  }): Environment {
+    const now = Date.now();
+    const env: Environment = {
+      id: newId("env"),
+      name: input.name.trim() || "New environment",
+      cwd: input.cwd?.trim() || undefined,
+      envVars: (input.envVars ?? []).map((item) => ({ key: item.key, value: item.value, secret: false })),
+      setupCommands: (input.setupCommands ?? []).filter(Boolean),
+      teardownCommands: (input.teardownCommands ?? []).filter(Boolean),
+      shell: input.shell?.trim() || undefined,
+      inheritEnv: input.inheritEnv !== false,
+      gitMode: input.gitMode ?? "auto",
+      approvalMode: input.approvalMode ?? "write",
+      createdAt: now,
+      updatedAt: now,
+    };
+    const saved = this.deps.environments.save(env);
+    this.deps.emit({ type: "snapshot", payload: this.snapshot() });
+    return saved;
+  }
+
+  updateEnvironment(
+    id: string,
+    input: Partial<Omit<Environment, "envVars">> & { envVars?: Array<{ key: string; value: string }> },
+  ): Environment {
+    const existing = this.store.getEnvironment(id);
+    if (!existing) throw new Error(`Environment not found: ${id}`);
+    const previous = new Map(existing.envVars.map((item) => [item.key, item]));
+    const merged: Environment = {
+      ...existing,
+      ...input,
+      envVars: input.envVars
+        ? input.envVars.map((item) => {
+            const prev = previous.get(item.key);
+            if (prev?.secret) return { key: item.key, value: item.value ?? "", secret: true, hasSecret: true };
+            return { key: item.key, value: item.value ?? "", secret: false };
+          })
+        : existing.envVars,
+      updatedAt: Date.now(),
+    } as Environment;
+    const saved = this.deps.environments.save(merged);
+    this.deps.emit({ type: "snapshot", payload: this.snapshot() });
+    return saved;
+  }
+
+  listEnvironments(): Environment[] {
+    return this.deps.environments.list();
+  }
+
+  assignEnvironment(nodeId: string, environmentId: string): TreeNode {
+    const env = this.store.getEnvironment(environmentId);
+    if (!env) throw new Error(`Environment not found: ${environmentId}`);
+    const node = this.store.updateNode(nodeId, { environmentId });
+    this.deps.emit({ type: "node:updated", payload: node });
+    return node;
+  }
+
+  async testEnvironment(environmentId: string, nodeId?: string): Promise<{ ok: boolean; output: string }> {
+    const env = this.store.getEnvironment(environmentId);
+    if (!env) throw new Error(`Environment not found: ${environmentId}`);
+    const node = nodeId ? this.store.getNode(nodeId) : undefined;
+    const cwd = env.cwd || node?.repoPath || node?.path || this.store.baseDir;
+    return this.deps.environments.test(environmentId, cwd);
+  }
+
   async gitStatus(nodeId: string, threadId?: string): Promise<any> {
     const thread = threadId ? this.store.getThread(threadId) : undefined;
     const node = this.store.getNode(nodeId);
@@ -722,12 +798,72 @@ export class Orchestrator extends EventEmitter {
         this.store.updateThread(thread.id, { parentThreadId: parent?.orchestratorThreadId ?? null });
       }
     }
-    if (existing && patch.path && patch.path !== existing.path && existing.type === "project") {
-      patch.repoPath = (await this.deps.git.root(patch.path)) ?? patch.path;
+    if (existing && patch.path && patch.path !== existing.path) {
+      mkdirSync(patch.path, { recursive: true });
+      if (existing.type === "project") patch.repoPath = (await this.deps.git.root(patch.path)) ?? patch.path;
+    }
+    if (patch.model !== undefined || patch.effort !== undefined) {
+      const model = this.deps.models.resolve(patch.model ?? existing.model);
+      if (!model) throw new Error(`Model not found: ${patch.model ?? existing.model}`);
+      patch.model = model.selector;
+      patch.effort = normalizeEffort(patch.effort ?? existing.effort, model);
     }
     const node = this.store.updateNode(id, patch);
     this.deps.emit({ type: "node:updated", payload: node });
+    await this.syncOrchestratorThread(node, {
+      name: patch.name !== undefined,
+      model: patch.model !== undefined,
+      effort: patch.effort !== undefined,
+    });
     return node;
+  }
+
+  /**
+   * Keep a node's orchestrator thread in step with node-level settings, so tree
+   * changes made from chat take effect without a restart.
+   */
+  private async syncOrchestratorThread(
+    node: TreeNode,
+    changed: { name?: boolean; model?: boolean; effort?: boolean },
+  ): Promise<void> {
+    const thread = this.store.getThread(node.orchestratorThreadId);
+    if (!thread) return;
+    if (changed.name && thread.title !== node.name) {
+      this.store.updateThread(thread.id, { title: node.name });
+      this.deps.emit({ type: "thread:updated", payload: this.store.getThread(thread.id)! });
+    }
+    if (changed.model && node.model && node.model !== thread.model.selector) {
+      await this.setThreadModel(thread.id, node.model).catch(() => undefined);
+    }
+    if (changed.effort && node.effort) {
+      const model = this.deps.models.resolve(thread.model.selector);
+      const effort = normalizeEffort(node.effort, model);
+      if (effort !== thread.effort) await this.setThreadEffort(thread.id, effort).catch(() => undefined);
+    }
+  }
+
+  private canManageNode(callerNodeId: string, targetNodeId: string): boolean {
+    if (!callerNodeId || !targetNodeId) return false;
+    if (callerNodeId === targetNodeId) return true;
+    const caller = this.store.getNode(callerNodeId);
+    if (!caller) return false;
+    if (caller.type === "root") return true;
+    if (caller.type === "project") return false;
+    return this.descendantNodes(callerNodeId).some((node) => node.id === targetNodeId);
+  }
+
+  /**
+   * An orchestrator may edit environments used inside its own subtree, plus
+   * environments nobody has claimed yet. Shared environments owned by another
+   * branch stay read-only.
+   */
+  private canManageEnvironment(callerNodeId: string, environmentId: string): boolean {
+    const caller = this.store.getNode(callerNodeId);
+    if (caller?.type === "root") return true;
+    const owners = this.store.nodes.filter((node) => node.environmentId === environmentId);
+    if (!owners.length) return true;
+    const managed = new Set([callerNodeId, ...this.descendantNodes(callerNodeId).map((node) => node.id)]);
+    return owners.some((node) => managed.has(node.id));
   }
 
   async updateThread(id: string, patch: Partial<Thread>): Promise<Thread> {
@@ -853,7 +989,7 @@ export class Orchestrator extends EventEmitter {
     session.on("title", (title: string) => {
       const current = this.store.getThread(threadId);
       if (current && current.titleAuto) {
-        const updated = this.store.updateThread(threadId, { title, titleAuto: false });
+        const updated = this.store.updateThread(threadId, { title, titleAuto: true });
         this.deps.emit({ type: "thread:updated", payload: updated });
       }
     });
@@ -917,10 +1053,27 @@ export class Orchestrator extends EventEmitter {
       if (message.usage) this.recomputeUsage();
       if (message.role === "assistant" && textOf(message)) {
         this.deps.naming.autoName(thread.id, textOf(message));
+        this.maybeRetitle(thread);
       }
     } else {
       this.deps.emit({ type: "thread:message", payload: message });
     }
+  }
+
+  /**
+   * Long-running workers drift away from their initial brief. Every few
+   * assistant turns, ask the cheap naming model for a better title. Throttled
+   * so a chatty thread cannot burn tokens on titles.
+   */
+  private maybeRetitle(thread: Thread): void {
+    if (!thread.titleAuto || thread.kind !== "worker") return;
+    const state = this.retitleState.get(thread.id) ?? { turns: 0, lastAt: 0 };
+    state.turns += 1;
+    this.retitleState.set(thread.id, state);
+    if (state.turns < 4 || Date.now() - state.lastAt < 10 * 60_000) return;
+    state.turns = 0;
+    state.lastAt = Date.now();
+    this.deps.naming.refreshTitle(thread.id);
   }
 
   private applySessionState(threadId: string, state: any): void {
@@ -1276,6 +1429,9 @@ export class Orchestrator extends EventEmitter {
             model: context.args.model,
             effort: context.args.effort,
             brief: context.args.brief,
+            gitInit: !!context.args.gitInit,
+            environmentId: typeof context.args.environmentId === "string" ? context.args.environmentId : undefined,
+            approvalMode: context.args.approvalMode,
           });
           return textResult(`Created ${node.type} "${node.name}" (${node.id}), orchestrator ${node.orchestratorThreadId}.`);
         }
@@ -1388,6 +1544,106 @@ export class Orchestrator extends EventEmitter {
           const updated = this.store.updateThread(context.thread.id, { title: title.slice(0, 80), titleAuto: false });
           this.deps.emit({ type: "thread:updated", payload: updated });
           return textResult(`Title set to "${updated.title}".`);
+        }
+        case "tree_update_node": {
+          if (context.thread.kind !== "orchestrator") throw new Error("Only orchestrators can change the tree");
+          const targetId = String(context.args.nodeId ?? context.node.id);
+          if (!this.canManageNode(context.node.id, targetId)) throw new Error("You can only update nodes in your subtree");
+          const patch: Partial<TreeNode> = {};
+          for (const key of ["name", "path", "model", "effort", "gitMode", "approvalMode", "environmentId"] as const) {
+            if (context.args[key] !== undefined) (patch as any)[key] = context.args[key];
+          }
+          if (context.args.muted !== undefined) patch.muted = !!context.args.muted;
+          if (context.args.environmentId) {
+            if (!this.store.getEnvironment(String(context.args.environmentId))) throw new Error("Environment not found");
+            if (!this.canManageEnvironment(context.node.id, String(context.args.environmentId))) {
+              throw new Error("That environment belongs to another part of the tree");
+            }
+          }
+          const node = await this.updateNode(targetId, patch);
+          return textResult(`Updated ${node.type} "${node.name}" (${node.id}).`);
+        }
+        case "tree_move_node": {
+          if (context.thread.kind !== "orchestrator") throw new Error("Only orchestrators can change the tree");
+          const targetId = String(context.args.nodeId ?? "");
+          const parentId = String(context.args.parentId ?? "");
+          if (!this.canManageNode(context.node.id, targetId)) throw new Error("You can only move nodes in your subtree");
+          if (!this.canManageNode(context.node.id, parentId)) throw new Error("You can only move nodes within your own subtree");
+          const parent = this.store.getNode(parentId);
+          if (!parent || parent.type === "project") throw new Error("Target parent must be the root or a group");
+          const node = await this.updateNode(targetId, { parentId });
+          return textResult(`Moved "${node.name}" under "${parent.name}".`);
+        }
+        case "tree_delete_node": {
+          if (context.thread.kind !== "orchestrator") throw new Error("Only orchestrators can change the tree");
+          if (!context.args.confirm) throw new Error("Set confirm:true after confirming with the user");
+          const targetId = String(context.args.nodeId ?? "");
+          if (!this.canManageNode(context.node.id, targetId)) throw new Error("You can only delete nodes in your subtree");
+          const target = this.store.getNode(targetId);
+          if (!target || target.type === "root") throw new Error("Cannot delete the root node");
+          await this.deleteNode(targetId);
+          return textResult(`Deleted ${target.type} "${target.name}" from the tree. Files and branches remain on disk.`);
+        }
+        case "tree_create_environment": {
+          if (context.thread.kind === "worker") throw new Error("Only orchestrators can create environments");
+          const env = this.createEnvironment({
+            name: String(context.args.name ?? "New environment"),
+            cwd: context.args.cwd,
+            envVars: Array.isArray(context.args.envVars) ? context.args.envVars.map((item: any) => ({ key: String(item.key), value: String(item.value) })) : [],
+            setupCommands: Array.isArray(context.args.setupCommands) ? context.args.setupCommands.map(String) : [],
+            teardownCommands: Array.isArray(context.args.teardownCommands) ? context.args.teardownCommands.map(String) : [],
+            shell: context.args.shell,
+            inheritEnv: context.args.inheritEnv,
+            gitMode: context.args.gitMode,
+            approvalMode: context.args.approvalMode,
+          });
+          return textResult(`Created environment "${env.name}" (${env.id}). Assign it with tree_assign_environment.`);
+        }
+        case "tree_update_environment": {
+          if (context.thread.kind === "worker") throw new Error("Only orchestrators can update environments");
+          const environmentId = String(context.args.environmentId ?? "");
+          if (!this.store.getEnvironment(environmentId)) throw new Error("Environment not found");
+          if (!this.canManageEnvironment(context.node.id, environmentId)) {
+            throw new Error("That environment belongs to another part of the tree");
+          }
+          const env = this.updateEnvironment(environmentId, {
+            name: context.args.name,
+            cwd: context.args.cwd,
+            envVars: Array.isArray(context.args.envVars) ? context.args.envVars.map((item: any) => ({ key: String(item.key), value: String(item.value) })) : undefined,
+            setupCommands: Array.isArray(context.args.setupCommands) ? context.args.setupCommands.map(String) : undefined,
+            teardownCommands: Array.isArray(context.args.teardownCommands) ? context.args.teardownCommands.map(String) : undefined,
+            shell: context.args.shell,
+            inheritEnv: context.args.inheritEnv,
+            gitMode: context.args.gitMode,
+            approvalMode: context.args.approvalMode,
+          });
+          return textResult(`Updated environment "${env.name}" (${env.id}).`);
+        }
+        case "tree_assign_environment": {
+          const targetId = String(context.args.nodeId ?? context.node.id);
+          if (!this.canManageNode(context.node.id, targetId)) throw new Error("You can only update nodes in your subtree");
+          const environmentId = String(context.args.environmentId ?? "");
+          if (!this.store.getEnvironment(environmentId)) throw new Error("Environment not found");
+          if (!this.canManageEnvironment(context.node.id, environmentId)) {
+            throw new Error("That environment belongs to another part of the tree");
+          }
+          const node = this.assignEnvironment(targetId, environmentId);
+          return textResult(`Assigned environment ${environmentId} to "${node.name}". New sessions will use it.`);
+        }
+        case "tree_list_environments": {
+          const envs = this.listEnvironments();
+          return textResult(envs.length ? envs.map((env) => `- ${env.name} (${env.id}) vars=${env.envVars.map((v) => v.key).join(",") || "none"} setup=${env.setupCommands.length} teardown=${env.teardownCommands.length}${env.cwd ? ` cwd=${env.cwd}` : ""}`).join("\n") : "No environments.");
+        }
+        case "tree_test_environment": {
+          const environmentId = String(context.args.environmentId ?? "");
+          if (!this.store.getEnvironment(environmentId)) throw new Error("Environment not found");
+          if (!this.canManageEnvironment(context.node.id, environmentId)) {
+            throw new Error("That environment belongs to another part of the tree");
+          }
+          const nodeId = context.args.nodeId ? String(context.args.nodeId) : undefined;
+          if (nodeId && !this.canManageNode(context.node.id, nodeId)) throw new Error("You can only test environments in your subtree");
+          const result = await this.testEnvironment(environmentId, nodeId);
+          return { ...textResult(result.output || (result.ok ? "Environment ready." : "Environment test failed.")), isError: !result.ok };
         }
         default:
           throw new Error(`Unknown host tool: ${context.toolName}`);
@@ -1510,14 +1766,19 @@ export class Orchestrator extends EventEmitter {
   }
 
   private recomputeUsage(): void {
-    const perNode: Record<string, { cost: number; tokens: number; threads: number }> = {};
-    let totalCost = 0;
+    const perNode: Record<string, { cost: number; referenceCost: number; tokens: number; threads: number }> = {};
+    let meteredCost = 0;
+    let referenceCost = 0;
     let totalTokens = 0;
     for (const thread of this.store.threads) {
-      totalCost += thread.cost;
+      const model = this.deps.models.resolve(thread.model.selector);
+      const included = model?.billing === "subscription";
+      if (included) referenceCost += thread.cost;
+      else meteredCost += thread.cost;
       totalTokens += thread.tokens;
-      const current = perNode[thread.nodeId] ?? { cost: 0, tokens: 0, threads: 0 };
-      current.cost += thread.cost;
+      const current = perNode[thread.nodeId] ?? { cost: 0, referenceCost: 0, tokens: 0, threads: 0 };
+      if (included) current.referenceCost += thread.cost;
+      else current.cost += thread.cost;
       current.tokens += thread.tokens;
       current.threads += 1;
       perNode[thread.nodeId] = current;
@@ -1525,12 +1786,23 @@ export class Orchestrator extends EventEmitter {
     const usage = {
       ...this.store.data.usage,
       generatedAt: Date.now(),
-      totalCost,
+      totalCost: meteredCost,
+      meteredCost,
+      referenceCost,
       totalTokens,
       perNode,
     };
     this.store.setUsage(usage);
     this.deps.emit({ type: "usage:updated", payload: usage });
+  }
+
+  private uniqueWorkspacePath(candidate: string): string {
+    if (!existsSync(candidate)) return candidate;
+    for (let index = 2; index < 100; index += 1) {
+      const next = `${candidate}-${index}`;
+      if (!existsSync(next)) return next;
+    }
+    return `${candidate}-${Date.now().toString(36)}`;
   }
 
   private descendantNodes(id: string): TreeNode[] {
@@ -1593,8 +1865,13 @@ function normalizeEffort(effort: string, model: ModelInfo | undefined): string {
   if (!supported.length) return effort === "off" ? "off" : effort;
   if (effort === "off") return "off";
   if (supported.includes(effort)) return effort;
-  if (supported.includes("medium")) return "medium";
-  return supported[0] ?? "off";
+  const preference =
+    effort === "medium"
+      ? ["high", "low", "minimal", "max"]
+      : effort === "high"
+        ? ["medium", "xhigh", "low", "max"]
+        : ["medium", "high", "low", "max"];
+  return preference.find((item) => supported.includes(item)) ?? supported[0] ?? "off";
 }
 
 function envToolNames(node: TreeNode, environment?: Environment): string[] {

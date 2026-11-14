@@ -6,13 +6,15 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 
 - **Tree orchestrators**: Root -> Groups -> Projects -> Worker threads. Each level has its own OMP session, context, model, environment and memory.
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
+- **Self-managing chats**: The chat can create and reshape its own tree: new projects and groups, paths, moves, deletes, environments with setup commands, model/effort and approval policy. Setup does not have to be done by hand in Settings.
+- **Sensible folder defaults**: Name a project and the path fills in under your workspace root (`~/code` when it exists, otherwise `~/Projects`, `~/source/repos` or `~/code`). The root is configurable in Settings, and collisions get a numeric suffix.
 - **OMP under the hood**: The app launches the real `omp.exe` in `--mode rpc-ui`, uses OMP's model catalog, tools, skills, auth, session files, subagents, goal mode and approvals. It does not reimplement the agent loop.
 - **Explicit model selection**: Per-thread model and reasoning effort, plus role defaults for root/group/project/worker/naming/memory.
 - **Git-aware threads**: Project repositories, worker branches and worktrees, status, diffs, commit, merge and PR actions. Worktrees live outside the repository so unmerged work is not silently destroyed.
 - **Environments**: Local env vars, secrets, setup/teardown commands, shell, git isolation and approval mode, assignable per node and inherited.
 - **Memory**: Per-node durable memory, visible and editable. Orchestrators write through `tree_memory_write`; completed thread outcomes are auto-captured as low-importance entries.
 - **Notifications**: Windows toasts, tray badge, in-app inbox, per-node mute.
-- **Thread history**: Fork from an entry or rewind the leaf; goal mode; live read-only share over a local token URL.
+- **Thread history**: Fork from an entry or rewind the leaf; goal mode; live read-only share over a local token URL. Worker titles refresh every few turns using the cheap naming model, throttled so titles never dominate spend.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 
 ## First run
@@ -27,7 +29,9 @@ The wizard is skippable and can be re-run from Settings -> General.
 
 ## Model defaults
 
-Defaults are not simply "highest AA score". They use an **agentic value** score derived from Artificial Analysis terminal-bench, tau2-bench, IFBench, long-context reasoning and GPQA, divided by blended cost. Auto-defaults exclude batch routes, free routers and models above the per-role cost cap; expensive models remain available by explicit choice. Current fresh defaults are typically MiniMax M3 for orchestrators/workers and a cheap model for naming.
+Defaults are not simply "highest AA score". They use an **agentic value** score derived from Artificial Analysis terminal-bench, tau2-bench, IFBench, long-context reasoning and GPQA, divided by blended cost. Auto-defaults exclude batch routes, free routers and models above the per-role cost cap; expensive models remain available by explicit choice.
+
+For **subscription providers** (OpenCode Go, Codex, Claude Pro/Max, Copilot, Cursor, etc.) token prices are reference values, not marginal cost. Defaults there are quality/capacity-first, the UI shows "included", and usage windows come from `omp usage`. OpenCode Go is curated to default to **DeepSeek V4.1 Flash 1017** for orchestrator/worker roles; MiniMax M3 and the rest stay selectable.
 
 ## Requirements
 
@@ -70,11 +74,15 @@ Electron main
 
 OMP session files remain the transcript source of truth. OMP Studio keeps a compact message/envelope log, a normalized transcript cache for fast paint, and app metadata in `%APPDATA%\omp-studio\omp-studio`.
 
+## Workspace layout
+
+Repositories are never created inside the app data directory. When a project or group is created without a path, OMP Studio uses `<workspace root>\<slug of name>` and appends `-2`, `-3`, ... if the folder already exists. The workspace root is detected on first run from an existing `~/code`, `~/Projects`, `~/source/repos`, `~/dev` or `~/Developer`, falling back to `~/code`, and can be changed in Settings -> General -> Workspace root. Existing nodes keep their current paths.
+
 ## Tree protocol (host tools)
 
-`tree_list`, `tree_create_node`, `tree_create_thread`, `tree_message`, `tree_ask_parent`, `tree_report`, `tree_reply`, `tree_wait`, `tree_cancel`, `tree_git`, `tree_memory_write`, `tree_memory_read`, `tree_set_title`.
+`tree_list`, `tree_create_node`, `tree_create_thread`, `tree_message`, `tree_ask_parent`, `tree_report`, `tree_reply`, `tree_wait`, `tree_cancel`, `tree_git`, `tree_memory_write`, `tree_memory_read`, `tree_set_title`, `tree_update_node`, `tree_move_node`, `tree_delete_node`, `tree_create_environment`, `tree_update_environment`, `tree_assign_environment`, `tree_list_environments`, `tree_test_environment`.
 
-A parent prompt says: state objective, constraints and definition of done; spawn a thread for independent work; report upward at milestones and before finishing; ask blocking questions instead of guessing. A child prompt says: work only in your assignment, report evidence, never merge/push without permission.
+A parent prompt says: state objective, constraints and definition of done; spawn a thread for independent work; create projects, environments and tree structure yourself; report upward at milestones and before finishing; ask blocking questions instead of guessing. A child prompt says: work only in your assignment, report evidence, never merge/push without permission. Tree-changing tools are limited to the caller's subtree; only root can restructure across branches, and deletes require explicit confirmation.
 
 ## Known scope and choices
 

@@ -257,7 +257,7 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
         </div>
       </div>
       <div className="composer-foot">
-        <span>{thread.tokens ? `${formatNumber(thread.tokens)} tokens · ${formatCost(thread.cost)}` : "New thread"}</span>
+        <span>{thread.tokens ? `${formatNumber(thread.tokens)} tokens · ${model?.included ? `included (ref ${formatCost(thread.cost)})` : formatCost(thread.cost)}` : "New thread"}</span>
         <span>{running ? "Messages steer the live turn" : "Enter to send · Shift+Enter for newline"}</span>
         {state.share ? <span className="share-live">live share active</span> : null}
       </div>

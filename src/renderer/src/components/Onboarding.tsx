@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import type { ModelInfo, ProviderInfo } from "../../../shared/types";
 import { useApp } from "../store";
-import { Badge, Button, Field, Logo, Select, Spinner, Toggle, cx, formatCost, formatNumber } from "../components/Common";
+import { Badge, Button, Field, Logo, Select, Spinner, Toggle, cx, defaultNodePath, formatCost, formatNumber } from "../components/Common";
 import { ModelPicker } from "../components/ModelPicker";
 
 type Step = 0 | 1 | 2;
@@ -40,12 +40,13 @@ export function Onboarding() {
   const [workerModel, setWorkerModel] = useState("");
   const [namingModel, setNamingModel] = useState("");
   const [rootEffort, setRootEffort] = useState("high");
-  const [workerEffort, setWorkerEffort] = useState("high");
+  const [workerEffort, setWorkerEffort] = useState("medium");
   const [picking, setPicking] = useState<"root" | "worker" | "naming" | null>(null);
   const [notifications, setNotifications] = useState(true);
   const [autoName, setAutoName] = useState(true);
   const [projectName, setProjectName] = useState("");
   const [projectPath, setProjectPath] = useState("");
+  const [projectPathTouched, setProjectPathTouched] = useState(false);
   const [projectBrief, setProjectBrief] = useState("");
   const [gitInit, setGitInit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -83,7 +84,7 @@ export function Onboarding() {
   }, [modelPool.map((model) => model.selector).join("|"), selectedProvider]);
 
   useEffect(() => {
-    const normalize = (selector: string, effort: string, set: (value: string) => void) => {
+    const normalize = (selector: string, effort: string, set: (value: string) => void, role: "root" | "worker") => {
       const model = modelPool.find((item) => item.selector === selector);
       if (!model) return;
       if (!model.reasoning) {
@@ -91,10 +92,13 @@ export function Onboarding() {
         return;
       }
       const supported = model.thinking ?? [];
-      if (supported.length && !supported.includes(effort)) set(supported[0] ?? "off");
+      if (supported.length && !supported.includes(effort)) {
+        const preferred = role === "root" ? ["high", "medium", "xhigh", "low", "max"] : ["medium", "high", "low", "minimal", "max"];
+        set(preferred.find((item) => supported.includes(item)) ?? supported[0] ?? "off");
+      }
     };
-    normalize(rootModel, rootEffort, setRootEffort);
-    normalize(workerModel, workerEffort, setWorkerEffort);
+    normalize(rootModel, rootEffort, setRootEffort, "root");
+    normalize(workerModel, workerEffort, setWorkerEffort, "worker");
   }, [rootModel, workerModel, modelPool.map((model) => model.selector).join("|")]);
 
   const selectedProviderInfo = providers.find((provider) => provider.id === selectedProvider);
@@ -148,6 +152,9 @@ export function Onboarding() {
     setNamingModel(pickModel("naming", modelPool));
   };
 
+  const suggestedProjectPath = defaultNodePath(projectName, state.snapshot?.workspaceRoot);
+  const effectiveProjectPath = projectPathTouched ? projectPath : suggestedProjectPath;
+
   const finish = async () => {
     setSubmitting(true);
     try {
@@ -156,8 +163,8 @@ export function Onboarding() {
         efforts: { root: rootEffort, worker: workerEffort },
         notificationsEnabled: notifications,
         autoName,
-        firstProject: projectName.trim() || projectBrief.trim() || projectPath.trim()
-          ? { name: projectName, path: projectPath || undefined, brief: projectBrief || undefined, gitInit }
+        firstProject: projectName.trim() || projectBrief.trim() || effectiveProjectPath.trim()
+          ? { name: projectName, path: projectPathTouched ? projectPath || undefined : undefined, brief: projectBrief || undefined, gitInit }
           : undefined,
       });
     } finally {
@@ -321,13 +328,13 @@ export function Onboarding() {
             </div>
             <div className="onboarding-options">
               <div className="onboarding-option"><div><strong>Windows notifications</strong><span>Toasts when a thread finishes, needs a decision, or errors.</span></div><Toggle checked={notifications} onChange={setNotifications} /></div>
-              <div className="onboarding-option"><div><strong>Auto-name threads</strong><span>Use the naming model to turn the first message into a short title.</span></div><Toggle checked={autoName} onChange={setAutoName} /></div>
+              <div className="onboarding-option"><div><strong>Auto-name threads</strong><span>Names threads from the first message and refreshes long workers every few turns.</span></div><Toggle checked={autoName} onChange={setAutoName} /></div>
             </div>
             <div className="onboarding-project">
               <div className="onboarding-project-head"><div><strong>First project</strong><span>Optional. Point it at a repository or let OMP Studio create a workspace folder.</span></div><Badge tone="neutral">optional</Badge></div>
               <div className="two-col">
                 <Field label="Name" hint="Leave blank to auto-name."><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Auto-name project" /></Field>
-                <Field label="Path"><div className="inline-actions"><input value={projectPath} onChange={(event) => setProjectPath(event.target.value)} placeholder="C:\\path\\to\\repo" /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) setProjectPath(picked); }}><Terminal size={13} /></Button></div></Field>
+                <Field label="Path" hint="Defaults to a folder named after the project under your workspace root."><div className="inline-actions"><input value={effectiveProjectPath} onChange={(event) => { setProjectPathTouched(true); setProjectPath(event.target.value); }} placeholder={projectName.trim() ? suggestedProjectPath : "Type a name for a default folder, or pick one"} /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) { setProjectPathTouched(true); setProjectPath(picked); } }}><Terminal size={13} /></Button></div></Field>
               </div>
               <Field label="Brief" hint="Sent to the project orchestrator as its first task."><textarea rows={3} value={projectBrief} onChange={(event) => setProjectBrief(event.target.value)} placeholder="What should the first project own?" /></Field>
               <label className="inline-check"><input type="checkbox" checked={gitInit} onChange={(event) => setGitInit(event.target.checked)} /> Initialize git if needed</label>
@@ -399,7 +406,7 @@ function RoleCard({
       <button type="button" className="onboarding-model" onClick={onChange}>
         <div>
           <strong>{model?.name ?? "Choose a model"}</strong>
-          <span>{model ? `${formatNumber(model.contextWindow)} ctx · ${model.included ? "included in plan" : `${formatCost(model.cost.input)} in / ${formatCost(model.cost.output)} out`}` : "No model available"}</span>
+          <span>{model ? `${formatNumber(model.contextWindow)} ctx${model.maxTokens ? ` · ${formatNumber(model.maxTokens)} out` : ""} · ${model.included ? `included · ref ${formatCost(model.cost.input)}/${formatCost(model.cost.output)}` : `${formatCost(model.cost.input)} in / ${formatCost(model.cost.output)} out`}` : "No model available"}</span>
         </div>
         {model ? <Badge tone={costTone}>{model.aa?.value != null ? `value ${model.aa.value.toFixed(1)}` : "estimated"}</Badge> : null}
         <ChevronDown size={14} />

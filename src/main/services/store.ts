@@ -42,6 +42,8 @@ interface PersistedState {
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "light",
   onboardingCompleted: false,
+  enginePath: "",
+  workspaceRoot: "",
   autoName: true,
   autoReport: true,
   autoWakeParent: true,
@@ -69,7 +71,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     rootEffort: "high",
     groupEffort: "high",
     projectEffort: "high",
-    workerEffort: "high",
+    workerEffort: "medium",
     preferredProvider: "",
     autoUpdateAA: true,
     aaKeySet: false,
@@ -102,6 +104,8 @@ const EMPTY_USAGE: UsageSnapshot = {
   generatedAt: 0,
   providers: [],
   totalCost: 0,
+  meteredCost: 0,
+  referenceCost: 0,
   totalTokens: 0,
   perNode: {},
 };
@@ -154,7 +158,28 @@ export class Store {
       mkdirSync(dir, { recursive: true });
     }
     this.state = this.loadState();
+    if (!this.state.settings.workspaceRoot) {
+      this.state.settings.workspaceRoot = this.detectWorkspaceRoot();
+      this.markDirty();
+    }
     this.loadEnvelopes();
+  }
+
+  /**
+   * Pick a sensible home for new projects. Respects an existing dev folder
+   * instead of burying repositories in app data.
+   */
+  private detectWorkspaceRoot(): string {
+    const home = app.getPath("home");
+    for (const candidate of ["code", "Projects", "projects", "source/repos", "dev", "Developer"]) {
+      const path = join(home, candidate);
+      if (existsSync(path)) return path;
+    }
+    return join(home, "code");
+  }
+
+  get workspaceRoot(): string {
+    return this.state.settings.workspaceRoot?.trim() || this.baseDir;
   }
 
   private loadState(): PersistedState {
@@ -301,6 +326,7 @@ export class Store {
       settings: this.state.settings,
       models: this.state.models,
       modelsUpdatedAt: this.state.modelsUpdatedAt,
+      workspaceRoot: this.workspaceRoot,
       ompConfig: this.state.ompConfig,
       notifications: this.state.notifications,
       artifacts: this.state.artifacts,

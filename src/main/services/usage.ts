@@ -66,6 +66,8 @@ export class UsageService {
     const usage: UsageSnapshot = {
       ...this.store.data.usage,
       generatedAt: Date.now(),
+      meteredCost: this.store.data.usage.meteredCost ?? this.store.data.usage.totalCost ?? 0,
+      referenceCost: this.store.data.usage.referenceCost ?? 0,
       providers,
     };
     this.store.setUsage(usage);

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import type { ApprovalRequest, Artifact, ChatBlock, Environment, ModelInfo, Thread, TreeNode } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
-import { Badge, Button, Empty, Field, IconButton, Modal, Select, Spinner, StatusDot, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
+import { Badge, Button, Empty, Field, IconButton, Modal, Select, Spinner, StatusDot, cx, defaultNodePath, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 
 export function Modals() {
   const state = useApp();
@@ -152,10 +152,16 @@ function NewNodeModal() {
   const [type, setType] = useState<"group" | "project">("project");
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
+  const [pathTouched, setPathTouched] = useState(false);
   const [brief, setBrief] = useState("");
   const [model, setModel] = useState(state.snapshot?.settings.models.project ?? "");
   const [gitInit, setGitInit] = useState(false);
   const models = useMemo(() => [...state.models].sort((a, b) => b.quality - a.quality), [state.models]);
+  const suggestedPath = useMemo(
+    () => defaultNodePath(name, state.snapshot?.workspaceRoot),
+    [name, state.snapshot?.workspaceRoot],
+  );
+  const effectivePath = pathTouched ? path : suggestedPath;
   if (!parent) return null;
   return (
     <Modal
@@ -166,7 +172,7 @@ function NewNodeModal() {
       footer={
         <>
           <Button variant="ghost" onClick={() => state.setOverlay("none")}>Cancel</Button>
-          <Button variant="primary" onClick={() => void state.createNode({ parentId: parent.id, type, name, path: path || undefined, brief: brief || undefined, model: model || undefined, gitInit })}>
+          <Button variant="primary" onClick={() => void state.createNode({ parentId: parent.id, type, name, path: pathTouched ? path || undefined : undefined, brief: brief || undefined, model: model || undefined, gitInit })}>
             <Plus size={14} /> Create {type}
           </Button>
         </>
@@ -178,8 +184,8 @@ function NewNodeModal() {
           <button type="button" className={cx(type === "project" && "active")} onClick={() => setType("project")}><FileDiff size={15} /> Project</button>
         </div>
         <Field label="Name" hint="Leave blank to auto-name from the brief or first child."><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={type === "group" ? "Auto-name group" : "Auto-name project"} /></Field>
-        <Field label="Path" hint={type === "group" ? "Optional workspace directory for the group orchestrator." : "Repository path. Leave blank to create a new workspace folder."}>
-          <div className="inline-actions"><input value={path} onChange={(event) => setPath(event.target.value)} placeholder="C:\\path\\to\\repo" /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) setPath(picked); }}><Folder size={13} /> Browse</Button></div>
+        <Field label="Path" hint={type === "group" ? "Optional workspace directory for the group orchestrator. Defaults to a folder named after the group under your workspace root." : "Repository path. Defaults to a folder named after the project under your workspace root; browse to use an existing repository."}>
+          <div className="inline-actions"><input value={effectivePath} onChange={(event) => { setPathTouched(true); setPath(event.target.value); }} placeholder={name.trim() ? suggestedPath : "Type a name for a default folder, or browse"} /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) { setPathTouched(true); setPath(picked); } }}><Folder size={13} /> Browse</Button></div>
         </Field>
         {type === "project" ? (
           <label className="inline-check"><input type="checkbox" checked={gitInit} onChange={(event) => setGitInit(event.target.checked)} /> Initialize a git repository if needed</label>

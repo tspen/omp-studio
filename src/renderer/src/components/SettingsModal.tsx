@@ -170,7 +170,13 @@ function GeneralTab() {
             <option value="system">System</option>
           </Select>
         </Row>
-        <Row label="Auto-name threads" hint="Uses the naming model to turn the first message into a short title.">
+        <Row label="Workspace root" hint="New projects and groups are created as folders named after them here. Existing nodes keep their paths.">
+          <div className="inline-actions">
+            <input value={settings.workspaceRoot ?? ""} onChange={(event) => update({ workspaceRoot: event.target.value })} placeholder="C:\\Users\\you\\code" />
+            <Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) update({ workspaceRoot: picked }); }}><Folder size={13} /> Browse</Button>
+          </div>
+        </Row>
+        <Row label="Auto-name threads" hint="Uses the cheap naming model to name threads and refresh long-running worker titles every few turns.">
           <Toggle checked={settings.autoName} onChange={(value) => update({ autoName: value })} />
         </Row>
         <Row label="Report upward automatically" hint="Each completed thread sends a compact result to its parent orchestrator.">
@@ -287,7 +293,7 @@ function ModelsTab() {
                   <span>{model?.name ?? (selector || "Not set")}</span>
                   {model ? <Badge tone={model.quality >= 80 ? "green" : "blue"}>{model.aa?.agentic != null ? `AG ${model.aa.agentic.toFixed(0)}` : model.aa?.intelligence != null ? `AA ${model.quality.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge> : null}
                   {model?.aa?.value != null ? <Badge tone="purple">V {model.aa.value.toFixed(1)}</Badge> : null}
-                  {model ? <span className="muted">{model.included ? `included in plan · ${formatNumber(model.contextWindow)} ctx` : `${formatCost(model.cost.input)}/${formatCost(model.cost.output)} · ${formatNumber(model.contextWindow)} ctx`}</span> : null}
+                  {model ? <span className="muted">{model.included ? `included · ref ${formatCost(model.cost.input)}/${formatCost(model.cost.output)} · ${formatNumber(model.contextWindow)} ctx` : `${formatCost(model.cost.input)}/${formatCost(model.cost.output)} · ${formatNumber(model.contextWindow)} ctx`}</span> : null}
                   {model && role.key !== "naming" && role.key !== "memory" ? (
                     <Select
                       value={(settings.models as any)[`${role.key}Effort`] ?? "high"}
@@ -348,7 +354,8 @@ function UsageTab() {
     <>
       <Section title="Totals" subtitle="Accumulated across all threads in this app." right={<Button size="sm" variant="soft" onClick={() => void state.refreshUsage()}><RefreshCw size={13} /> Refresh</Button>}>
         <Row label="Tokens"><strong>{formatNumber(usage.totalTokens)}</strong></Row>
-        <Row label="Cost"><strong>{formatCost(usage.totalCost)}</strong></Row>
+        <Row label="Metered spend"><strong>{formatCost(usage.meteredCost ?? usage.totalCost)}</strong></Row>
+        <Row label="Included reference value" hint="Token value at reference prices; not billed on subscription plans."><strong>{formatCost(usage.referenceCost ?? 0)}</strong></Row>
         <Row label="Budget" hint="Optional soft budget in USD. Used for visibility and warnings.">
           <input className="num-input" type="number" min={0} step={1} value={settings.usage.budgetUsd ?? ""} onChange={(event) => state.updateSettings({ settings: { usage: { ...settings.usage, budgetUsd: event.target.value ? Number(event.target.value) : undefined } } })} />
         </Row>
@@ -378,7 +385,7 @@ function UsageTab() {
         {nodes.map(({ node, stat }) => (
           <div key={node.id} className="provider-row">
             <div><strong>{node.name}</strong><span>{node.type} · {stat?.threads ?? 0} threads</span></div>
-            <div className="provider-amount"><strong>{formatCost(stat?.cost ?? 0)}</strong><span>{formatNumber(stat?.tokens ?? 0)} tokens</span></div>
+            <div className="provider-amount"><strong>{formatCost(stat?.cost ?? 0)}</strong><span>{formatNumber(stat?.tokens ?? 0)} tokens{stat?.referenceCost ? ` · ${formatCost(stat.referenceCost)} ref` : ""}</span></div>
           </div>
         ))}
         {!nodes.length ? <p className="muted">No usage recorded yet.</p> : null}

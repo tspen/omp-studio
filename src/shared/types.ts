@@ -320,6 +320,7 @@ export interface AppSettings {
   theme: "light" | "dark" | "system";
   onboardingCompleted: boolean;
   enginePath?: string;
+  workspaceRoot: string;
   autoName: boolean;
   autoReport: boolean;
   autoWakeParent: boolean;
@@ -453,8 +454,10 @@ export interface UsageSnapshot {
   generatedAt: number;
   providers: ProviderUsage[];
   totalCost: number;
+  meteredCost: number;
+  referenceCost: number;
   totalTokens: number;
-  perNode: Record<string, { cost: number; tokens: number; threads: number }>;
+  perNode: Record<string, { cost: number; referenceCost: number; tokens: number; threads: number }>;
 }
 
 export interface EngineStatus {
@@ -553,6 +556,7 @@ export interface Snapshot {
   settings: AppSettings;
   models: ModelInfo[];
   modelsUpdatedAt: number;
+  workspaceRoot: string;
   ompConfig: OmpConfigSnapshot;
   notifications: AppNotification[];
   artifacts: Artifact[];

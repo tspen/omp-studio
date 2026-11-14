@@ -353,6 +353,26 @@ export function truncate(value: string, length: number): string {
   return value.length > length ? `${value.slice(0, length).trim()}…` : value;
 }
 
+export function slugName(value: string): string {
+  const base = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48)
+    .replace(/-$/, "");
+  return base || "untitled";
+}
+
+/** Preview of the folder the host will create under the workspace root. */
+export function defaultNodePath(name: string, workspaceRoot?: string): string {
+  const root = (workspaceRoot ?? "").replace(/[\\/]+$/, "");
+  if (!root || !name.trim()) return "";
+  return `${root}\\${slugName(name)}`;
+}
+
 export function Toasts({
   toasts,
   dismiss,

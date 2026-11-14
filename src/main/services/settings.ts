@@ -51,6 +51,14 @@ const HOST_TOOLS = [
   "tree_memory_write",
   "tree_memory_read",
   "tree_set_title",
+  "tree_update_node",
+  "tree_move_node",
+  "tree_delete_node",
+  "tree_create_environment",
+  "tree_update_environment",
+  "tree_assign_environment",
+  "tree_list_environments",
+  "tree_test_environment",
 ];
 
 export class SettingsService {
