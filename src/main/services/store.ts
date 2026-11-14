@@ -583,6 +583,10 @@ export class Store {
     return compact;
   }
 
+  clearChatCache(): void {
+    this.chats.clear();
+  }
+
   getChat(threadId: string): ChatMessage[] {
     const cached = this.chats.get(threadId);
     if (cached) return cached;
@@ -724,10 +728,27 @@ function compactChatMessage(message: ChatMessage): ChatMessage {
   const blocks = message.blocks.map((block) => {
     if (block.type === "thinking" && block.text.length > 30_000) return { ...block, text: block.text.slice(0, 30_000) };
     if (block.type === "text" && block.text.length > 100_000) return { ...block, text: block.text.slice(0, 100_000) };
-    if (block.type === "tool" && block.result && block.result.length > 60_000) return { ...block, result: block.result.slice(0, 60_000) };
+    if (block.type === "tool") {
+      return {
+        ...block,
+        args: compactValue(block.args),
+        result: block.result && block.result.length > 60_000 ? block.result.slice(0, 60_000) : block.result,
+      };
+    }
     return block;
   });
   return { ...message, blocks };
+}
+
+function compactValue(value: unknown, depth = 0): unknown {
+  if (typeof value === "string") return value.length > 20_000 ? `${value.slice(0, 20_000)}…` : value;
+  if (Array.isArray(value)) return depth > 3 ? `[${value.length} items]` : value.slice(0, 50).map((item) => compactValue(item, depth + 1));
+  if (value && typeof value === "object") {
+    if (depth > 3) return "[object]";
+    const entries = Object.entries(value as Record<string, unknown>).slice(0, 50);
+    return Object.fromEntries(entries.map(([key, item]) => [key, compactValue(item, depth + 1)]));
+  }
+  return value;
 }
 
 export function newId(prefix: string): string {

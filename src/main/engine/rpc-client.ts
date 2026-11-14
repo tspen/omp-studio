@@ -42,6 +42,9 @@ class FrameDecoder {
       } catch {
         continue;
       }
+      if (line.length > 4_000_000) {
+        console.error(`[rpc] large frame ${(line.length / 1_048_576).toFixed(1)}MB type=${frame?.type ?? "?"}`);
+      }
       if (frame?.type === "rpc_chunk") {
         this.acceptChunk(frame);
       } else {
@@ -74,6 +77,7 @@ class FrameDecoder {
     this.chunks.delete(chunkId);
     const buffer = Buffer.concat(entry.parts);
     if (buffer.length > MAX_FRAME) return;
+    if (buffer.length > 4_000_000) console.error(`[rpc] large reassembled frame ${(buffer.length / 1_048_576).toFixed(1)}MB`);
     try {
       const logical = JSON.parse(buffer.toString("utf8"));
       this.onObject(logical);

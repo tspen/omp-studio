@@ -1247,29 +1247,29 @@ export class Orchestrator extends EventEmitter {
         return;
       }
     }
-    this.store.appendChat(message);
+    const stored = this.store.appendChat(message);
     const thread = this.store.getThread(message.threadId);
     if (!thread) {
-      if (this.focusedThreadId === message.threadId) this.deps.emit({ type: "thread:message", payload: message });
+      if (this.focusedThreadId === message.threadId) this.deps.emit({ type: "thread:message", payload: stored });
       return;
     }
-    const final = !!message.stopReason || !!message.usage;
-    const visible = this.focusedThreadId === thread.id || final || message.role === "user";
+    const final = !!stored.stopReason || !!stored.usage;
+    const visible = this.focusedThreadId === thread.id || final || stored.role === "user";
     if (!visible) return;
     const patch: Partial<Thread> = {
       lastActivityAt: Date.now(),
-      lastMessage: textOf(message).slice(0, 240),
+      lastMessage: textOf(stored).slice(0, 240),
     };
-    if (message.usage) {
-      patch.tokens = thread.tokens + message.usage.totalTokens;
-      patch.cost = thread.cost + this.estimateCost(thread, message.usage);
+    if (stored.usage) {
+      patch.tokens = thread.tokens + stored.usage.totalTokens;
+      patch.cost = thread.cost + this.estimateCost(thread, stored.usage);
     }
     const updated = this.store.updateThread(thread.id, patch);
-    this.deps.emit({ type: "thread:message", payload: message });
+    this.deps.emit({ type: "thread:message", payload: stored });
     this.deps.emit({ type: "thread:updated", payload: updated });
-    if (message.usage) this.recomputeUsage();
-    if (message.role === "assistant" && textOf(message) && final) {
-      this.deps.naming.autoName(thread.id, textOf(message));
+    if (stored.usage) this.recomputeUsage();
+    if (stored.role === "assistant" && textOf(stored) && final) {
+      this.deps.naming.autoName(thread.id, textOf(stored));
       this.maybeRetitle(thread);
     }
   }
