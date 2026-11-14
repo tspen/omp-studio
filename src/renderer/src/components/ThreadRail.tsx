@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Check,
   ChevronDown,
+  ChevronRight,
   CircleDot,
   FileDiff,
   GitBranch,
@@ -14,6 +15,7 @@ import {
   MessageSquare,
   Plus,
   RefreshCw,
+  Search,
   Send,
   ShieldAlert,
   Split,
@@ -57,17 +59,57 @@ function ThreadsTab() {
   const state = useApp();
   const node = selectedNode(state);
   const current = selectedThread(state);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "live" | "open" | "done">("all");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ resolved: true });
   if (!node || !current) return null;
   const threads = nodeThreads(state, node.id);
   const orchestrator = threads.find((thread) => thread.kind === "orchestrator");
   const workers = threads.filter((thread) => thread.kind !== "orchestrator");
-  const active = workers.filter((thread) => !thread.archived && ["running", "starting", "waiting", "queued"].includes(thread.status));
-  const idle = workers.filter((thread) => !thread.archived && ["idle", "parked", "cancelled"].includes(thread.status));
-  const done = workers.filter((thread) => !thread.archived && ["completed", "error"].includes(thread.status));
-  const resolved = workers.filter((thread) => thread.archived);
+  const matches = (thread: Thread) => {
+    const text = query.trim().toLowerCase();
+    if (text) {
+      const haystack = `${thread.title} ${thread.model.name ?? ""} ${thread.branch ?? ""} ${thread.lastMessage ?? ""}`.toLowerCase();
+      if (!haystack.includes(text)) return false;
+    }
+    if (filter === "live") return ["running", "starting", "waiting", "queued"].includes(thread.status) || !!thread.pendingApproval;
+    if (filter === "open") return !thread.archived && !["completed", "error"].includes(thread.status);
+    if (filter === "done") return thread.archived || ["completed", "error"].includes(thread.status);
+    return true;
+  };
+  const active = workers.filter((thread) => !thread.archived && ["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
+  const idle = workers.filter((thread) => !thread.archived && ["idle", "parked", "cancelled"].includes(thread.status) && matches(thread));
+  const done = workers.filter((thread) => !thread.archived && ["completed", "error"].includes(thread.status) && matches(thread));
+  const resolved = workers.filter((thread) => thread.archived && matches(thread));
+  const showLive = filter === "all" || filter === "live" || filter === "open";
+  const showIdle = filter === "all" || filter === "open";
+  const showDone = filter === "all" || filter === "done";
+  const showResolved = filter === "all" || filter === "done";
+  const toggle = (section: string) => setCollapsed((value) => ({ ...value, [section]: !value[section] }));
+  const sectionHead = (key: string, title: string, count?: number, extra?: React.ReactNode) => (
+    <div className="rail-section-head">
+      <button type="button" className="rail-toggle" onClick={() => toggle(key)} title={collapsed[key] ? `Expand ${title}` : `Collapse ${title}`}>
+        {collapsed[key] ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+      </button>
+      <span>{title}</span>
+      {count !== undefined ? <span className="rail-count">{count}</span> : null}
+      {extra}
+    </div>
+  );
 
   return (
     <div className="threads-tab">
+      <div className="rail-filter">
+        <Search size={13} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter threads" />
+        <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
+          <option value="all">All</option>
+          <option value="live">Live</option>
+          <option value="open">Open</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+
       <div className="rail-section">
         <div className="rail-section-head">
           <span>Orchestrator</span>
@@ -76,33 +118,38 @@ function ThreadsTab() {
         {orchestrator ? <ThreadRow thread={orchestrator} current={current.id} /> : null}
       </div>
 
-      <div className="rail-section">
-        <div className="rail-section-head">
-          <span>Live threads</span>
-          <Button size="sm" variant="ghost" onClick={() => state.setOverlay("new-thread")}><Plus size={13} /> New</Button>
-        </div>
-        {active.length ? active.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />) : <p className="rail-empty">No live workers. The orchestrator can spawn them from chat.</p>}
-      </div>
-
-      {idle.length ? (
+      {showLive ? (
         <div className="rail-section">
-          <div className="rail-section-head"><span>Idle</span><span className="rail-count">{idle.length}</span></div>
-          {idle.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
+          {sectionHead("live", "Live threads", active.length, (
+            <Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); state.setOverlay("new-thread"); }}><Plus size={13} /> New</Button>
+          ))}
+          {collapsed.live ? null : active.length ? active.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />) : <p className="rail-empty">{query || filter !== "all" ? "No matching live workers." : "No live workers. The orchestrator can spawn them from chat."}</p>}
         </div>
       ) : null}
 
-      {done.length ? (
+      {showIdle && idle.length ? (
         <div className="rail-section">
-          <div className="rail-section-head"><span>Finished</span><span className="rail-count">{done.length}</span></div>
-          {done.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
+          {sectionHead("idle", "Idle", idle.length)}
+          {collapsed.idle ? null : idle.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
         </div>
       ) : null}
 
-      {resolved.length ? (
+      {showDone && done.length ? (
         <div className="rail-section">
-          <div className="rail-section-head"><span>Resolved</span><span className="rail-count">{resolved.length}</span></div>
-          {resolved.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
+          {sectionHead("done", "Finished", done.length)}
+          {collapsed.done ? null : done.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
         </div>
+      ) : null}
+
+      {showResolved && resolved.length ? (
+        <div className="rail-section">
+          {sectionHead("resolved", "Resolved", resolved.length)}
+          {collapsed.resolved ? null : resolved.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
+        </div>
+      ) : null}
+
+      {!active.length && !idle.length && !done.length && !resolved.length && (query || filter !== "all") ? (
+        <p className="rail-empty">No threads match this filter.</p>
       ) : null}
 
       <div className="rail-section">
