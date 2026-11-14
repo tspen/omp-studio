@@ -819,3 +819,8 @@ textarea { resize: vertical; line-height: 1.45; }
 }
 .onboarding-project input[type="checkbox"], .onboarding-option input[type="checkbox"] { width: auto; flex: 0 0 auto; }
 .onboarding-project .inline-check { justify-content: flex-start; }
+.onboarding-drag-region { position: fixed; top: 0; left: 0; right: 0; height: 40px; z-index: 140; -webkit-app-region: drag; }
+.onboarding-left { padding-top: 52px; }
+.onboarding-right { padding-top: 54px; }
+.titlebar-left, .titlebar-center, .titlebar-name, .titlebar-context { -webkit-app-region: drag; }
+.titlebar button, .titlebar input, .command-search { -webkit-app-region: no-drag; }

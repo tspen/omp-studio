@@ -170,6 +170,7 @@ export function Onboarding() {
 
   return (
     <div className="onboarding">
+      <div className="onboarding-drag-region" />
       <div className="onboarding-left">
         <div className="onboarding-brand"><Logo size={34} /><div><strong>OMP Studio</strong><span>Tree orchestration for real code</span></div></div>
         <div className="onboarding-pitch">
