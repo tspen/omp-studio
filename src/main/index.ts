@@ -43,6 +43,7 @@ function logCrash(kind: string, error: unknown): void {
 
 process.on("uncaughtException", (error) => logCrash("uncaughtException", error));
 process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
+app.on("child-process-gone", (_event, details) => logCrash("child-process-gone", details));
 if (process.env.OMP_STUDIO_USER_DATA) {
   mkdirSync(process.env.OMP_STUDIO_USER_DATA, { recursive: true });
   app.setPath("userData", process.env.OMP_STUDIO_USER_DATA);
@@ -242,6 +243,18 @@ async function createWindow(): Promise<void> {
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
   });
+  let rendererReloads: number[] = [];
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    logCrash("render-process-gone", details);
+    store?.flush();
+    const now = Date.now();
+    rendererReloads = rendererReloads.filter((time) => now - time < 60_000);
+    if (!smokeTest && rendererReloads.length < 3 && !mainWindow?.isDestroyed()) {
+      rendererReloads.push(now);
+      setTimeout(() => mainWindow?.reload(), 700);
+    }
+  });
+  mainWindow.webContents.on("unresponsive", () => logCrash("renderer-unresponsive", "The renderer stopped responding"));
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void import("electron").then(({ shell }) => shell.openExternal(url));
     return { action: "deny" };
