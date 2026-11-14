@@ -18,6 +18,7 @@ import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
 import { UsageService } from "./services/usage";
 import { ProviderService } from "./services/providers";
+import { initDiagnostics, trace } from "./diagnostics";
 import type { AppEvent } from "../shared/types";
 
 let mainWindow: BrowserWindow | null = null;
@@ -32,6 +33,7 @@ const integrationTest = process.argv.includes("--integration-test");
 function logCrash(kind: string, error: unknown): void {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
   console.error(`[${kind}]`, error);
+  trace(kind, message);
   try {
     const dir = app.isReady() ? join(app.getPath("userData"), "omp-studio") : join(process.env.APPDATA ?? process.cwd(), "omp-studio");
     mkdirSync(dir, { recursive: true });
@@ -50,7 +52,32 @@ if (process.env.OMP_STUDIO_USER_DATA) {
 }
 
 function broadcast(event: AppEvent): void {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("omp:event", event);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (event.type === "thread:message") {
+      const chars = messageChars(event.payload);
+      if (chars > 500_000) trace("broadcast-large", { threadId: event.payload.threadId, chars });
+      if (event.payload.blocks.length > 20 || chars > 100_000) {
+        trace("broadcast-send", { threadId: event.payload.threadId, blocks: event.payload.blocks.length, chars });
+      }
+    }
+    mainWindow.webContents.send("omp:event", event);
+  }
+}
+
+function messageChars(message: { blocks?: Array<Record<string, unknown>> }): number {
+  let chars = 0;
+  for (const block of message.blocks ?? []) {
+    if (typeof block.text === "string") chars += block.text.length;
+    if (typeof block.result === "string") chars += block.result.length;
+    if (block.args) {
+      try {
+        chars += JSON.stringify(block.args).length;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return chars;
 }
 
 function iconPath(): string {
@@ -285,6 +312,8 @@ async function bootstrap(): Promise<void> {
   app.setAppUserModelId("com.ompstudio.app");
   const dataStore = new Store();
   dataStore.init();
+  initDiagnostics(dataStore.baseDir);
+  trace("app-start", { pid: process.pid, version: app.getVersion() });
   store = dataStore;
   let memoryEmergencyTripped = false;
   const memoryTimer = setInterval(() => {
@@ -294,12 +323,12 @@ async function bootstrap(): Promise<void> {
       if (!memoryEmergencyTripped && usage.rss > 2_500_000_000 && orchestrator) {
         memoryEmergencyTripped = true;
         const diagnostics = orchestrator.diagnostics();
+        trace("memory-high", { rss: Math.round(usage.rss / 1_048_576), diagnostics });
         appendFileSync(
           join(dataStore.baseDir, "memory.log"),
-          `${new Date().toISOString()} EMERGENCY rss=${Math.round(usage.rss / 1_048_576)}MB diagnostics=${JSON.stringify(diagnostics)}\n`,
+          `${new Date().toISOString()} MEMORY-HIGH rss=${Math.round(usage.rss / 1_048_576)}MB diagnostics=${JSON.stringify(diagnostics)}\n`,
           "utf8",
         );
-        void orchestrator.emergencyStop("Stopped live sessions because the app reached 2.5 GB of memory.").catch(() => undefined);
       }
       appendFileSync(
         join(dataStore.baseDir, "memory.log"),

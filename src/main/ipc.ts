@@ -10,6 +10,7 @@ import type { NotificationService } from "./services/notifications";
 import type { SettingsService } from "./services/settings";
 import type { ShareService } from "./services/share";
 import type { Store } from "./services/store";
+import { trace } from "./diagnostics";
 import type { TerminalService } from "./services/terminal";
 import type { UsageService } from "./services/usage";
 import type { ProviderService } from "./services/providers";
@@ -35,7 +36,13 @@ export function registerIpc(context: IpcContext): void {
   const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, engine, usage, broadcast } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
-  ipcMain.handle("thread:messages", (_event, threadId: string) => store.getChat(threadId));
+  ipcMain.handle("thread:messages", (_event, threadId: string) => {
+    const chat = store.getChat(threadId);
+    let chars = 0;
+    for (const message of chat) for (const block of message.blocks) if ("text" in block) chars += block.text.length;
+    if (chars > 1_000_000) trace("ipc-messages-large", { threadId, messages: chat.length, chars });
+    return chat;
+  });
   ipcMain.handle("envelopes:list", (_event, filter) => orchestrator.getEnvelopes(filter ?? {}));
 
   ipcMain.handle("node:create", (_event, req: NewNodeRequest) => orchestrator.createNode(req));

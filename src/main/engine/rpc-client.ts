@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { trace } from "../diagnostics";
 
 export interface RpcReadyFrame {
   type: "ready";
@@ -32,10 +33,12 @@ class FrameDecoder {
   }
 
   push(data: Buffer | string): void {
+    const incoming = typeof data === "string" ? data.length : data.length;
+    if (incoming > 1_000_000) trace("rpc-read-large", { bytes: incoming });
     this.buffer += data.toString();
     this.pushes += 1;
     if (this.pushes % 40 === 0 && process.memoryUsage().rss > 2_500_000_000) {
-      console.error(`[rpc] memory guard cleared decoder (rss ${Math.round(process.memoryUsage().rss / 1_048_576)}MB)`);
+      trace("rpc-memory-guard", { rss: Math.round(process.memoryUsage().rss / 1_048_576), buffer: this.buffer.length, pendingBytes: this.pendingBytes });
       this.buffer = "";
       this.chunks.clear();
       this.pendingBytes = 0;
@@ -48,17 +51,18 @@ class FrameDecoder {
       if (!line) continue;
       if (line.length > MAX_FRAME) {
         const type = /"type"\s*:\s*"([^"]+)"/.exec(line)?.[1] ?? "?";
-        console.error(`[rpc] dropped oversized frame ${(line.length / 1_048_576).toFixed(1)}MB type=${type}`);
+        trace("rpc-drop-oversized-frame", { mb: Number((line.length / 1_048_576).toFixed(1)), type });
         continue;
       }
+      if (line.length > 1_000_000) trace("rpc-parse-start", { mb: Number((line.length / 1_048_576).toFixed(1)) });
       let frame: any;
       try {
         frame = JSON.parse(line);
       } catch {
         continue;
       }
-      if (line.length > 4_000_000) {
-        console.error(`[rpc] large frame ${(line.length / 1_048_576).toFixed(1)}MB type=${frame?.type ?? "?"}`);
+      if (line.length > 1_000_000) {
+        trace("rpc-frame-large", { mb: Number((line.length / 1_048_576).toFixed(1)), type: frame?.type ?? "?" });
       }
       if (frame?.type === "rpc_chunk") {
         this.acceptChunk(frame);
@@ -67,7 +71,7 @@ class FrameDecoder {
       }
     }
     if (this.buffer.length > MAX_FRAME) {
-      console.error(`[rpc] dropped unterminated buffer ${(this.buffer.length / 1_048_576).toFixed(1)}MB`);
+      trace("rpc-drop-buffer", { mb: Number((this.buffer.length / 1_048_576).toFixed(1)) });
       this.buffer = "";
     }
   }
@@ -85,14 +89,21 @@ class FrameDecoder {
     if (entry.count !== count) return;
     let part: Buffer;
     try {
-      part = Buffer.from(String(frame.data ?? ""), "base64");
+      const raw = String(frame.data ?? "");
+      if (raw.length > MAX_FRAME * 2) {
+        trace("rpc-drop-chunk-data", { chars: raw.length, chunkId, index, count });
+        this.pendingBytes -= entry.byteLength;
+        this.chunks.delete(chunkId);
+        return;
+      }
+      part = Buffer.from(raw, "base64");
     } catch {
       this.pendingBytes -= entry.byteLength;
       this.chunks.delete(chunkId);
       return;
     }
     if (part.length > MAX_FRAME || this.pendingBytes + part.length > MAX_PENDING_CHUNKS) {
-      console.error(`[rpc] dropped oversized chunked frame ${(part.length / 1_048_576).toFixed(1)}MB`);
+      trace("rpc-drop-chunked-frame", { partMb: Number((part.length / 1_048_576).toFixed(1)), pendingMb: Number((this.pendingBytes / 1_048_576).toFixed(1)), chunkId, count });
       this.pendingBytes -= entry.byteLength;
       this.chunks.delete(chunkId);
       return;
@@ -105,7 +116,7 @@ class FrameDecoder {
     this.pendingBytes -= entry.byteLength;
     const buffer = Buffer.concat(entry.parts);
     if (buffer.length > MAX_FRAME) return;
-    if (buffer.length > 4_000_000) console.error(`[rpc] large reassembled frame ${(buffer.length / 1_048_576).toFixed(1)}MB`);
+    if (buffer.length > 1_000_000) trace("rpc-chunk-large", { mb: Number((buffer.length / 1_048_576).toFixed(1)), count });
     try {
       const logical = JSON.parse(buffer.toString("utf8"));
       this.onObject(logical);
@@ -170,6 +181,7 @@ export class RpcClient extends EventEmitter {
           windowsHide: true,
           stdio: ["pipe", "pipe", "pipe"],
         });
+        trace("rpc-spawn", { cwd: this.options.cwd, exe: this.options.exe });
       } catch (error) {
         clearTimeout(timer);
         settled = true;
@@ -180,6 +192,7 @@ export class RpcClient extends EventEmitter {
       this.child.stdout.on("data", (data: Buffer) => this.decoder.push(data));
       this.child.stderr.on("data", (data: Buffer) => {
         const text = data.toString();
+        if (text.length > 200_000) trace("rpc-stderr-large", { chars: text.length });
         this.stderr = (this.stderr + text).slice(-24_000);
         this.options.onStderr?.(text);
       });
@@ -194,6 +207,7 @@ export class RpcClient extends EventEmitter {
       });
       this.child.on("exit", (code, signal) => {
         this.closed = true;
+        trace("rpc-exit", { code, signal, cwd: this.options.cwd, stderr: this.stderr.slice(-600) });
         this.failAll(new Error(`OMP exited (code ${code ?? "null"}, signal ${signal ?? "none"}). ${this.stderr.slice(-1200)}`));
         this.emit("exit", { code, signal });
       });
@@ -203,6 +217,7 @@ export class RpcClient extends EventEmitter {
         settled = true;
         clearTimeout(timer);
         this.ready = frame;
+        trace("rpc-ready", { maxFrameBytes: frame.maxFrameBytes, maxReassembled: frame.maxReassembledFrameBytes });
         // Prefer lossless v2 framing. Older runtimes simply do not advertise it.
         if (frame.supportedProtocolVersions?.includes(2)) {
           this.request("negotiate_protocol", { protocolVersion: 2 }, 10_000).catch(() => undefined);

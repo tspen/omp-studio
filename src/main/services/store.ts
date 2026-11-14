@@ -1,5 +1,6 @@
 import { app } from "electron";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync, statSync } from "node:fs";
+import { trace } from "../diagnostics";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
@@ -332,8 +333,13 @@ export class Store {
     if (!this.dirty) return;
     this.dirty = false;
     this.state.updatedAt = Date.now();
+    const started = Date.now();
+    trace("state-save-start", { threads: this.state.threads.length, models: this.state.models.length });
+    const text = JSON.stringify(this.state, null, 2);
+    const elapsed = Date.now() - started;
+    if (text.length > 1_000_000 || elapsed > 100) trace("state-save", { chars: text.length, ms: elapsed });
     const tmp = `${this.statePath}.tmp`;
-    writeFileSync(tmp, JSON.stringify(this.state, null, 2), "utf8");
+    writeFileSync(tmp, text, "utf8");
     renameSync(tmp, this.statePath);
   }
 
@@ -577,6 +583,13 @@ export class Store {
   }
 
   appendChat(message: ChatMessage): ChatMessage {
+    trace("chat-append", { threadId: message.threadId, role: message.role, blocks: message.blocks.length });
+    let rawChars = 0;
+    for (const block of message.blocks) {
+      if ("text" in block) rawChars += block.text.length;
+      else if (block.type === "tool") rawChars += (block.result?.length ?? 0) + approxJsonSize(block.args);
+    }
+    if (rawChars > 500_000) trace("chat-large", { threadId: message.threadId, role: message.role, chars: rawChars, blocks: message.blocks.length });
     const compact = compactChatMessage(message);
     const list = this.getChat(compact.threadId);
     const existing = list.findIndex((m) => m.id === compact.id);
@@ -761,6 +774,14 @@ function compactChatMessage(message: ChatMessage): ChatMessage {
     return block;
   });
   return { ...message, blocks };
+}
+
+function approxJsonSize(value: unknown): number {
+  try {
+    return value == null ? 0 : JSON.stringify(value).length;
+  } catch {
+    return 0;
+  }
 }
 
 function compactValue(value: unknown, depth = 0): unknown {

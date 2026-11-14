@@ -16,6 +16,7 @@ import type {
 import type { Store } from "../services/store";
 import type { HostToolDefinition, HostToolHandler, HostToolResult } from "../orchestrator/host-tools";
 import { RpcClient } from "./rpc-client";
+import { trace } from "../diagnostics";
 
 /** Mission Control and groups never touch the workspace; only tree tools remain. */
 const ROOT_DENIED_TOOLS = [
@@ -571,7 +572,8 @@ export class OmpSession extends EventEmitter {
     const delta = frame.assistantMessageEvent;
     const live = this.liveMessage;
     if (!delta || !live) return;
-    const index = Number.isInteger(delta.contentIndex) ? delta.contentIndex : 0;
+    const rawIndex = Number(delta.contentIndex);
+    const index = Number.isInteger(rawIndex) && rawIndex >= 0 && rawIndex < 200 ? rawIndex : 0;
     const blocks = live.blocks;
     if (delta.type === "text_start") {
       blocks[index] = { type: "text", text: "" };
@@ -594,9 +596,14 @@ export class OmpSession extends EventEmitter {
   private handleMessageEnd(frame: any): void {
     const message = frame.message;
     if (!message) return;
+    if (message.role === "assistant" && Array.isArray(message.content)) {
+      trace("message-end-start", { blocks: message.content.length });
+    }
     const role = message.role;
     if (role === "assistant") {
       const blocks = normalizeBlocks(message.content).filter((block) => block.type === "text" || block.type === "thinking");
+      const totalChars = blocks.reduce((sum, block) => sum + ("text" in block ? block.text.length : 0), 0);
+      if (totalChars > 500_000) trace("message-large", { role, chars: totalChars, blocks: blocks.length, id: frame.messageId ?? message.id });
       const text = blocks.filter((b) => b.type === "text").map((b) => (b as any).text).join("\n").trim();
       if (text) this.lastAssistantText = text.slice(-8000);
       const id = String(this.liveAssistantId ?? frame.messageId ?? message.id ?? `msg_${randomUUID()}`);
@@ -649,6 +656,8 @@ export class OmpSession extends EventEmitter {
   private handleToolStart(frame: any): void {
     const toolCallId = frame.toolCallId;
     if (!toolCallId) return;
+    const argChars = approxSize(frame.args);
+    if (argChars > 200_000) trace("tool-args-large", { tool: frame.toolName, chars: argChars });
     const id = `tool_${toolCallId}`;
     this.toolMessages.set(toolCallId, id);
     const message: ChatMessage = {
@@ -675,9 +684,11 @@ export class OmpSession extends EventEmitter {
   private handleToolEnd(frame: any): void {
     const toolCallId = frame.toolCallId;
     if (!toolCallId) return;
+    trace("tool-end-start", { tool: frame.toolName, resultType: typeof frame.result, argsType: typeof frame.args });
     const id = this.toolMessages.get(toolCallId) ?? `tool_${toolCallId}`;
     this.toolMessages.set(toolCallId, id);
     const resultText = frame.result ? textFromResult(frame.result) : "";
+    if (resultText.length > 200_000) trace("tool-result-large", { tool: frame.toolName, chars: resultText.length });
     const existing = this.store.getChat(this.thread.id).find((m) => m.id === id);
     const message: ChatMessage = existing ?? {
       id,
@@ -768,6 +779,20 @@ export class OmpSession extends EventEmitter {
 const LIVE_THINKING_LIMIT = 30_000;
 const LIVE_TEXT_LIMIT = 200_000;
 
+function approxSize(value: unknown, depth = 0): number {
+  if (value == null) return 0;
+  if (typeof value === "string") return value.length;
+  if (typeof value === "number" || typeof value === "boolean") return 8;
+  if (depth > 4) return 32;
+  if (Array.isArray(value)) return value.slice(0, 200).reduce((sum, item) => sum + approxSize(item, depth + 1), 0);
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .slice(0, 100)
+      .reduce((sum, [key, item]) => sum + key.length + approxSize(item, depth + 1), 0);
+  }
+  return 16;
+}
+
 function capLiveBlocks(blocks: ChatBlock[]): void {
   for (const block of blocks) {
     if (block.type === "thinking" && block.text.length > LIVE_THINKING_LIMIT) block.text = block.text.slice(0, LIVE_THINKING_LIMIT);
@@ -781,13 +806,18 @@ function normalizeBlocks(content: any): ChatBlock[] {
   if (typeof content === "string") return [{ type: "text", text: content }];
   if (!Array.isArray(content)) return [];
   const blocks: ChatBlock[] = [];
-  for (const item of content) {
+  for (const item of content.slice(0, 200)) {
     if (!item || typeof item !== "object") continue;
     if (item.type === "text" && typeof item.text === "string") blocks.push({ type: "text", text: item.text });
     else if (item.type === "thinking" && typeof item.thinking === "string") {
       blocks.push({ type: "thinking", text: item.thinking, signature: item.thinkingSignature });
     } else if (item.type === "image") {
-      blocks.push({ type: "image", mimeType: item.mimeType ?? "image/png", data: item.data, path: item.path });
+      blocks.push({
+        type: "image",
+        mimeType: item.mimeType ?? "image/png",
+        data: typeof item.data === "string" && item.data.length > 1_000_000 ? undefined : item.data,
+        path: item.path,
+      });
     }
   }
   return blocks;

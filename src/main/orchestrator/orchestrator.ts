@@ -40,6 +40,7 @@ import type { ShareService } from "../services/share";
 import type { SettingsService } from "../services/settings";
 import type { Store } from "../services/store";
 import { newId } from "../services/store";
+import { trace } from "../diagnostics";
 
 const WORKER_RESUME_PROMPT =
   "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace and branch first, finish the unfinished work, verify it, then call tree_report with the outcome. Do not redo steps that already completed.";
@@ -437,6 +438,7 @@ export class Orchestrator extends EventEmitter {
 
   async continueThread(threadId: string): Promise<void> {
     const thread = this.store.getThread(threadId);
+    trace("continue-start", { threadId, kind: thread?.kind, status: thread?.status });
     if (!thread) throw new Error("Thread not found");
     if (thread.kind === "native") throw new Error("Native subagent threads are resumed by their parent");
     if (["running", "starting"].includes(thread.status)) return;
@@ -455,6 +457,7 @@ export class Orchestrator extends EventEmitter {
     for (const running of active) for (const key of this.conflictKeys(running)) claimed.set(key, running.title);
     const slots = Math.min(3, Math.max(1, this.store.settings.maxConcurrentThreads - active.length));
     const resumable = this.resumableThreads(node.id);
+    trace("continue-candidates", { node: node.id, active: active.length, resumable: resumable.map((worker) => worker.id) });
     const resumed: Thread[] = [];
     const paused: Array<{ thread: Thread; reason: string }> = [];
     for (const worker of resumable) {
@@ -554,6 +557,7 @@ export class Orchestrator extends EventEmitter {
   async sendUserMessage(request: SendMessageRequest): Promise<void> {
     const thread = this.store.getThread(request.threadId);
     if (!thread) throw new Error("Thread not found");
+    trace("send-user", { threadId: thread.id, chars: request.text.length });
     this.focusedThreadId = thread.id;
     if (thread.interrupted) {
       this.store.updateThread(thread.id, { interrupted: false, interruptedAt: undefined });
@@ -942,15 +946,6 @@ export class Orchestrator extends EventEmitter {
       approvals: this.approvals.size,
       chats: this.store.diagnostics(),
     };
-  }
-
-  /** Last-resort guard: stop every live OMP session instead of letting the app OOM. */
-  async emergencyStop(reason: string): Promise<void> {
-    this.deps.notifications.notify({ kind: "error", title: "Session load stopped", body: reason });
-    for (const threadId of [...this.sessions.keys()]) {
-      await this.disposeSession(threadId).catch(() => undefined);
-    }
-    this.store.clearChatCache();
   }
 
   async deleteThread(id: string): Promise<void> {
@@ -1622,6 +1617,7 @@ export class Orchestrator extends EventEmitter {
       return false;
     }
     const text = this.bus.formatForPrompt(envelope, target);
+    if (text.length > 100_000) trace("deliver-large", { target: target.id, chars: text.length, kind: envelope.kind });
     const current = this.store.getThread(target.id);
     try {
       await this.flushQueued(target.id, envelope.id);
