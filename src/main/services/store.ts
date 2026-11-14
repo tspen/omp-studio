@@ -51,6 +51,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoReport: true,
   autoWakeParent: true,
   digestIntervalMin: 10,
+  statusCheckIntervalMin: 15,
   maxConcurrentThreads: 8,
   contextCompaction: true,
   advisor: false,

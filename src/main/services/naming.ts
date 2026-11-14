@@ -263,7 +263,7 @@ function isPlaceholderTitle(title: string): boolean {
 function sanitizeTitle(value: string): string {
   let title = stripAnsi(value)
     .split(/\r?\n/)[0]
-    .replace(/^["'`#*\s-]+|["'`#*\s.]+$/g, "")
+    .replace(/^["'`#*\s-]+|["'`#*\s.,;:—–-]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
   if (title.length > 60) title = `${title.slice(0, 57).trim()}…`;

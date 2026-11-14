@@ -71,6 +71,7 @@ export class Orchestrator extends EventEmitter {
   private retitleState = new Map<string, { turns: number; lastAt: number }>();
   private focusedThreadId: string | null = null;
   private digestTimer: NodeJS.Timeout | null = null;
+  private statusTimer: NodeJS.Timeout | null = null;
   private parkingTimer: NodeJS.Timeout | null = null;
   private bus: MessageBus;
   private closed = false;
@@ -103,6 +104,7 @@ export class Orchestrator extends EventEmitter {
     this.retitleLegacyWorkers();
     this.recomputeUsage();
     this.startDigestTimer();
+    this.startStatusTimer();
     this.parkingTimer = setInterval(() => void this.parkIdleSessions(), 60_000);
   }
 
@@ -1214,7 +1216,7 @@ export class Orchestrator extends EventEmitter {
     session.on("title", (title: string) => {
       const current = this.store.getThread(threadId);
       if (current && current.titleAuto) {
-        const updated = this.store.updateThread(threadId, { title, titleAuto: true });
+        const updated = this.store.updateThread(threadId, { title: cleanThreadTitle(title), titleAuto: true });
         this.deps.emit({ type: "thread:updated", payload: updated });
       }
     });
@@ -2096,6 +2098,48 @@ export class Orchestrator extends EventEmitter {
     this.digestTimer = setInterval(() => this.emitDigest(), Math.max(1, minutes) * 60_000);
   }
 
+  refreshStatusTimer(): void {
+    this.startStatusTimer();
+  }
+
+  private startStatusTimer(): void {
+    if (this.statusTimer) clearInterval(this.statusTimer);
+    const minutes = this.store.settings.statusCheckIntervalMin;
+    if (!minutes || minutes <= 0) return;
+    this.statusTimer = setInterval(() => void this.requestStatusUpdates(), Math.max(1, minutes) * 60_000);
+  }
+
+  /**
+   * Mission Control nudges its direct child orchestrators for a compact status
+   * report. It never asks running children, and never does the work itself.
+   */
+  private async requestStatusUpdates(): Promise<void> {
+    const root = this.store.nodes.find((node) => node.type === "root");
+    if (!root) return;
+    const rootThread = this.store.getThread(root.orchestratorThreadId);
+    if (!rootThread || ["running", "starting"].includes(rootThread.status)) return;
+    const targets = this.store.nodes
+      .filter((node) => node.parentId === root.id)
+      .map((node) => this.store.getThread(node.orchestratorThreadId))
+      .filter((thread): thread is Thread => !!thread && !thread.archived && !["running", "starting"].includes(thread.status))
+      .slice(0, 8);
+    if (!targets.length) return;
+    trace("status-check", { targets: targets.map((thread) => thread.id) });
+    for (const target of targets) {
+      await this.bus
+        .send({
+          fromThreadId: rootThread.id,
+          toThreadId: target.id,
+          kind: "question",
+          subject: "Status check",
+          body: "Status check from Mission Control. Reply with: current outcome, evidence, blockers, next step, and whether anything needs a decision. Do not start new work just to answer.",
+          priority: "normal",
+          requiresResponse: false,
+        })
+        .catch(() => undefined);
+    }
+  }
+
   private emitDigest(): void {
     const root = this.store.nodes.find((node) => node.type === "root");
     if (!root) return;
@@ -2126,6 +2170,26 @@ function textOf(message: ChatMessage): string {
  * The response that approves an OMP permission prompt when the node is in
  * yolo mode. Returns undefined for genuine questions we must ask the user.
  */
+const ACRONYMS = new Set(["API", "HTTP", "HTTPS", "OMP", "CLI", "UI", "UX", "RPC", "SSE", "JSON", "GPU", "CPU", "MCP", "LLM", "AI", "CI", "CD", "PR", "URL", "ID", "SDK", "SQL", "CSS", "HTML", "TS", "JS"]);
+
+function cleanThreadTitle(value: string): string {
+  let title = value
+    .replace(/^["'`#*\s-]+|["'`#*\s.,;:—–-]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  title = title
+    .split(" ")
+    .map((word) => {
+      const core = word.replace(/[^A-Za-z]/g, "");
+      if (core.length > 2 && core === core.toUpperCase() && !ACRONYMS.has(core)) {
+        return word.charAt(0) + word.slice(1).toLowerCase();
+      }
+      return word;
+    })
+    .join(" ");
+  return title.length > 60 ? `${title.slice(0, 57).trim()}…` : title;
+}
+
 function autoApproveValue(request: ApprovalRequest): unknown {
   if (request.kind === "confirm") return true;
   if (request.kind !== "select") return undefined;

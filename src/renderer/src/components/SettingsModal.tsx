@@ -202,6 +202,9 @@ function GeneralTab() {
         <Row label="Tree digest interval" hint="Minutes between roll-up notifications. 0 disables digests.">
           <input className="num-input" type="number" min={0} value={settings.digestIntervalMin} onChange={(event) => update({ digestIntervalMin: Number(event.target.value) })} />
         </Row>
+        <Row label="Status check interval" hint="Minutes between Mission Control status requests to child orchestrators. 0 disables them.">
+          <input className="num-input" type="number" min={0} value={settings.statusCheckIntervalMin ?? 15} onChange={(event) => update({ statusCheckIntervalMin: Number(event.target.value) })} />
+        </Row>
         <Row label="Max concurrent OMP sessions" hint="Idle sessions are parked to stay under this cap.">
           <input className="num-input" type="number" min={1} max={32} value={settings.maxConcurrentThreads} onChange={(event) => update({ maxConcurrentThreads: Number(event.target.value) })} />
         </Row>

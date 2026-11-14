@@ -120,6 +120,7 @@ export function registerIpc(context: IpcContext): void {
     if (patch.settings?.contextCompaction !== undefined) {
       await orchestrator.setContextCompaction(!!patch.settings.contextCompaction);
     }
+    if (patch.settings?.statusCheckIntervalMin !== undefined) orchestrator.refreshStatusTimer();
     broadcast({ type: "snapshot", payload: orchestrator.snapshot() });
     return updated;
   });

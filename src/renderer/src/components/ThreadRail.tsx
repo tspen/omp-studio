@@ -169,20 +169,25 @@ function ThreadsTab() {
 function ThreadRow({ thread, current }: { thread: Thread; current: string }) {
   const state = useApp();
   const active = current === thread.id;
+  const branch = thread.branch ? thread.branch.split("/").filter(Boolean).slice(-1)[0] ?? "" : "";
   return (
-    <button type="button" className={cx("thread-row", active && "active")} onClick={() => void state.selectThread(thread.id, thread.nodeId)}>
+    <button
+      type="button"
+      className={cx("thread-row", active && "active")}
+      title={`${thread.title}\n${statusLabel(thread.status)} · ${thread.model.name ?? thread.model.selector}${thread.branch ? `\n${thread.branch}` : ""}`}
+      onClick={() => void state.selectThread(thread.id, thread.nodeId)}
+    >
       <div className="thread-row-top">
-        <StatusDot status={thread.status} pulse={thread.status === "running"} />
+        <StatusDot status={thread.status} pulse={thread.status === "running" || thread.status === "starting"} />
         <span className="thread-row-title">{thread.title}</span>
         {thread.kind === "native" ? <Badge tone="purple">sub</Badge> : null}
         {thread.pendingApproval ? <ShieldAlert size={13} className="warn-icon" /> : null}
         <span className="thread-row-time">{relativeTime(thread.lastActivityAt)}</span>
       </div>
       <div className="thread-row-meta">
-        <span>{statusLabel(thread.status)}</span>
-        <span>{thread.model.name ?? thread.model.selector}</span>
-        {thread.branch ? <span className="mono">{truncate(thread.branch, 18)}</span> : null}
-        {thread.tokens ? <span>{formatNumber(thread.tokens)} tok</span> : null}
+        <span className="thread-row-status">{statusLabel(thread.status)}</span>
+        {branch ? <span className="thread-row-branch"><GitBranch size={10} /> {branch}</span> : null}
+        {thread.tokens ? <span className="thread-row-tokens">{formatNumber(thread.tokens)} tok</span> : null}
       </div>
       {thread.lastMessage ? <div className="thread-row-last">{truncate(thread.lastMessage, 90)}</div> : null}
     </button>

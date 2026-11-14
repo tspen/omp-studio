@@ -329,6 +329,7 @@ export interface AppSettings {
   autoReport: boolean;
   autoWakeParent: boolean;
   digestIntervalMin: number;
+  statusCheckIntervalMin: number;
   maxConcurrentThreads: number;
   contextCompaction: boolean;
   advisor: boolean;
