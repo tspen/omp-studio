@@ -178,6 +178,8 @@ export function registerIpc(context: IpcContext): void {
     if (result.ok) {
       const list = await models.refresh().catch(() => models.list());
       broadcast({ type: "models:updated", payload: { models: list, updatedAt: Date.now() } });
+      const usageSnapshot = await usage.refresh().catch(() => null);
+      if (usageSnapshot) broadcast({ type: "usage:updated", payload: usageSnapshot });
       broadcast({ type: "snapshot", payload: orchestrator.snapshot() });
     }
     return result;

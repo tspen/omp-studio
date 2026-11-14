@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import providersData from "../data/providers.json";
 import type { ProviderInfo } from "../../shared/types";
+import { providerBilling } from "./billing";
 import type { EngineLocator } from "../engine/engine-locator";
 import type { ModelService } from "./models";
 import type { Store } from "./store";
@@ -45,6 +46,7 @@ export class ProviderService {
       recommended: !!provider.recommended,
       connected: (counts.get(provider.id) ?? 0) > 0,
       modelCount: counts.get(provider.id) ?? 0,
+      billing: providerBilling(provider.id),
     })).sort((a, b) => providerRank(a) - providerRank(b) || a.name.localeCompare(b.name));
   }
 

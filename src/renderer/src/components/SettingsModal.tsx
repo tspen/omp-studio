@@ -287,7 +287,7 @@ function ModelsTab() {
                   <span>{model?.name ?? (selector || "Not set")}</span>
                   {model ? <Badge tone={model.quality >= 80 ? "green" : "blue"}>{model.aa?.agentic != null ? `AG ${model.aa.agentic.toFixed(0)}` : model.aa?.intelligence != null ? `AA ${model.quality.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge> : null}
                   {model?.aa?.value != null ? <Badge tone="purple">V {model.aa.value.toFixed(1)}</Badge> : null}
-                  {model ? <span className="muted">{formatCost(model.cost.input)}/{formatCost(model.cost.output)} · {formatNumber(model.contextWindow)} ctx</span> : null}
+                  {model ? <span className="muted">{model.included ? `included in plan · ${formatNumber(model.contextWindow)} ctx` : `${formatCost(model.cost.input)}/${formatCost(model.cost.output)} · ${formatNumber(model.contextWindow)} ctx`}</span> : null}
                   {model && role.key !== "naming" && role.key !== "memory" ? (
                     <Select
                       value={(settings.models as any)[`${role.key}Effort`] ?? "high"}
@@ -357,18 +357,22 @@ function UsageTab() {
         </Row>
       </Section>
       <Section title="Provider windows" subtitle="Read from `omp usage --json`.">
-        {usage.providers.length ? usage.providers.map((provider) => (
+        {usage.providers.length ? usage.providers.map((provider) => {
+          const windows = ((provider.metadata?.limits ?? []) as Array<{ id?: string; label?: string; used?: number; limit?: number; remaining?: number; unit?: string; status?: string; resetsAt?: number }>);
+          return (
           <div key={`${provider.provider}-${provider.label}`} className="provider-row">
             <div>
               <strong>{provider.provider}</strong>
               <span>{provider.label} · {provider.status ?? "ok"}</span>
             </div>
             <div className="provider-amount">
-              {provider.limit != null ? <strong>{provider.remaining ?? "?"} / {provider.limit} {provider.unit ?? ""}</strong> : <strong>{provider.status ?? "ok"}</strong>}
-              {provider.resetsAt ? <span>resets {new Date(provider.resetsAt).toLocaleString()}</span> : null}
+              {windows.length ? windows.map((window) => (
+                <span key={window.id ?? window.label}>{window.label ?? "window"}: {window.used ?? 0}% used{window.resetsAt ? ` · resets ${new Date(window.resetsAt).toLocaleDateString()}` : ""}</span>
+              )) : provider.limit != null ? <strong>{provider.remaining ?? "?"} / {provider.limit} {provider.unit ?? ""}</strong> : <strong>{provider.status ?? "ok"}</strong>}
             </div>
           </div>
-        )) : <p className="muted">No provider reports. Authenticate a provider and refresh.</p>}
+          );
+        }) : <p className="muted">No provider reports. Authenticate a provider and refresh.</p>}
       </Section>
       <Section title="Cost by node" subtitle="Where the tree is spending.">
         {nodes.map(({ node, stat }) => (

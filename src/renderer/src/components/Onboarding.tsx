@@ -98,6 +98,8 @@ export function Onboarding() {
   }, [rootModel, workerModel, modelPool.map((model) => model.selector).join("|")]);
 
   const selectedProviderInfo = providers.find((provider) => provider.id === selectedProvider);
+  const providerUsage = state.snapshot?.usage.providers.find((provider) => provider.provider === selectedProvider);
+  const providerWindows = ((providerUsage?.metadata?.limits ?? []) as Array<{ label?: string; used?: number; limit?: number; remaining?: number; unit?: string; status?: string }>);
   const connectedProviders = providers.filter((provider) => provider.connected);
   const visibleProviders = useMemo(() => {
     const query = providerQuery.toLowerCase();
@@ -237,6 +239,7 @@ export function Onboarding() {
                     <span>{provider.id} · {provider.login === "api-key" ? "API key" : provider.login === "oauth-code" ? "OAuth" : provider.login === "device-code" ? "device code" : provider.envVar ? "API key / env" : "OMP config"}</span>
                   </div>
                   {provider.connected ? <Badge tone="green">connected</Badge> : provider.recommended ? <Badge tone="accent">recommended</Badge> : null}
+                  {provider.billing === "subscription" && !provider.connected ? <Badge tone="blue">plan</Badge> : null}
                 </button>
               ))}
             </div>
@@ -269,6 +272,16 @@ export function Onboarding() {
                     <Button size="sm" variant="primary" disabled={connecting} onClick={() => void connect()}>{connecting ? <Spinner /> : <Wifi size={13} />} Connect</Button>
                   </div>
                 )}
+                {selectedProviderInfo.billing === "subscription" ? (
+                  <div className="provider-plan">
+                    <ShieldCheck size={14} />
+                    <div>
+                      <strong>Subscription plan</strong>
+                      <span>Token prices are reference values. Usage is governed by the plan's quota windows.</span>
+                      {providerWindows.length ? <div className="provider-windows">{providerWindows.map((window) => <Badge key={window.label ?? "window"} tone={window.status === "exhausted" ? "red" : "green"}>{window.label ?? "window"} {window.used ?? 0}%</Badge>)}</div> : null}
+                    </div>
+                  </div>
+                ) : null}
                 {providerOutput ? <pre className="provider-output">{providerOutput.slice(-1600)}</pre> : null}
                 {providerError ? <div className="provider-error"><CircleAlert size={14} /> {providerError}</div> : null}
                 {selectedProviderInfo.connected ? (
@@ -386,7 +399,7 @@ function RoleCard({
       <button type="button" className="onboarding-model" onClick={onChange}>
         <div>
           <strong>{model?.name ?? "Choose a model"}</strong>
-          <span>{model ? `${formatNumber(model.contextWindow)} ctx · ${formatCost(model.cost.input)} in / ${formatCost(model.cost.output)} out` : "No model available"}</span>
+          <span>{model ? `${formatNumber(model.contextWindow)} ctx · ${model.included ? "included in plan" : `${formatCost(model.cost.input)} in / ${formatCost(model.cost.output)} out`}` : "No model available"}</span>
         </div>
         {model ? <Badge tone={costTone}>{model.aa?.value != null ? `value ${model.aa.value.toFixed(1)}` : "estimated"}</Badge> : null}
         <ChevronDown size={14} />
@@ -409,19 +422,29 @@ function findModel(models: ModelInfo[], selector: string): ModelInfo | undefined
 
 function pickModel(role: "root" | "worker" | "naming", models: ModelInfo[]): string {
   if (!models.length) return "";
+  if (models[0]?.provider === "opencode-go") {
+    const curated = models.find((model) => model.selector === "opencode-go/deepseek-v4.1-flash");
+    if (curated) return curated.selector;
+  }
+  const subscription = models[0]?.billing === "subscription";
   const cap = role === "naming" ? 1 : 15;
-  const withinCap = models.filter((model) => model.cost.output <= cap);
-  const paid = role === "naming" ? withinCap : withinCap.filter((model) => !model.id.endsWith(":free"));
+  const withinCap = subscription ? models : models.filter((model) => model.cost.output <= cap);
+  const paid = role === "naming" || subscription ? withinCap : withinCap.filter((model) => !model.id.endsWith(":free"));
   const floor = role === "root" ? 55 : role === "worker" ? 40 : 0;
   const withQuality = paid.filter((model) => (model.aa?.agentic ?? model.aa?.intelligence ?? 0) >= floor);
   const pool = withQuality.length ? withQuality : paid.length ? paid : withinCap.length ? withinCap : models;
   if (role === "naming") {
     return pool.slice().sort((a, b) => (a.cost.output + a.cost.input * 4) - (b.cost.output + b.cost.input * 4) || b.quality - a.quality)[0]?.selector ?? "";
   }
-  const exponent = role === "root" ? 0.18 : 0.42;
   const scored = pool.map((model) => {
     const blended = model.cost.input * 0.3 + model.cost.output * 0.7;
     const agentic = model.aa?.agentic ?? model.aa?.intelligence ?? model.quality * 0.9;
+    if (subscription) {
+      const contextBonus = Math.min(6, Math.log2(Math.max(1, model.contextWindow / 100_000)) * 2);
+      const outputBonus = Math.min(3, Math.log2(Math.max(1, (model.maxTokens ?? 32_000) / 32_000)) * 0.5);
+      return { model, score: agentic + contextBonus + outputBonus + (model.reasoning ? 1 : 0) };
+    }
+    const exponent = role === "root" ? 0.18 : 0.42;
     return { model, score: agentic / Math.pow(blended + 1, exponent) + (model.reasoning ? 0.4 : 0) };
   });
   scored.sort((a, b) => b.score - a.score);

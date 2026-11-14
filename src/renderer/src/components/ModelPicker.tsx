@@ -89,7 +89,7 @@ function ModelRow({ model, active, onSelect }: { model: ModelInfo; active: boole
         <Badge tone={scoreTone(model.aa?.agentic ?? model.quality)}>{model.aa?.agentic != null ? `AG ${model.aa.agentic.toFixed(0)}` : model.aa?.intelligence != null ? `AA ${model.aa.intelligence.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge>
         {model.aa?.value != null ? <Badge tone="purple">V {model.aa.value.toFixed(1)}</Badge> : null}
         <span>{formatNumber(model.contextWindow)} ctx</span>
-        <span>{formatCost(model.cost.input)}/{formatCost(model.cost.output)}</span>
+        {model.included ? <Badge tone="green">included</Badge> : <span>{formatCost(model.cost.input)}/{formatCost(model.cost.output)}</span>}
         {model.reasoning ? <Badge tone="purple">reasoning</Badge> : null}
       </div>
       {active ? <Check size={15} className="model-check" /> : null}

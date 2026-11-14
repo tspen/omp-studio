@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { AAScore, ModelInfo } from "../../shared/types";
 import type { EngineLocator } from "../engine/engine-locator";
 import type { Store } from "./store";
+import { providerBilling } from "./billing";
 
 interface RawAAModel {
   slug: string;
@@ -88,6 +89,8 @@ export class ModelService {
           cacheWrite: Math.max(0, Number(item.cost?.cacheWrite) || 0),
         },
         available: true,
+        billing: providerBilling(item.provider),
+        included: providerBilling(item.provider) === "subscription",
         aa,
         quality: Math.round(quality * 10) / 10,
       });
@@ -282,6 +285,7 @@ export class ModelService {
 
 function defaultForRole(role: string, models: ModelInfo[], preferredProvider = ""): string {
   const isRouter = (model: ModelInfo) => /(^|[/-])(auto|router|auto-code)([/-]|$)/i.test(`${model.id} ${model.name}`) || /free models router/i.test(model.name);
+  const subscription = !!preferredProvider && models.find((model) => model.provider === preferredProvider)?.billing === "subscription";
   const caps =
     role === "naming" || role === "memory"
       ? { output: 1, input: 0.5 }
@@ -303,7 +307,11 @@ function defaultForRole(role: string, models: ModelInfo[], preferredProvider = "
   const preferredModels = preferredProvider ? base.filter((model) => model.provider === preferredProvider) : [];
   const preferredClean = preferredModels.filter((model) => !isRouter(model));
   const clean = preferredClean.length ? preferredClean : base.filter((model) => !isRouter(model));
-  const capped = clean.filter((model) => model.cost.output <= caps.output && model.cost.input <= caps.input);
+  if (preferredProvider === "opencode-go") {
+    const curated = clean.find((model) => model.selector === "opencode-go/deepseek-v4.1-flash");
+    if (curated) return curated.selector;
+  }
+  const capped = subscription ? clean : clean.filter((model) => model.cost.output <= caps.output && model.cost.input <= caps.input);
   const pool = capped.length ? capped : clean.length ? clean : base;
   if (!pool.length) return "";
   const aaPool = pool.filter((model) => model.aa?.agentic != null || model.aa?.intelligence != null);
@@ -319,7 +327,9 @@ function defaultForRole(role: string, models: ModelInfo[], preferredProvider = "
     const value = agentic / Math.pow(blended + 1, exponent);
     const reasoningBonus = model.reasoning ? (role === "worker" ? 0.4 : 0.8) : 0;
     const contextBonus = Math.min(1.2, Math.log2(Math.max(1, model.contextWindow / 100_000)) * 0.3);
-    return { model, score: value * 10 + reasoningBonus + contextBonus };
+    const outputBonus = Math.min(1.5, Math.log2(Math.max(1, (model.maxTokens ?? 32_000) / 32_000)) * 0.25);
+    const score = subscription && role !== "naming" && role !== "memory" ? agentic + contextBonus * 6 + outputBonus * 2 + reasoningBonus * 3 : value * 10 + reasoningBonus + contextBonus;
+    return { model, score };
   });
   scored.sort((a, b) => b.score - a.score);
   return scored[0]?.model.selector ?? "";

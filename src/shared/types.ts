@@ -79,6 +79,8 @@ export interface ModelInfo {
   input: string[];
   cost: ModelCost;
   available: boolean;
+  billing?: "subscription" | "metered" | "local" | "unknown";
+  included?: boolean;
   aa?: AAScore;
   quality: number;
   recommended?: "root" | "group" | "project" | "worker" | "naming" | "memory";
@@ -95,6 +97,7 @@ export interface ProviderInfo {
   recommended: boolean;
   connected: boolean;
   modelCount: number;
+  billing: "subscription" | "metered" | "local" | "unknown";
 }
 
 export interface TreeNode {
