@@ -1,0 +1,44 @@
+{
+  "name": "omp-studio",
+  "version": "0.1.0",
+  "description": "Windows cockpit for oh-my-pi: tree-based orchestrators, threads, git, memory and environments.",
+  "main": "out/main/index.js",
+  "author": "OMP Studio",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "start": "electron-vite preview",
+    "package": "npm run fetch:omp && npm run build && electron-builder --win nsis",
+    "package:dir": "npm run fetch:omp && npm run build && electron-builder --win dir",
+    "fetch:omp": "node scripts/fetch-omp.mjs",
+    "test": "vitest run",
+    "smoke": "npm run build && electron . --smoke-test"
+  },
+  "dependencies": {
+    "diff": "^9.0.0",
+    "highlight.js": "^11.12.0",
+    "lucide-react": "^1.72.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
+    "yaml": "^2.9.1",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

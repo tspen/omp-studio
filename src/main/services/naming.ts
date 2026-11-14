@@ -1,0 +1,179 @@
+import { execFile } from "node:child_process";
+import type { EngineLocator } from "../engine/engine-locator";
+import type { Store } from "./store";
+
+export class NamingService {
+  private store: Store;
+  private engine: EngineLocator;
+  private queue: Array<() => Promise<void>> = [];
+  private running = false;
+  private onUpdate?: (threadId: string, title: string) => void;
+  private onNodeUpdate?: (nodeId: string, name: string) => void;
+
+  constructor(
+    store: Store,
+    engine: EngineLocator,
+    onUpdate?: (threadId: string, title: string) => void,
+    onNodeUpdate?: (nodeId: string, name: string) => void,
+  ) {
+    this.store = store;
+    this.engine = engine;
+    this.onUpdate = onUpdate;
+    this.onNodeUpdate = onNodeUpdate;
+  }
+
+  heuristicTitle(text: string, fallback = "New thread"): string {
+    const cleaned = text
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/[#*_>`]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!cleaned) return fallback;
+    const words = cleaned.split(" ").slice(0, 9).join(" ");
+    const clipped = words.length > 54 ? `${words.slice(0, 51).trim()}…` : words;
+    return titleCase(clipped) || fallback;
+  }
+
+  suggestTitle(text: string, fallback = "New thread"): string {
+    return this.heuristicTitle(text, fallback);
+  }
+
+  autoName(threadId: string, text: string): void {
+    if (!this.store.settings.autoName) return;
+    const thread = this.store.getThread(threadId);
+    if (!thread?.titleAuto) return;
+    const model = this.store.settings.models.naming;
+    if (!model) return;
+    this.enqueue(async () => {
+      const result = await this.ask(
+        model,
+        "You name work threads in a coding cockpit. Return only a concise 3-6 word title, title case, no quotes, no punctuation at the end, maximum 48 characters.",
+        `Name this work:\n\n${text.slice(0, 4000)}`,
+      );
+      const title = sanitizeTitle(result);
+      const current = this.store.getThread(threadId);
+      if (title && current?.titleAuto) {
+        this.store.updateThread(threadId, { title, titleAuto: true });
+        this.onUpdate?.(threadId, title);
+      }
+    });
+  }
+
+  suggestNodeName(text: string, fallback = "New project"): string {
+    return this.heuristicTitle(text, fallback);
+  }
+
+  autoNameNode(nodeId: string, text: string): void {
+    if (!this.store.settings.autoName) return;
+    const node = this.store.getNode(nodeId);
+    if (!node?.autoName) return;
+    const model = this.store.settings.models.naming;
+    if (!model) return;
+    this.enqueue(async () => {
+      const result = await this.ask(
+        model,
+        "You name projects and groups in a coding cockpit. Return only a concise 2-5 word name, title case, no quotes, maximum 40 characters.",
+        `Name this ${this.store.getNode(nodeId)?.type ?? "node"}:\n\n${text.slice(0, 3000)}`,
+      );
+      const name = sanitizeTitle(result);
+      const current = this.store.getNode(nodeId);
+      if (name && current?.autoName) {
+        this.store.updateNode(nodeId, { name });
+        const thread = this.store.getThread(current.orchestratorThreadId);
+        if (thread) this.store.updateThread(thread.id, { title: name });
+        this.onNodeUpdate?.(nodeId, name);
+      }
+    });
+  }
+
+  private enqueue(job: () => Promise<void>): void {
+    this.queue.push(job);
+    if (!this.running) void this.drain();
+  }
+
+  private async drain(): Promise<void> {
+    this.running = true;
+    while (this.queue.length) {
+      const job = this.queue.shift();
+      if (!job) continue;
+      try {
+        await job();
+      } catch {
+        /* naming is best-effort */
+      }
+    }
+    this.running = false;
+  }
+
+  private ask(model: string, system: string, prompt: string): Promise<string> {
+    const exe = this.engine.resolveForSpawn();
+    return new Promise((resolve, reject) => {
+      execFile(
+        exe,
+        [
+          "-p",
+          "--no-session",
+          "--no-tools",
+          "--no-lsp",
+          "--no-pty",
+          "--no-title",
+          "--no-skills",
+          "--no-rules",
+          "--no-extensions",
+          "--model",
+          model,
+          "--thinking",
+          "off",
+          "--cwd",
+          this.store.baseDir,
+          "--system-prompt",
+          system,
+          prompt,
+        ],
+        {
+          timeout: 90_000,
+          maxBuffer: 4 * 1024 * 1024,
+          windowsHide: true,
+          encoding: "utf8",
+          cwd: this.store.baseDir,
+          env: { ...process.env, PI_NO_TITLE: "1" },
+        },
+        (error, stdout, stderr) => {
+          if (error && !stdout.trim()) {
+            reject(new Error(stderr || error.message));
+            return;
+          }
+          resolve(stripAnsi(stdout));
+        },
+      );
+    });
+  }
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(/\u001b\[[0-9;]*m/g, "").replace(/^Working\.\.\.\s*/i, "").trim();
+}
+
+function sanitizeTitle(value: string): string {
+  let title = stripAnsi(value)
+    .split(/\r?\n/)[0]
+    .replace(/^["'`#*\s-]+|["'`#*\s.]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (title.length > 60) title = `${title.slice(0, 57).trim()}…`;
+  return title;
+}
+
+function titleCase(value: string): string {
+  if (!value) return "";
+  const small = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into", "of", "on", "or", "the", "to", "with"]);
+  return value
+    .split(" ")
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+      if (index > 0 && small.has(lower)) return lower;
+      if (/^[A-Z0-9.]+$/.test(word)) return word;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
+}
