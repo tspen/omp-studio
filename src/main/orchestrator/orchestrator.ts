@@ -98,6 +98,7 @@ export class Orchestrator extends EventEmitter {
 
   async init(): Promise<void> {
     this.ensureRoot();
+    this.store.reconcileStaleTools("Interrupted when the app closed");
     for (const node of this.store.nodes) this.ensureNodeThread(node);
     this.retitleLegacyWorkers();
     this.recomputeUsage();
@@ -1237,6 +1238,7 @@ export class Orchestrator extends EventEmitter {
       }).catch(() => undefined);
     }
     await session.dispose();
+    this.store.finalizeRunningTools(threadId, "Stopped");
     this.updateStatus(threadId, "parked", "Parked");
   }
 
@@ -1443,6 +1445,7 @@ export class Orchestrator extends EventEmitter {
 
   private handleSessionExit(threadId: string, error?: Error): void {
     this.sessions.delete(threadId);
+    this.store.finalizeRunningTools(threadId, error ? `Session ended: ${error.message}` : "Session ended before completion");
     if (this.closed) return;
     if (error) {
       this.updateStatus(threadId, "error", error.message);
@@ -1589,7 +1592,9 @@ export class Orchestrator extends EventEmitter {
     this.gitTimers.set(threadId, timer);
   }
 
-  private async deliverEnvelope(envelope: Envelope): Promise<boolean> {
+  private flushing = new Set<string>();
+
+  private async deliverEnvelope(envelope: Envelope, options?: { skipFlush?: boolean }): Promise<boolean> {
     const debug = process.argv.includes("--integration-test");
     if (debug) console.log("DELIVER_START", envelope.id, envelope.fromThreadId, "->", envelope.toThreadId, envelope.kind, envelope.direction);
     const target = this.store.getThread(envelope.toThreadId);
@@ -1620,7 +1625,7 @@ export class Orchestrator extends EventEmitter {
     if (text.length > 100_000) trace("deliver-large", { target: target.id, chars: text.length, kind: envelope.kind });
     const current = this.store.getThread(target.id);
     try {
-      await this.flushQueued(target.id, envelope.id);
+      if (!options?.skipFlush) await this.flushQueued(target.id, envelope.id);
       if (debug) console.log("DELIVER_PROMPT", target.id, current?.status, target.status);
       if (current && (current.status === "running" || current.status === "waiting")) {
         await session.prompt(text, "steer");
@@ -1637,12 +1642,18 @@ export class Orchestrator extends EventEmitter {
   }
 
   private async flushQueued(threadId: string, excludeId?: string): Promise<void> {
-    const queued = this.store.listEnvelopes({ threadId, limit: 50 }).filter(
-      (envelope) => envelope.toThreadId === threadId && envelope.status === "queued" && envelope.id !== excludeId,
-    );
-    for (const envelope of queued) {
-      const delivered = await this.deliverEnvelope(envelope);
-      if (delivered) this.bus.markDelivered(envelope);
+    if (this.flushing.has(threadId)) return;
+    this.flushing.add(threadId);
+    try {
+      const queued = this.store.listEnvelopes({ threadId, limit: 50 }).filter(
+        (envelope) => envelope.toThreadId === threadId && envelope.status === "queued" && envelope.id !== excludeId,
+      ).slice(0, 5);
+      for (const envelope of queued) {
+        const delivered = await this.deliverEnvelope(envelope, { skipFlush: true });
+        if (delivered) this.bus.markDelivered(envelope);
+      }
+    } finally {
+      this.flushing.delete(threadId);
     }
   }
 

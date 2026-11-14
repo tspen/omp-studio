@@ -1,5 +1,5 @@
 import { app } from "electron";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync, statSync, readdirSync } from "node:fs";
 import { trace } from "../diagnostics";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -606,6 +606,71 @@ export class Store {
 
   clearChatCache(): void {
     this.chats.clear();
+  }
+
+  /**
+   * A tool block persisted as still running can only be stale once its session
+   * is gone. Mark it interrupted so the UI stops spinning forever.
+   */
+  finalizeRunningTools(threadId: string, reason: string): void {
+    const list = this.chats.get(threadId);
+    if (!list) return;
+    let changed = false;
+    for (const message of list) {
+      for (const block of message.blocks) {
+        if (block.type !== "tool" || block.status !== "running") continue;
+        block.status = "error";
+        block.result = block.result || reason;
+        block.endedAt = block.endedAt || Date.now();
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeFileSync(
+        this.transcriptPath(threadId),
+        list.map((message) => JSON.stringify(message)).join("\n") + (list.length ? "\n" : ""),
+        "utf8",
+      );
+    }
+  }
+
+  /** Startup sweep: no tool can still be running before any session starts. */
+  reconcileStaleTools(reason: string): void {
+    let files: string[] = [];
+    try {
+      files = readdirSync(this.transcriptsDir).filter((name) => name.endsWith(".jsonl"));
+    } catch {
+      return;
+    }
+    for (const name of files) {
+      const path = join(this.transcriptsDir, name);
+      const byId = new Map<string, ChatMessage>();
+      let changed = false;
+      try {
+        for (const line of readFileSync(path, "utf8").split("\n")) {
+          if (!line.trim()) continue;
+          try {
+            const message = JSON.parse(line) as ChatMessage;
+            for (const block of message.blocks) {
+              if (block.type === "tool" && block.status === "running") {
+                block.status = "error";
+                block.result = block.result || reason;
+                block.endedAt = block.endedAt || Date.now();
+                changed = true;
+              }
+            }
+            byId.set(message.id, message);
+          } catch {
+            /* skip */
+          }
+        }
+      } catch {
+        continue;
+      }
+      if (!changed) continue;
+      const list = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
+      writeFileSync(path, list.map((message) => JSON.stringify(message)).join("\n") + (list.length ? "\n" : ""), "utf8");
+    }
   }
 
   diagnostics(): { chats: number; messages: number; chars: number } {
