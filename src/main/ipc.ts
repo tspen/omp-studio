@@ -30,10 +30,11 @@ export interface IpcContext {
   share: ShareService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
+  openBrowser: (url: string) => void;
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, engine, usage, broadcast } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, engine, usage, broadcast, openBrowser } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -256,6 +257,9 @@ export function registerIpc(context: IpcContext): void {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
   ipcMain.handle("shell:open-external", (_event, url: string) => shell.openExternal(url));
+  ipcMain.handle("browser:open", (_event, url: string) => {
+    if (/^https?:\/\//i.test(url)) openBrowser(url);
+  });
   ipcMain.handle("shell:open-path", (_event, path: string) => shell.openPath(path));
 
   ipcMain.handle("engine:download", async () => {

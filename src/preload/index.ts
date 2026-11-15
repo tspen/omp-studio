@@ -93,6 +93,7 @@ const api: OmpStudioApi = {
   pickDirectory: () => invoke("dialog:pick-directory") as Promise<any>,
   setWindowTheme: (theme) => invoke("window:theme", theme) as Promise<any>,
   openExternal: (url) => invoke("shell:open-external", url) as Promise<any>,
+  openBrowser: (url) => invoke("browser:open", url) as Promise<any>,
   openPath: (path) => invoke("shell:open-path", path) as Promise<any>,
   downloadEngine: () => invoke("engine:download") as Promise<any>,
   restartApp: () => invoke("app:restart") as Promise<any>,

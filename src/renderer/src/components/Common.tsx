@@ -319,7 +319,25 @@ export function Select({
 export function Markdown({ children }: { children: string }) {
   return (
     <div className="markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          a: ({ href, children: label }) => (
+            <a
+              href={href}
+              title={href}
+              onClick={(event) => {
+                if (!href || !/^https?:\/\//i.test(href)) return;
+                event.preventDefault();
+                void window.omp.openBrowser(href);
+              }}
+            >
+              {label}
+            </a>
+          ),
+        }}
+      >
         {children}
       </ReactMarkdown>
     </div>

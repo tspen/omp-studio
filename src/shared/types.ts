@@ -767,6 +767,7 @@ export interface OmpStudioApi {
   pickDirectory(): Promise<string | null>;
   setWindowTheme(theme: "light" | "dark"): Promise<void>;
   openExternal(url: string): Promise<void>;
+  openBrowser(url: string): Promise<void>;
   openPath(path: string): Promise<void>;
   downloadEngine(): Promise<EngineStatus>;
   restartApp(): Promise<void>;

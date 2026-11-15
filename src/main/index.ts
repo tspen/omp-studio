@@ -22,6 +22,7 @@ import { initDiagnostics, trace } from "./diagnostics";
 import type { AppEvent } from "../shared/types";
 
 let mainWindow: BrowserWindow | null = null;
+let browserWindow: BrowserWindow | null = null;
 let orchestrator: Orchestrator | null = null;
 let notifications: NotificationService | null = null;
 let share: ShareService | null = null;
@@ -242,6 +243,48 @@ async function runIntegration(
   });
 }
 
+function openBrowserWindow(url: string): void {
+  if (!/^https?:\/\//i.test(url)) return;
+  if (browserWindow && !browserWindow.isDestroyed()) {
+    void browserWindow.loadURL(url).catch(() => undefined);
+    if (browserWindow.isMinimized()) browserWindow.restore();
+    browserWindow.show();
+    browserWindow.focus();
+    return;
+  }
+  browserWindow = new BrowserWindow({
+    width: 1200,
+    height: 820,
+    minWidth: 520,
+    minHeight: 420,
+    title: "OMP Browser",
+    autoHideMenuBar: true,
+    backgroundColor: "#ffffff",
+    parent: mainWindow ?? undefined,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      partition: "persist:omp-browser",
+    },
+  });
+  browserWindow.on("closed", () => {
+    browserWindow = null;
+  });
+  browserWindow.on("page-title-updated", (_event, title) => {
+    browserWindow?.setTitle(`${title} — OMP Browser`);
+  });
+  browserWindow.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (/^https?:\/\//i.test(target)) openBrowserWindow(target);
+    return { action: "deny" };
+  });
+  browserWindow.webContents.on("will-navigate", (event, target) => {
+    if (!/^https?:\/\//i.test(target)) event.preventDefault();
+  });
+  void browserWindow.loadURL(url).catch(() => undefined);
+  browserWindow.show();
+}
+
 async function createWindow(): Promise<void> {
   const icon = iconPath();
   mainWindow = new BrowserWindow({
@@ -269,6 +312,10 @@ async function createWindow(): Promise<void> {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
+  });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    if (browserWindow && !browserWindow.isDestroyed()) browserWindow.close();
   });
   let rendererReloads: number[] = [];
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -414,6 +461,7 @@ async function bootstrap(): Promise<void> {
     share: shareService,
     usage,
     broadcast,
+    openBrowser: openBrowserWindow,
   };
   registerIpc(context);
 
