@@ -28,41 +28,46 @@ import { Badge, Logo, Markdown, Button, cx, formatNumber, relativeTime, statusLa
 
 export function Transcript({ thread, messages }: { thread: Thread; messages: ChatMessage[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const [stick, setStick] = useState(true);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
   const showThinking = useApp((state) => state.snapshot?.settings.ui.showThinking ?? true);
-  const lastThreadRef = useRef(thread.id);
+
+  const scrollToBottom = () => {
+    const element = scrollRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  };
 
   useLayoutEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-    if (lastThreadRef.current !== thread.id) {
-      lastThreadRef.current = thread.id;
-      setStick(true);
-      element.scrollTop = element.scrollHeight;
-      return;
-    }
-    if (stick) element.scrollTop = element.scrollHeight;
-  }, [thread.id, messages, stick]);
+    stickRef.current = true;
+    scrollToBottom();
+  }, [thread.id]);
+
+  useLayoutEffect(() => {
+    if (stickRef.current) scrollToBottom();
+  }, [messages, thread.status]);
 
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
     const onScroll = () => {
-      const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
-      setStick(distance < 120);
+      stickRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
     };
     element.addEventListener("scroll", onScroll, { passive: true });
-    return () => element.removeEventListener("scroll", onScroll);
+    const observer = innerRef.current
+      ? new ResizeObserver(() => {
+          if (stickRef.current) element.scrollTop = element.scrollHeight;
+        })
+      : null;
+    if (innerRef.current) observer?.observe(innerRef.current);
+    return () => {
+      element.removeEventListener("scroll", onScroll);
+      observer?.disconnect();
+    };
   }, []);
-
-  useEffect(() => {
-    if (stick) bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-  }, [messages, thread.status, stick]);
 
   return (
     <div className="transcript" ref={scrollRef}>
-      <div className="transcript-inner">
+      <div className="transcript-inner" ref={innerRef}>
         <ThreadIntro thread={thread} />
         {thread.todoPhases?.length ? <TodoPanel thread={thread} /> : null}
         {messages.map((message) => (
@@ -99,7 +104,6 @@ export function Transcript({ thread, messages }: { thread: Thread; messages: Cha
             ) : null}
           </div>
         ) : null}
-        <div ref={bottomRef} />
       </div>
     </div>
   );
