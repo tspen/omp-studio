@@ -259,7 +259,7 @@ function TreeRow({
   const running = threads.filter((thread) => thread.nodeId === node.id && thread.status === "running").length;
   const isSelected = selectedId === node.id;
   const childThreads = threads
-    .filter((thread) => thread.nodeId === node.id && thread.kind !== "orchestrator" && (showResolved || !thread.archived))
+    .filter((thread) => thread.nodeId === node.id && thread.kind !== "orchestrator" && (showResolved || !thread.archived || ["running", "starting", "waiting", "queued"].includes(thread.status)))
     .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0) || a.id.localeCompare(b.id));
   return (
     <div>

@@ -77,10 +77,10 @@ function ThreadsTab() {
     if (filter === "done") return thread.archived || ["completed", "error"].includes(thread.status);
     return true;
   };
-  const active = workers.filter((thread) => !thread.archived && ["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
+  const active = workers.filter((thread) => ["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
   const idle = workers.filter((thread) => !thread.archived && ["idle", "parked", "cancelled"].includes(thread.status) && matches(thread));
   const done = workers.filter((thread) => !thread.archived && ["completed", "error"].includes(thread.status) && matches(thread));
-  const resolved = workers.filter((thread) => thread.archived && matches(thread));
+  const resolved = workers.filter((thread) => thread.archived && !["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
   const showLive = filter === "all" || filter === "live" || filter === "open";
   const showIdle = filter === "all" || filter === "open";
   const showDone = filter === "all" || filter === "done";

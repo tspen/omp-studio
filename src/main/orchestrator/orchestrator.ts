@@ -443,6 +443,10 @@ export class Orchestrator extends EventEmitter {
     const thread = this.store.getThread(threadId);
     trace("continue-start", { threadId, kind: thread?.kind, status: thread?.status });
     if (!thread) throw new Error("Thread not found");
+    if (thread.archived) {
+      const revived = this.store.updateThread(thread.id, { archived: false, status: "idle", statusMessage: "Reopened" });
+      this.deps.emit({ type: "thread:updated", payload: revived });
+    }
     if (thread.kind === "native") throw new Error("Native subagent threads are resumed by their parent");
     if (["running", "starting"].includes(thread.status)) return;
     if (thread.kind !== "orchestrator") {
@@ -602,6 +606,11 @@ export class Orchestrator extends EventEmitter {
   }
 
   async restartThread(threadId: string): Promise<void> {
+    const thread = this.store.getThread(threadId);
+    if (thread?.archived) {
+      const revived = this.store.updateThread(threadId, { archived: false, status: "idle", statusMessage: "Restarting" });
+      this.deps.emit({ type: "thread:updated", payload: revived });
+    }
     await this.disposeSession(threadId);
     await this.ensureSession(threadId);
   }
