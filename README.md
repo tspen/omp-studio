@@ -102,3 +102,7 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 
 - OMP / oh-my-pi: MIT, https://github.com/can1357/oh-my-pi
 - Artificial Analysis data: https://artificialanalysis.ai
+
+## License
+
+MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
