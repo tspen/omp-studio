@@ -13,6 +13,7 @@ import {
   FileDiff,
   FileText,
   Folder,
+  Image as ImageIcon,
   Inbox,
   MessageSquare,
   Play,
@@ -367,9 +368,15 @@ function ArtifactsModal() {
         {state.artifacts.map((artifact) => (
           <button key={artifact.id} type="button" className="artifact-card" onClick={async () => {
             const full = await window.omp.readArtifact(artifact.id);
-            state.openPreview({ title: artifact.name, kind: artifact.kind === "diff" ? "diff" : "artifact", content: full.content ?? full.path ?? "", path: full.path });
+            const image = isImage(full.path ?? artifact.name);
+            state.openPreview({
+              title: artifact.name,
+              kind: image ? "image" : artifact.kind === "diff" ? "diff" : "artifact",
+              content: image ? "" : full.content ?? full.path ?? "",
+              path: full.path,
+            });
           }}>
-            <div className="artifact-icon">{artifact.kind === "diff" ? <FileDiff size={18} /> : <FileText size={18} />}</div>
+            <div className="artifact-icon">{isImage(artifact.path ?? artifact.name) ? <ImageIcon size={18} /> : artifact.kind === "diff" ? <FileDiff size={18} /> : <FileText size={18} />}</div>
             <strong>{artifact.name}</strong>
             <span>{artifact.kind} · {artifact.size ? `${formatNumber(artifact.size)} bytes` : relativeTime(artifact.createdAt)}</span>
             {artifact.meta?.threadTitle ? <small>{String(artifact.meta.threadTitle)}</small> : null}
@@ -467,9 +474,23 @@ function PreviewModal() {
   if (!preview) return null;
   return (
     <Modal title={preview.title} subtitle={preview.path} onClose={() => state.setOverlay("none")} width={1000} className="preview-modal">
-      {preview.kind === "diff" ? <DiffView text={preview.content} /> : <pre className="file-preview">{preview.content || "No content."}</pre>}
+      {preview.kind === "image" ? (
+        <div className="preview-image-wrap">
+          <img src={fileUrl(preview.path)} alt={preview.title} />
+          {preview.path ? <Button size="sm" variant="soft" onClick={() => void window.omp.openPath(preview.path!)}><ExternalLink size={13} /> Open file</Button> : null}
+        </div>
+      ) : preview.kind === "diff" ? <DiffView text={preview.content} /> : <pre className="file-preview">{preview.content || "No content."}</pre>}
     </Modal>
   );
+}
+
+function isImage(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(path);
+}
+
+function fileUrl(path?: string): string {
+  if (!path) return "";
+  return `file:///${path.replace(/\\/g, "/").replace(/ /g, "%20")}`;
 }
 
 function DiffView({ text }: { text: string }) {

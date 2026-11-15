@@ -408,7 +408,9 @@ export class Store {
   updateThread(id: string, patch: Partial<Thread>): Thread {
     const thread = this.getThread(id);
     if (!thread) throw new Error(`Thread not found: ${id}`);
-    Object.assign(thread, patch, { updatedAt: Date.now() });
+    const activated = patch.status !== undefined && ["running", "starting", "queued", "waiting"].includes(patch.status);
+    const merged = activated && patch.archived === undefined ? { ...patch, archived: false } : patch;
+    Object.assign(thread, merged, { updatedAt: Date.now() });
     this.markDirty();
     return thread;
   }
@@ -837,6 +839,7 @@ function compactChatMessage(message: ChatMessage): ChatMessage {
         result: block.result && block.result.length > 60_000 ? block.result.slice(0, 60_000) : block.result,
       };
     }
+    if (block.type === "image" && block.data && block.data.length > 6_000_000) return { ...block, data: undefined };
     return block;
   });
   return { ...message, blocks };

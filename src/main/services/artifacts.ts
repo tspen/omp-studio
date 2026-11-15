@@ -21,7 +21,7 @@ export class ArtifactService {
   read(id: string): Artifact {
     const artifact = this.store.data.artifacts.find((item) => item.id === id);
     if (!artifact) throw new Error(`Artifact not found: ${id}`);
-    if (artifact.path && !artifact.content && existsSync(artifact.path)) {
+    if (artifact.path && !artifact.content && existsSync(artifact.path) && !isImagePath(artifact.path)) {
       try {
         const stat = statSync(artifact.path);
         if (stat.size < 2 * 1024 * 1024) artifact.content = readFileSync(artifact.path, "utf8");
@@ -78,4 +78,8 @@ export class ArtifactService {
       meta: { threadTitle: thread.title },
     });
   }
+}
+
+export function isImagePath(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(path);
 }

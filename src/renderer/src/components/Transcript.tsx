@@ -197,10 +197,42 @@ function Block({ block, showThinking }: { block: ChatBlock; showThinking: boolea
     );
   }
   if (block.type === "tool") return <ToolCard block={block} />;
-  if (block.type === "image") {
-    return <div className="image-block"><ImageIcon size={14} /> Image attachment</div>;
-  }
+  if (block.type === "image") return <ImageBlock block={block} />;
   return null;
+}
+
+function ImageBlock({ block }: { block: Extract<ChatBlock, { type: "image" }> }) {
+  const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const source = block.data
+    ? `data:${block.mimeType || "image/png"};base64,${block.data}`
+    : block.path
+      ? `file:///${block.path.replace(/\\/g, "/").replace(/ /g, "%20")}`
+      : "";
+  if (!source || failed) {
+    return (
+      <div className="image-block">
+        <ImageIcon size={14} /> Image{block.path ? `: ${truncate(block.path, 80)}` : " attachment"}
+      </div>
+    );
+  }
+  return (
+    <>
+      <button type="button" className="image-thumb" onClick={() => setOpen(true)} title="Open image">
+        <img src={source} alt={block.path ?? "Image attachment"} onError={() => setFailed(true)} />
+      </button>
+      {open ? (
+        <div className="image-lightbox" onClick={() => setOpen(false)}>
+          <img src={source} alt={block.path ?? "Image attachment"} onClick={(event) => event.stopPropagation()} />
+          <div className="image-lightbox-foot">
+            <span>{block.path ? truncate(block.path, 90) : block.mimeType}</span>
+            {block.path ? <Button size="sm" variant="soft" onClick={() => void window.omp.openPath(block.path!)}>Open file</Button> : null}
+            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function ToolCard({ block }: { block: Extract<ChatBlock, { type: "tool" }> }) {

@@ -601,9 +601,10 @@ export class OmpSession extends EventEmitter {
     }
     const role = message.role;
     if (role === "assistant") {
-      const blocks = normalizeBlocks(message.content).filter((block) => block.type === "text" || block.type === "thinking");
+      const blocks = normalizeBlocks(message.content).filter((block) => block.type === "text" || block.type === "thinking" || block.type === "image");
       const totalChars = blocks.reduce((sum, block) => sum + ("text" in block ? block.text.length : 0), 0);
       if (totalChars > 500_000) trace("message-large", { role, chars: totalChars, blocks: blocks.length, id: frame.messageId ?? message.id });
+      for (const block of blocks) if (block.type === "image" && block.path) this.options.onToolFile?.(block.path);
       const text = blocks.filter((b) => b.type === "text").map((b) => (b as any).text).join("\n").trim();
       if (text) this.lastAssistantText = text.slice(-8000);
       const id = String(this.liveAssistantId ?? frame.messageId ?? message.id ?? `msg_${randomUUID()}`);
@@ -626,6 +627,7 @@ export class OmpSession extends EventEmitter {
     if (role === "user") {
       const blocks = normalizeBlocks(message.content);
       if (!blocks.length) return;
+      for (const block of blocks) if (block.type === "image" && block.path) this.options.onToolFile?.(block.path);
       this.options.onChat({
         id: String(frame.messageId || message.id || `msg_${randomUUID()}`),
         threadId: this.thread.id,
@@ -648,6 +650,18 @@ export class OmpSession extends EventEmitter {
             block.endedAt = Date.now();
             this.options.onChat(existing);
           }
+        }
+        const images = normalizeBlocks(message.content).filter((block) => block.type === "image");
+        if (images.length) {
+          for (const block of images) if (block.path) this.options.onToolFile?.(block.path);
+          this.options.onChat({
+            id: `img_${toolCallId}_${Date.now()}`,
+            threadId: this.thread.id,
+            role: "assistant",
+            blocks: images,
+            timestamp: Date.now(),
+            model: this.thread.model.name,
+          });
         }
       }
     }
@@ -815,7 +829,7 @@ function normalizeBlocks(content: any): ChatBlock[] {
       blocks.push({
         type: "image",
         mimeType: item.mimeType ?? "image/png",
-        data: typeof item.data === "string" && item.data.length > 1_000_000 ? undefined : item.data,
+        data: typeof item.data === "string" && item.data.length > 6_000_000 ? undefined : item.data,
         path: item.path,
       });
     }

@@ -31,7 +31,7 @@ interface Toast {
 
 interface PreviewState {
   title: string;
-  kind: "file" | "diff" | "artifact" | "text";
+  kind: "file" | "diff" | "artifact" | "text" | "image";
   content: string;
   path?: string;
 }

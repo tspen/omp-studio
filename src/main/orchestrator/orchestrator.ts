@@ -561,6 +561,10 @@ export class Orchestrator extends EventEmitter {
     const thread = this.store.getThread(request.threadId);
     if (!thread) throw new Error("Thread not found");
     trace("send-user", { threadId: thread.id, chars: request.text.length });
+    if (thread.archived) {
+      const revived = this.store.updateThread(thread.id, { archived: false, status: "idle", statusMessage: "Reopened" });
+      this.deps.emit({ type: "thread:updated", payload: revived });
+    }
     this.focusedThreadId = thread.id;
     if (thread.interrupted) {
       this.store.updateThread(thread.id, { interrupted: false, interruptedAt: undefined });
