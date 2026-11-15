@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   Check,
@@ -31,6 +31,19 @@ export function Transcript({ thread, messages }: { thread: Thread; messages: Cha
   const bottomRef = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
   const showThinking = useApp((state) => state.snapshot?.settings.ui.showThinking ?? true);
+  const lastThreadRef = useRef(thread.id);
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    if (lastThreadRef.current !== thread.id) {
+      lastThreadRef.current = thread.id;
+      setStick(true);
+      element.scrollTop = element.scrollHeight;
+      return;
+    }
+    if (stick) element.scrollTop = element.scrollHeight;
+  }, [thread.id, messages, stick]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -44,7 +57,7 @@ export function Transcript({ thread, messages }: { thread: Thread; messages: Cha
   }, []);
 
   useEffect(() => {
-    if (stick) bottomRef.current?.scrollIntoView({ behavior: messages.length > 20 ? "auto" : "smooth", block: "end" });
+    if (stick) bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
   }, [messages, thread.status, stick]);
 
   return (

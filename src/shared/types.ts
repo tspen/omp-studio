@@ -756,6 +756,7 @@ export interface OmpStudioApi {
 
   listNotifications(): Promise<AppNotification[]>;
   markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(): Promise<void>;
   clearNotifications(): Promise<void>;
 
   respondApproval(id: string, response: unknown): Promise<void>;

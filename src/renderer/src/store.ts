@@ -99,6 +99,8 @@ interface AppState {
   shareThread(): Promise<void>;
   stopShare(): Promise<void>;
   markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(): Promise<void>;
+  clearNotifications(): Promise<void>;
   pushToast(toast: Omit<Toast, "id">): void;
   dismissToast(id: string): void;
   selectRoot(): Promise<void>;
@@ -585,6 +587,16 @@ export const useApp = create<AppState>((set, get) => ({
   async markNotificationRead(id) {
     await api().markNotificationRead(id);
     set({ notifications: get().notifications.map((item) => (item.id === id ? { ...item, read: true } : item)) });
+  },
+
+  async markAllNotificationsRead() {
+    await api().markAllNotificationsRead();
+    set({ notifications: get().notifications.map((item) => ({ ...item, read: true })) });
+  },
+
+  async clearNotifications() {
+    await api().clearNotifications();
+    set({ notifications: [] });
   },
 
   pushToast(toast) {

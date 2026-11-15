@@ -236,6 +236,7 @@ export function registerIpc(context: IpcContext): void {
 
   ipcMain.handle("notifications:list", () => notifications.list());
   ipcMain.handle("notifications:read", (_event, id: string) => notifications.markRead(id));
+  ipcMain.handle("notifications:read-all", () => notifications.markAllRead());
   ipcMain.handle("notifications:clear", () => notifications.clear());
 
   ipcMain.handle("approval:respond", (_event, id: string, response: unknown) => orchestrator.respondApproval(id, response));

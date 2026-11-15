@@ -471,6 +471,11 @@ export class Store {
     this.markDirty();
   }
 
+  markAllNotificationsRead(): void {
+    for (const notification of this.state.notifications) notification.read = true;
+    this.markDirty();
+  }
+
   clearNotifications(): void {
     this.state.notifications = [];
     this.markDirty();

@@ -325,6 +325,16 @@ function InboxModal() {
         <button type="button" className={cx(tab === "needs" && "active")} onClick={() => setTab("needs")}><MessageSquare size={14} /> Needs you <Badge tone="amber">{pending.length}</Badge></button>
         <button type="button" className={cx(tab === "notifications" && "active")} onClick={() => setTab("notifications")}><Bell size={14} /> Notifications <Badge tone="neutral">{state.notifications.filter((item) => !item.read).length}</Badge></button>
       </div>
+      <div className="inbox-toolbar">
+        {tab === "notifications" ? (
+          <>
+            <Button size="sm" variant="soft" disabled={!state.notifications.some((item) => !item.read)} onClick={() => void state.markAllNotificationsRead()}>Mark all read</Button>
+            <Button size="sm" variant="ghost" disabled={!state.notifications.length} onClick={() => { if (confirm("Clear all notifications?")) void state.clearNotifications(); }}>Clear</Button>
+          </>
+        ) : (
+          <span>{pending.length ? "Answer a question to clear it from Needs you." : ""}</span>
+        )}
+      </div>
       {tab === "needs" ? (
         <div className="inbox-list">
           {pending.map((envelope) => {

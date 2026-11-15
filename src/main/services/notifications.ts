@@ -109,6 +109,11 @@ export class NotificationService {
     this.updateTray();
   }
 
+  markAllRead(): void {
+    this.store.markAllNotificationsRead();
+    this.updateTray();
+  }
+
   clear(): void {
     this.store.clearNotifications();
     this.updateTray();

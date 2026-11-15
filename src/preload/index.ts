@@ -82,6 +82,7 @@ const api: OmpStudioApi = {
 
   listNotifications: () => invoke("notifications:list") as Promise<any>,
   markNotificationRead: (id) => invoke("notifications:read", id) as Promise<any>,
+  markAllNotificationsRead: () => invoke("notifications:read-all") as Promise<any>,
   clearNotifications: () => invoke("notifications:clear") as Promise<any>,
 
   respondApproval: (id, response) => invoke("approval:respond", id, response) as Promise<any>,
