@@ -199,7 +199,7 @@ function GeneralTab() {
         <Row label="Wake parent on report" hint="If the parent is parked, a child report starts it. Disable to queue reports silently.">
           <Toggle checked={settings.autoWakeParent} onChange={(value) => update({ autoWakeParent: value })} />
         </Row>
-        <Row label="Tree digest interval" hint="Minutes between roll-up notifications. 0 disables digests.">
+        <Row label="Tree summary interval" hint="Minutes between a roll-up of running, waiting and failed threads. 0 disables summaries.">
           <input className="num-input" type="number" min={0} value={settings.digestIntervalMin} onChange={(event) => update({ digestIntervalMin: Number(event.target.value) })} />
         </Row>
         <Row label="Status check interval" hint="Minutes between Mission Control status requests to child orchestrators. 0 disables them.">
@@ -654,7 +654,7 @@ function NotificationsTab() {
         <Row label="Thread completed"><Toggle checked={n.onComplete} onChange={(value) => update({ onComplete: value })} /></Row>
         <Row label="Decision needed"><Toggle checked={n.onQuestion} onChange={(value) => update({ onQuestion: value })} /></Row>
         <Row label="Errors"><Toggle checked={n.onError} onChange={(value) => update({ onError: value })} /></Row>
-        <Row label="Tree digests"><Toggle checked={n.onDigest} onChange={(value) => update({ onDigest: value })} /></Row>
+        <Row label="Tree summaries"><Toggle checked={n.onDigest} onChange={(value) => update({ onDigest: value })} /></Row>
       </Section>
       <Section title="Muted nodes" subtitle="Muted nodes still appear in the inbox.">
         {(state.snapshot?.nodes ?? []).filter((node) => node.type !== "root").map((node) => (

@@ -2163,17 +2163,37 @@ export class Orchestrator extends EventEmitter {
   private emitDigest(): void {
     const root = this.store.nodes.find((node) => node.type === "root");
     if (!root) return;
-    const active = this.store.threads.filter((thread) => thread.status === "running").length;
-    const waiting = this.store.threads.filter((thread) => thread.status === "waiting" || thread.pendingApproval).length;
-    const errors = this.store.threads.filter((thread) => thread.status === "error").length;
-    const completed = this.store.threads.filter((thread) => thread.status === "completed").length;
-    if (!active && !waiting && !errors) return;
+    const live = this.store.threads.filter((thread) => !thread.archived);
+    const running = live.filter((thread) => thread.status === "running" || thread.status === "starting");
+    const waiting = live.filter((thread) => thread.status === "waiting" || thread.pendingApproval);
+    const errors = live.filter((thread) => thread.status === "error");
+    const completed = live.filter((thread) => thread.status === "completed");
+    if (!running.length && !waiting.length && !errors.length) return;
+    const label = (thread: Thread) => {
+      const node = this.store.getNode(thread.nodeId);
+      return node && node.type !== "root" ? `${thread.title} (${node.name})` : thread.title;
+    };
+    const list = (threads: Thread[]) => {
+      const shown = threads.slice(0, 3).map(label).join(", ");
+      return threads.length > 3 ? `${shown} +${threads.length - 3} more` : shown;
+    };
+    const lines: string[] = [];
+    if (waiting.length) lines.push(`Waiting on you: ${list(waiting)}`);
+    if (errors.length) lines.push(`Failed: ${list(errors)}`);
+    if (running.length) lines.push(`Running: ${list(running)}`);
+    lines.push(`${running.length} running · ${waiting.length} waiting · ${errors.length} failed · ${completed.length} completed`);
+    const focus = waiting[0] ?? errors[0] ?? running[0] ?? this.store.getThread(root.orchestratorThreadId);
+    const title = waiting.length
+      ? `${waiting.length} thread${waiting.length === 1 ? "" : "s"} need${waiting.length === 1 ? "s" : ""} your decision`
+      : errors.length
+        ? `${errors.length} thread${errors.length === 1 ? "" : "s"} failed`
+        : `${running.length} thread${running.length === 1 ? "" : "s"} still running`;
     this.deps.notifications.notify({
       kind: "digest",
-      title: "Tree digest",
-      body: `${active} running · ${waiting} waiting · ${errors} errors · ${completed} completed`,
-      nodeId: root.id,
-      threadId: root.orchestratorThreadId,
+      title,
+      body: lines.join("\n"),
+      nodeId: focus?.nodeId ?? root.id,
+      threadId: focus?.id ?? root.orchestratorThreadId,
     });
   }
 }

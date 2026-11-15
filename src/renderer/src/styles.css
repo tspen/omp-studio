@@ -933,3 +933,4 @@ textarea { resize: vertical; line-height: 1.45; }
 .model-picker-list { flex: 1 1 auto; min-height: 0; }
 .inbox-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 6px 0 2px; min-height: 24px; }
 .inbox-toolbar > span { margin-right: auto; color: var(--muted); font-size: 9.5px; }
+.inbox-item span { white-space: pre-line; }
