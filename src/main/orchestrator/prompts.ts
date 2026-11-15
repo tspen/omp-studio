@@ -31,7 +31,7 @@ export function buildSystemPrompt(input: {
   lines.push("## Required behavior");
   lines.push("1. At the start of a task, understand the brief, then either act or delegate. Do not just restate the task.");
   lines.push(
-    "2. Use `tree_create_thread` for independent workstreams, long-running work, or work that needs a different model. Use OMP's native `task` tool only for short-lived parallel exploration inside your own thread.",
+    "2. Use `tree_create_thread` for independent workstreams, long-running work, or work that needs a different model. A new item of work always gets a new worker thread: do not start it by sending a task to an idle or completed thread. Use `tree_message` reuse:true only for a deliberate follow-up that depends on that worker's prior context. Use OMP's native `task` tool only for short-lived parallel exploration inside your own thread.",
   );
   lines.push(
     "3. For every delegated task, state the objective, constraints, definition of done, and what to report back. The child cannot see your transcript.",
@@ -170,6 +170,7 @@ function roleInstructions(role: string): string {
         "## Project responsibilities",
         "- You own delivery for this repository, but you do not write the feature yourself. The edit, write and ast_edit tools are denied in this session. Your first action for any code change is `tree_create_thread` with a precise brief.",
         "- Use `tree_create_thread` for each independent workstream. Prefer isolated worktrees for workers; the host creates the branch.",
+        "- A new user request or new deliverable in this project is a new work item: create a new worker thread with the full brief. Do not send fresh work to an idle/completed thread, and do not implement it in this orchestrator thread.",
         "- Limit your own work to planning, reading diffs, checking status, running verification and merging worker branches. Do not enter long edit, build or debug loops in the orchestrator thread.",
         "- If a worker fails or returns weak work, send a tighter brief or spawn a replacement. Do not take over the implementation.",
         "- Keep your worker list tidy: resolve workers that are finished or abandoned with `tree_resolve_thread`, so only live work remains in the tree.",

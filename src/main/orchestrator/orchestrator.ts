@@ -1731,10 +1731,17 @@ export class Orchestrator extends EventEmitter {
         case "tree_message": {
           const target = this.resolveMessageTarget(context);
           if (!target) throw new Error("Target not found");
+          const kind = (context.args.kind as EnvelopeKind) || "note";
+          const reuse = !!context.args.reuse;
+          if (kind === "task" && target.kind !== "orchestrator" && !reuse) {
+            throw new Error(
+              `New work must create a worker thread: use tree_create_thread with the full brief instead of messaging "${target.title}". Set reuse:true only for a deliberate follow-up that depends on this worker's existing context.`,
+            );
+          }
           const envelope = await this.bus.send({
             fromThreadId: context.thread.id,
             toThreadId: target.id,
-            kind: (context.args.kind as EnvelopeKind) || "note",
+            kind,
             subject: String(context.args.subject ?? "Message"),
             body: String(context.args.body ?? ""),
             priority: (context.args.priority as Priority) || "normal",

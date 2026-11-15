@@ -99,6 +99,7 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
         body: { type: "string" },
         requiresResponse: { type: "boolean" },
         priority: { type: "string", enum: ["low", "normal", "high", "urgent"] },
+        reuse: { type: "boolean", description: "Only for a deliberate follow-up in an existing worker's context. Leave false so new work gets a fresh worker thread." },
       },
       ["target", "subject", "body"],
     ),
