@@ -243,15 +243,82 @@ async function runIntegration(
   });
 }
 
+const BROWSER_TOOLBAR_HTML = `<!doctype html>
+<html><head><meta charset="utf-8"><title>OMP Browser</title>
+<style>
+html,body{height:100%;margin:0;background:#f5f5f7;color:#222}
+body{display:flex;flex-direction:column;font:12px/1.4 "Segoe UI",system-ui,sans-serif}
+.bar{display:flex;align-items:center;gap:5px;padding:6px 8px;background:#fff;border-bottom:1px solid #dedee5}
+button{width:28px;height:26px;border:1px solid #dedee5;background:#fff;border-radius:6px;color:#333;cursor:pointer;font-size:14px}
+button:hover{background:#f0f0f4}
+button:disabled{opacity:.35;cursor:default}
+input{flex:1;min-width:0;height:26px;border:1px solid #dedee5;border-radius:6px;padding:0 8px;font:11px ui-monospace,Consolas,monospace;color:#333;background:#fff}
+webview{flex:1;width:100%;height:100%;border:0}
+</style></head><body>
+<div class="bar">
+  <button id="back" title="Back (Alt+Left)" disabled>&#8592;</button>
+  <button id="forward" title="Forward (Alt+Right)" disabled>&#8594;</button>
+  <button id="reload" title="Reload">&#8635;</button>
+  <input id="address" spellcheck="false" placeholder="Enter a URL" />
+</div>
+<webview id="view" partition="persist:omp-browser" allowpopups></webview>
+<script>
+const view=document.getElementById('view');
+const address=document.getElementById('address');
+const back=document.getElementById('back');
+const forward=document.getElementById('forward');
+const initial=new URLSearchParams(location.search).get('url')||'https://example.com';
+function sync(){
+  try{ const current=view.getURL(); if(current) address.value=current; }catch(e){}
+  try{ back.disabled=!view.canGoBack(); forward.disabled=!view.canGoForward(); }catch(e){}
+}
+back.onclick=function(){ try{ if(view.canGoBack()) view.goBack(); }catch(e){} };
+forward.onclick=function(){ try{ if(view.canGoForward()) view.goForward(); }catch(e){} };
+document.getElementById('reload').onclick=function(){ try{ view.reload(); }catch(e){} };
+address.onkeydown=function(event){
+  if(event.key!=='Enter') return;
+  let value=address.value.trim();
+  if(!value) return;
+  if(!/^https?:\\/\\//i.test(value)) value='https://'+value;
+  try{ view.loadURL(value); }catch(e){}
+};
+['dom-ready','did-navigate','did-navigate-in-page','did-stop-loading','did-fail-load'].forEach(function(name){ view.addEventListener(name,sync); });
+view.addEventListener('page-title-updated',function(event){ document.title=event.title? event.title+' — OMP Browser' : 'OMP Browser'; });
+document.addEventListener('keydown',function(event){
+  if(!event.altKey) return;
+  if(event.key==='ArrowLeft'){ back.click(); event.preventDefault(); }
+  if(event.key==='ArrowRight'){ forward.click(); event.preventDefault(); }
+});
+window.ompNavigate=function(url){ if(/^https?:\\/\\//i.test(url)){ try{ view.loadURL(url); }catch(e){} } };
+try{ view.src=initial; }catch(e){}
+</script>
+</body></html>`;
+
+function browserToolbarPath(): string {
+  return join(app.getPath("userData"), "omp-browser.html");
+}
+
+function navigateBrowserWindow(url: string): void {
+  if (!browserWindow || browserWindow.isDestroyed()) return;
+  const script = `window.ompNavigate && window.ompNavigate(${JSON.stringify(url)})`;
+  const run = () => {
+    if (!browserWindow || browserWindow.isDestroyed()) return;
+    void browserWindow.webContents.executeJavaScript(script).catch(() => undefined);
+  };
+  run();
+  if (browserWindow.isMinimized()) browserWindow.restore();
+  browserWindow.show();
+  browserWindow.focus();
+}
+
 function openBrowserWindow(url: string): void {
   if (!/^https?:\/\//i.test(url)) return;
   if (browserWindow && !browserWindow.isDestroyed()) {
-    void browserWindow.loadURL(url).catch(() => undefined);
-    if (browserWindow.isMinimized()) browserWindow.restore();
-    browserWindow.show();
-    browserWindow.focus();
+    navigateBrowserWindow(url);
     return;
   }
+  const toolbar = browserToolbarPath();
+  writeFileSync(toolbar, BROWSER_TOOLBAR_HTML, "utf8");
   browserWindow = new BrowserWindow({
     width: 1200,
     height: 820,
@@ -262,26 +329,35 @@ function openBrowserWindow(url: string): void {
     backgroundColor: "#ffffff",
     parent: mainWindow ?? undefined,
     webPreferences: {
-      sandbox: true,
+      sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      partition: "persist:omp-browser",
+      webviewTag: true,
     },
   });
   browserWindow.on("closed", () => {
     browserWindow = null;
   });
-  browserWindow.on("page-title-updated", (_event, title) => {
-    browserWindow?.setTitle(`${title} — OMP Browser`);
+  browserWindow.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    if (!(params.src === "about:blank" || /^https?:\/\//i.test(params.src))) {
+      event.preventDefault();
+      return;
+    }
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.partition = "persist:omp-browser";
   });
-  browserWindow.webContents.setWindowOpenHandler(({ url: target }) => {
-    if (/^https?:\/\//i.test(target)) openBrowserWindow(target);
-    return { action: "deny" };
+  browserWindow.webContents.on("did-attach-webview", (_event, contents) => {
+    contents.setWindowOpenHandler(({ url: target }) => {
+      if (/^https?:\/\//i.test(target)) navigateBrowserWindow(target);
+      return { action: "deny" };
+    });
+    contents.on("will-navigate", (event, target) => {
+      if (!(target === "about:blank" || /^https?:\/\//i.test(target))) event.preventDefault();
+    });
   });
-  browserWindow.webContents.on("will-navigate", (event, target) => {
-    if (!/^https?:\/\//i.test(target)) event.preventDefault();
-  });
-  void browserWindow.loadURL(url).catch(() => undefined);
+  void browserWindow.loadFile(toolbar, { query: { url } }).catch(() => undefined);
   browserWindow.show();
 }
 
