@@ -26,7 +26,7 @@ import type { ChatBlock, ChatMessage, Thread } from "../../../shared/types";
 import { useApp } from "../store";
 import { Badge, Logo, Markdown, Button, cx, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 
-export function Transcript({ thread, messages }: { thread: Thread; messages: ChatMessage[] }) {
+export function Transcript({ thread, messages, loading = false }: { thread: Thread; messages: ChatMessage[]; loading?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
@@ -80,7 +80,14 @@ export function Transcript({ thread, messages }: { thread: Thread; messages: Cha
             <span>{thread.statusMessage ?? "Working…"}</span>
           </div>
         ) : null}
-        {!messages.length && thread.status !== "running" ? (
+        {loading ? (
+          <div className="typing-row">
+            <Logo size={20} />
+            <span className="typing-dots"><i /><i /><i /></span>
+            <span>Loading thread…</span>
+          </div>
+        ) : null}
+        {!messages.length && !loading && thread.status !== "running" ? (
           <div className="thread-empty">
             <div className="thread-empty-icon"><Bot size={22} /></div>
             <h3>{thread.kind === "orchestrator" ? "Talk to this orchestrator" : "Thread ready"}</h3>

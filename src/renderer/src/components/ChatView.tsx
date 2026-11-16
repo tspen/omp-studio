@@ -67,7 +67,7 @@ export function ChatView() {
           <IconButton icon={<X size={14} />} label="Dismiss" onClick={() => void window.omp.updateThread(thread.id, { interrupted: false }).then(() => state.refresh())} />
         </div>
       ) : null}
-      <Transcript key={thread.id} thread={thread} messages={messages} />
+      <Transcript key={thread.id} thread={thread} messages={messages} loading={state.loadingMessages && !messages.length} />
       {pickerOpen ? (
         <div className="picker-layer" onMouseDown={() => setPickerOpen(false)}>
           <ModelPicker

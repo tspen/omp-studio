@@ -334,18 +334,30 @@ export const useApp = create<AppState>((set, get) => ({
     const thread = state.snapshot?.threads.find((item) => item.id === threadId);
     if (!thread) return;
     const node = nodeId ?? thread.nodeId;
+    if (state.selectedThreadId === threadId && state.messages[threadId]?.length) return;
     set({ selectedThreadId: threadId, selectedNodeId: node, overlay: state.overlay === "inbox" ? "none" : state.overlay });
     await api().focusThread(threadId).catch(() => undefined);
-    await get().loadMessages(threadId);
+    const cached = !!state.messages[threadId]?.length;
+    if (cached) void get().loadMessages(threadId);
+    else await get().loadMessages(threadId);
     const envelopes = await api().getEnvelopes({ threadId, limit: 300 });
     set({ envelopes: mergeEnvelopes(state.envelopes, envelopes) });
   },
 
   async loadMessages(threadId) {
-    set({ loadingMessages: true });
+    const existing = get().messages[threadId] ?? [];
+    if (!existing.length) set({ loadingMessages: true });
     try {
-      const messages = await api().getThreadMessages(threadId);
-      set({ messages: { ...get().messages, [threadId]: messages } });
+      const incoming = await api().getThreadMessages(threadId);
+      const current = get().messages[threadId] ?? [];
+      const byId = new Map(current.map((message) => [message.id, message]));
+      for (const message of incoming) {
+        const previous = byId.get(message.id);
+        if (!previous || messageSignature(previous) !== messageSignature(message)) byId.set(message.id, message);
+      }
+      const merged = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
+      const unchanged = merged.length === current.length && merged.every((message, index) => message === current[index]);
+      if (!unchanged) set({ messages: { ...get().messages, [threadId]: merged } });
     } finally {
       set({ loadingMessages: false });
     }
@@ -635,6 +647,15 @@ export const useApp = create<AppState>((set, get) => ({
     if (root) await get().selectThread(root.orchestratorThreadId, root.id);
   },
 }));
+
+function messageSignature(message: ChatMessage): string {
+  let chars = 0;
+  for (const block of message.blocks) {
+    if (block.type === "text" || block.type === "thinking") chars += block.text.length;
+    else if (block.type === "tool") chars += (block.result?.length ?? 0) + (block.status === "running" ? 1 : 0);
+  }
+  return `${message.timestamp}|${message.stopReason ?? ""}|${message.usage?.totalTokens ?? ""}|${message.blocks.length}|${chars}`;
+}
 
 function mergeEnvelopes(a: Envelope[], b: Envelope[]): Envelope[] {
   const map = new Map<string, Envelope>();
