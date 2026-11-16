@@ -332,6 +332,8 @@ export interface AppSettings {
   statusCheckIntervalMin: number;
   maxConcurrentThreads: number;
   contextCompaction: boolean;
+  idleCompaction: boolean;
+  idleCompactionThreshold: number;
   advisor: boolean;
   notifications: NotificationSettings;
   models: ModelSettings;
@@ -489,6 +491,25 @@ export interface ApprovalRequest {
   createdAt: number;
 }
 
+export interface SiteVersion {
+  id: string;
+  createdAt: number;
+  files: number;
+  bytes: number;
+}
+
+export interface Site {
+  id: string;
+  name: string;
+  nodeId: string;
+  sourcePath: string;
+  url: string;
+  currentVersion?: string;
+  versions: SiteVersion[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ShareInfo {
   threadId: string;
   url: string;
@@ -568,6 +589,7 @@ export interface Snapshot {
   traces: Trace[];
   usage: UsageSnapshot;
   engine: EngineStatus;
+  sites: Site[];
   inbox: Envelope[];
   latestEnvelopes: Envelope[];
   share?: ShareInfo;
@@ -594,6 +616,7 @@ export type AppEvent =
   | { type: "config:updated"; payload: OmpConfigSnapshot }
   | { type: "usage:updated"; payload: UsageSnapshot }
   | { type: "share:updated"; payload: ShareInfo | null }
+  | { type: "sites:updated"; payload: Site[] }
   | { type: "browser:show"; payload: { url?: string } }
   | { type: "focus"; payload: { threadId?: string; nodeId?: string } }
   | { type: "toast"; payload: { kind: "info" | "success" | "error" | "warning"; title: string; body?: string } };
@@ -764,6 +787,11 @@ export interface OmpStudioApi {
 
   shareThread(threadId: string): Promise<ShareInfo>;
   stopShare(): Promise<void>;
+
+  listSites(): Promise<Site[]>;
+  createSite(input: { name: string; nodeId: string; path: string }): Promise<Site>;
+  publishSite(id: string): Promise<Site>;
+  deleteSite(id: string): Promise<void>;
 
   pickDirectory(): Promise<string | null>;
   setWindowTheme(theme: "light" | "dark"): Promise<void>;

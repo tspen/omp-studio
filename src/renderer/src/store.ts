@@ -12,6 +12,7 @@ import type {
   ModelInfo,
   OmpConfigSnapshot,
   ShareInfo,
+  Site,
   Snapshot,
   TerminalRun,
   Thread,
@@ -20,7 +21,7 @@ import type {
 
 export type RightTab = "threads" | "bus" | "git";
 export type SettingsTab = "general" | "models" | "tools" | "memory" | "environments" | "git" | "notifications" | "engine" | "advanced" | "usage";
-export type Overlay = "none" | "inbox" | "artifacts" | "terminal" | "search" | "memory" | "settings" | "new-node" | "new-thread" | "share" | "preview" | "history" | "goal";
+export type Overlay = "none" | "inbox" | "artifacts" | "terminal" | "search" | "memory" | "settings" | "new-node" | "new-thread" | "share" | "preview" | "history" | "goal" | "sites";
 
 interface Toast {
   id: string;
@@ -51,6 +52,7 @@ interface AppState {
   ompConfig: OmpConfigSnapshot | null;
   engine: EngineStatus | null;
   share: ShareInfo | null;
+  sites: Site[];
   selectedNodeId: string | null;
   selectedThreadId: string | null;
   browserOpen: boolean;
@@ -98,6 +100,10 @@ interface AppState {
   deleteMemory(id: string): Promise<void>;
   loadArtifacts(filter?: { nodeId?: string; threadId?: string }): Promise<void>;
   loadTerminals(): Promise<void>;
+  loadSites(): Promise<void>;
+  createSite(input: { name: string; nodeId: string; path: string }): Promise<void>;
+  publishSite(id: string): Promise<void>;
+  deleteSite(id: string): Promise<void>;
   runTerminal(command: string): Promise<void>;
   respondApproval(id: string, response: unknown): Promise<void>;
   answerEnvelope(id: string, body: string): Promise<void>;
@@ -130,6 +136,7 @@ export const useApp = create<AppState>((set, get) => ({
   ompConfig: null,
   engine: null,
   share: null,
+  sites: [],
   selectedNodeId: null,
   selectedThreadId: null,
   browserOpen: false,
@@ -161,6 +168,7 @@ export const useApp = create<AppState>((set, get) => ({
         ompConfig: snapshot.ompConfig,
         engine: snapshot.engine,
         share: snapshot.share ?? null,
+        sites: snapshot.sites ?? [],
         selectedNodeId: root?.id ?? null,
         selectedThreadId: threadId,
         initialized: true,
@@ -185,6 +193,7 @@ export const useApp = create<AppState>((set, get) => ({
       ompConfig: snapshot.ompConfig,
       engine: snapshot.engine,
       share: snapshot.share ?? null,
+      sites: snapshot.sites ?? [],
     });
   },
 
@@ -310,6 +319,9 @@ export const useApp = create<AppState>((set, get) => ({
         break;
       case "browser:show":
         set({ browserOpen: true, browserMinimized: false, railOpen: false, ...(event.payload.url ? { browserUrl: event.payload.url } : {}) });
+        break;
+      case "sites:updated":
+        set({ sites: event.payload, ...(state.snapshot ? { snapshot: { ...state.snapshot, sites: event.payload } } : {}) });
         break;
       case "usage:updated":
         if (state.snapshot) set({ snapshot: { ...state.snapshot, usage: event.payload } });
@@ -571,6 +583,31 @@ export const useApp = create<AppState>((set, get) => ({
   async loadArtifacts(filter) {
     const artifacts = await api().listArtifacts(filter ?? { nodeId: get().selectedNodeId ?? undefined });
     set({ artifacts });
+  },
+
+  async loadSites() {
+    const sites = await api().listSites();
+    const snapshot = get().snapshot;
+    set({ sites, ...(snapshot ? { snapshot: { ...snapshot, sites } } : {}) });
+  },
+
+  async createSite(input) {
+    const site = await api().createSite(input);
+    await get().loadSites();
+    get().pushToast({ kind: "success", title: "Site created", body: site.name });
+  },
+
+  async publishSite(id) {
+    const site = await api().publishSite(id);
+    await get().loadSites();
+    get().pushToast({ kind: "success", title: "Site published", body: site.url });
+  },
+
+  async deleteSite(id) {
+    const site = get().sites.find((item) => item.id === id);
+    await api().deleteSite(id);
+    await get().loadSites();
+    get().pushToast({ kind: "info", title: "Site deleted", body: site?.name });
   },
 
   async loadTerminals() {

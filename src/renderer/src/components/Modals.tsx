@@ -13,11 +13,13 @@ import {
   FileDiff,
   FileText,
   Folder,
+  Globe,
   Image as ImageIcon,
   Inbox,
   MessageSquare,
   Play,
   Plus,
+  Rocket,
   Search,
   Send,
   Share2,
@@ -42,6 +44,8 @@ export function Modals() {
       return <InboxModal />;
     case "artifacts":
       return <ArtifactsModal />;
+    case "sites":
+      return <SitesModal />;
     case "terminal":
       return <TerminalModal />;
     case "search":
@@ -393,6 +397,116 @@ function ArtifactsModal() {
           </button>
         ))}
         {!state.artifacts.length ? <Empty icon={<File size={22} />} title="No artifacts yet" body="Edits, diffs and thread reports will appear here." /> : null}
+      </div>
+    </Modal>
+  );
+}
+
+function SitesModal() {
+  const state = useApp();
+  const projects = useMemo(() => (state.snapshot?.nodes ?? []).filter((node) => node.type === "project"), [state.snapshot?.nodes]);
+  const fallbackNodeId = projects.find((node) => node.id === state.selectedNodeId)?.id ?? projects[0]?.id ?? "";
+  const [name, setName] = useState("");
+  const [path, setPath] = useState(".");
+  const [nodeId, setNodeId] = useState(fallbackNodeId);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    void state.loadSites();
+  }, []);
+  useEffect(() => {
+    if (!nodeId && fallbackNodeId) setNodeId(fallbackNodeId);
+  }, [fallbackNodeId, nodeId]);
+  const nodeName = (id: string) => state.snapshot?.nodes.find((node) => node.id === id)?.name ?? "Unknown project";
+
+  const create = async () => {
+    if (!name.trim() || !nodeId) return;
+    setBusy("create");
+    try {
+      const site = await window.omp.createSite({ name: name.trim(), nodeId, path: path.trim() || "." });
+      await state.publishSite(site.id);
+      setName("");
+      await state.loadSites();
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Could not create site", body: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const republish = async (id: string) => {
+    setBusy(id);
+    try {
+      await state.publishSite(id);
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Publish failed", body: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Modal title="Sites" subtitle="Publish a folder from a project to a local URL and open it in the in-app browser." onClose={() => state.setOverlay("none")} width={900}>
+      <div className="site-create">
+        <Field label="Name">
+          <input value={name} placeholder="Landing page" onChange={(event) => setName(event.target.value)} />
+        </Field>
+        <Field label="Folder" hint="Relative to the project, or pick any folder.">
+          <div className="inline-actions">
+            <input value={path} onChange={(event) => setPath(event.target.value)} />
+            <IconButton icon={<Folder size={14} />} label="Pick folder" onClick={async () => {
+              const picked = await window.omp.pickDirectory();
+              if (picked) {
+                setPath(picked);
+                if (!name.trim()) setName(picked.split(/[\\/]/).filter(Boolean).pop() ?? "Site");
+              }
+            }} />
+          </div>
+        </Field>
+        <Field label="Project">
+          <Select value={nodeId} onChange={setNodeId}>
+            {projects.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}
+          </Select>
+        </Field>
+        <Button variant="primary" size="sm" disabled={!name.trim() || !nodeId || busy === "create"} onClick={() => void create()}>
+          {busy === "create" ? <Spinner /> : <Rocket size={13} />} Create & publish
+        </Button>
+      </div>
+
+      <div className="site-grid">
+        {state.sites.map((site) => {
+          const version = site.versions.find((item) => item.id === site.currentVersion) ?? site.versions[0];
+          return (
+            <div key={site.id} className="site-card">
+              <div className="site-card-head">
+                <div className="site-icon"><Globe size={16} /></div>
+                <div className="site-card-title">
+                  <strong>{site.name}</strong>
+                  <span>{nodeName(site.nodeId)}</span>
+                </div>
+                <Badge tone={site.currentVersion ? "green" : "neutral"}>{site.currentVersion ? "live" : "draft"}</Badge>
+              </div>
+              <div className="site-url mono">{site.url || "Not published yet"}</div>
+              <div className="site-meta">
+                <span>{version ? `${version.files} files` : "no files"}</span>
+                <span>{version ? `${formatNumber(version.bytes)} bytes` : ""}</span>
+                <span>{site.versions.length} version{site.versions.length === 1 ? "" : "s"}</span>
+                <span>{relativeTime(site.updatedAt)}</span>
+              </div>
+              <div className="site-path" title={site.sourcePath}>{truncate(site.sourcePath, 58)}</div>
+              <div className="site-actions">
+                <Button size="sm" variant="primary" disabled={!site.url} onClick={() => { state.openBrowser(site.url); state.setOverlay("none"); }}><ExternalLink size={12} /> Open</Button>
+                <Button size="sm" variant="soft" disabled={!site.url} onClick={() => { void navigator.clipboard.writeText(site.url); state.pushToast({ kind: "info", title: "URL copied", body: site.url }); }}><Copy size={12} /> Copy</Button>
+                <Button size="sm" variant="soft" disabled={busy === site.id} onClick={() => void republish(site.id)}>{busy === site.id ? <Spinner /> : <Share2 size={12} />} Publish</Button>
+                <IconButton icon={<Trash2 size={13} />} label="Delete site" onClick={async () => {
+                  if (confirm(`Delete ${site.name}? Published files are removed.`)) await state.deleteSite(site.id);
+                }} />
+              </div>
+            </div>
+          );
+        })}
+        {!state.sites.length ? (
+          <Empty icon={<Globe size={22} />} title="No sites yet" body="Point a project at an HTML folder, then publish it. The agent can also create sites with site_create." />
+        ) : null}
       </div>
     </Modal>
   );

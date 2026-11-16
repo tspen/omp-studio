@@ -14,6 +14,7 @@ import type {
   MemoryEntry,
   ModelInfo,
   OmpConfigSnapshot,
+  Site,
   Snapshot,
   TerminalRun,
   Thread,
@@ -37,6 +38,7 @@ interface PersistedState {
   ompConfig: OmpConfigSnapshot;
   usage: UsageSnapshot;
   engine: EngineStatus;
+  sites: Site[];
   updatedAt: number;
 }
 
@@ -54,6 +56,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   statusCheckIntervalMin: 15,
   maxConcurrentThreads: 8,
   contextCompaction: true,
+  idleCompaction: true,
+  idleCompactionThreshold: 60,
   advisor: false,
   notifications: {
     enabled: true,
@@ -210,6 +214,7 @@ export class Store {
         ompConfig: { ...EMPTY_CONFIG },
         usage: { ...EMPTY_USAGE },
         engine: { ...EMPTY_ENGINE },
+        sites: [],
         updatedAt: Date.now(),
       };
     }
@@ -247,6 +252,7 @@ export class Store {
         ompConfig: parsed.ompConfig ?? { ...EMPTY_CONFIG },
         usage: parsed.usage ?? { ...EMPTY_USAGE },
         engine: parsed.engine ?? { ...EMPTY_ENGINE },
+        sites: parsed.sites ?? [],
       };
     } catch (error) {
       const backup = `${this.statePath}.corrupt-${Date.now()}`;
@@ -270,6 +276,7 @@ export class Store {
         ompConfig: { ...EMPTY_CONFIG },
         usage: { ...EMPTY_USAGE },
         engine: { ...EMPTY_ENGINE },
+        sites: [],
         updatedAt: Date.now(),
       };
     }
@@ -363,6 +370,7 @@ export class Store {
       traces: this.state.traces,
       usage: this.state.usage,
       engine: this.state.engine,
+      sites: this.state.sites,
       inbox: extra.inbox,
       latestEnvelopes: extra.latestEnvelopes,
       share: extra.share,
@@ -478,6 +486,30 @@ export class Store {
 
   clearNotifications(): void {
     this.state.notifications = [];
+    this.markDirty();
+  }
+
+  // ---- sites ----
+  get sites(): Site[] {
+    return this.state.sites;
+  }
+
+  addSite(site: Site): Site {
+    this.state.sites.unshift(site);
+    this.markDirty();
+    return site;
+  }
+
+  updateSite(id: string, patch: Partial<Site>): Site {
+    const site = this.state.sites.find((item) => item.id === id);
+    if (!site) throw new Error(`Site not found: ${id}`);
+    Object.assign(site, patch, { updatedAt: Date.now() });
+    this.markDirty();
+    return site;
+  }
+
+  removeSite(id: string): void {
+    this.state.sites = this.state.sites.filter((item) => item.id !== id);
     this.markDirty();
   }
 

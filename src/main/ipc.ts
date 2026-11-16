@@ -9,6 +9,7 @@ import type { ModelService } from "./services/models";
 import type { NotificationService } from "./services/notifications";
 import type { SettingsService } from "./services/settings";
 import type { ShareService } from "./services/share";
+import type { SiteService } from "./services/sites";
 import type { Store } from "./services/store";
 import { trace } from "./diagnostics";
 import type { TerminalService } from "./services/terminal";
@@ -28,13 +29,14 @@ export interface IpcContext {
   notifications: NotificationService;
   terminal: TerminalService;
   share: ShareService;
+  sites: SiteService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, engine, usage, broadcast, openBrowser } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, sites, engine, usage, broadcast, openBrowser } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -250,6 +252,22 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("share:stop", async () => {
     await share.stop();
     broadcast({ type: "share:updated", payload: null });
+  });
+
+  ipcMain.handle("sites:list", () => sites.list());
+  ipcMain.handle("sites:create", async (_event, input: { name: string; nodeId: string; path: string }) => {
+    const site = sites.create(input);
+    broadcast({ type: "sites:updated", payload: sites.list() });
+    return site;
+  });
+  ipcMain.handle("sites:publish", async (_event, id: string) => {
+    const site = await sites.publish(id);
+    broadcast({ type: "sites:updated", payload: sites.list() });
+    return site;
+  });
+  ipcMain.handle("sites:delete", async (_event, id: string) => {
+    sites.remove(id);
+    broadcast({ type: "sites:updated", payload: sites.list() });
   });
 
   ipcMain.handle("dialog:pick-directory", async () => {

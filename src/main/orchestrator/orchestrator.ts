@@ -39,6 +39,7 @@ import type { NamingService } from "../services/naming";
 import type { NotificationService } from "../services/notifications";
 import type { ShareService } from "../services/share";
 import type { SettingsService } from "../services/settings";
+import type { SiteService } from "../services/sites";
 import type { Store } from "../services/store";
 import { newId } from "../services/store";
 import { trace } from "../diagnostics";
@@ -59,6 +60,7 @@ export interface OrchestratorDeps {
   notifications: NotificationService;
   settings: SettingsService;
   share: ShareService;
+  sites: SiteService;
   emit: (event: AppEvent) => void;
 }
 
@@ -75,6 +77,8 @@ export class Orchestrator extends EventEmitter {
   private digestTimer: NodeJS.Timeout | null = null;
   private statusTimer: NodeJS.Timeout | null = null;
   private parkingTimer: NodeJS.Timeout | null = null;
+  private compactingIdle = new Set<string>();
+  private lastIdleCompaction = new Map<string, number>();
   private bus: MessageBus;
   private closed = false;
 
@@ -107,7 +111,63 @@ export class Orchestrator extends EventEmitter {
     this.recomputeUsage();
     this.startDigestTimer();
     this.startStatusTimer();
-    this.parkingTimer = setInterval(() => void this.parkIdleSessions(), 60_000);
+    this.parkingTimer = setInterval(() => void this.runMaintenance(), 60_000);
+  }
+
+  private async runMaintenance(): Promise<void> {
+    await this.compactIdleSessions();
+    await this.parkIdleSessions();
+  }
+
+  /**
+   * Compact sessions that are idle and above the configured context threshold.
+   * Runs in the background: the session is never stopped, and only one idle
+   * thread is compacted at a time so the app stays responsive.
+   */
+  private async compactIdleSessions(): Promise<void> {
+    const settings = this.store.settings;
+    if (settings.idleCompaction === false || settings.contextCompaction === false) return;
+    if (this.compactingIdle.size >= 1) return;
+    const threshold = Math.min(95, Math.max(30, Number(settings.idleCompactionThreshold) || 60)) / 100;
+    const now = Date.now();
+    const pendingApprovals = new Set([...this.approvals.values()].map((item) => item.threadId));
+    for (const [threadId] of this.sessions) {
+      if (this.compactingIdle.size >= 1) break;
+      const thread = this.store.getThread(threadId);
+      if (!thread) continue;
+      if (!["idle", "completed"].includes(thread.status)) continue;
+      if (now - thread.lastActivityAt < 2 * 60_000) continue;
+      if (pendingApprovals.has(threadId)) continue;
+      if (!thread.contextTokens || !thread.contextWindow) continue;
+      if (thread.contextTokens / thread.contextWindow < threshold) continue;
+      if (now - (this.lastIdleCompaction.get(threadId) ?? 0) < 30 * 60_000) continue;
+      const session = this.sessions.get(threadId);
+      if (!session) continue;
+      this.lastIdleCompaction.set(threadId, now);
+      this.compactingIdle.add(threadId);
+      trace("idle-compaction-start", {
+        threadId,
+        contextTokens: thread.contextTokens,
+        contextWindow: thread.contextWindow,
+      });
+      void this.compactIdleThread(thread.id, session).finally(() => {
+        this.compactingIdle.delete(threadId);
+      });
+    }
+  }
+
+  private async compactIdleThread(threadId: string, session: OmpSession): Promise<void> {
+    try {
+      await session.compact();
+      const state = await session.getState().catch(() => null);
+      if (state) this.applySessionState(threadId, state);
+      trace("idle-compaction-end", { threadId });
+    } catch (error) {
+      trace("idle-compaction-failed", {
+        threadId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private async parkIdleSessions(): Promise<void> {
@@ -115,6 +175,7 @@ export class Orchestrator extends EventEmitter {
     for (const [threadId, session] of this.sessions) {
       const thread = this.store.getThread(threadId);
       if (!thread) continue;
+      if (this.compactingIdle.has(threadId)) continue;
       if (!["idle", "parked"].includes(thread.status)) continue;
       if (now - thread.lastActivityAt < 10 * 60_000) continue;
       await this.disposeSession(threadId).catch(() => undefined);
@@ -1816,6 +1877,37 @@ export class Orchestrator extends EventEmitter {
           if (["running", "starting"].includes(target.status)) throw new Error("Stop the thread before resolving it");
           const resolved = await this.resolveThread(threadId, context.args.note ? String(context.args.note) : undefined);
           return textResult(`Resolved and archived "${resolved.title}".`);
+        }
+        case "site_list": {
+          const list = this.deps.sites.list();
+          if (!list.length) return textResult("No sites yet. Create one with site_create.");
+          return textResult(
+            list
+              .map(
+                (site) =>
+                  `${site.id} | ${site.name} | ${site.url || "not published"} | node ${site.nodeId} | versions ${site.versions.length} | source ${site.sourcePath}`,
+              )
+              .join("\n"),
+          );
+        }
+        case "site_create": {
+          const site = this.deps.sites.create({
+            name: String(context.args.name ?? ""),
+            nodeId: String(context.args.nodeId ?? context.node.id),
+            path: String(context.args.path ?? "."),
+          });
+          if (context.args.publish !== false) {
+            const published = await this.deps.sites.publish(site.id);
+            this.deps.emit({ type: "sites:updated", payload: this.deps.sites.list() });
+            return textResult(`Created and published "${published.name}" at ${published.url}`);
+          }
+          this.deps.emit({ type: "sites:updated", payload: this.deps.sites.list() });
+          return textResult(`Created site "${site.name}" (${site.id}). Publish with site_publish.`);
+        }
+        case "site_publish": {
+          const site = await this.deps.sites.publish(String(context.args.siteId ?? ""));
+          this.deps.emit({ type: "sites:updated", payload: this.deps.sites.list() });
+          return textResult(`Published "${site.name}" version ${site.currentVersion} at ${site.url}`);
         }
         case "app_browser_navigate": {
           const url = String(context.args.url ?? "");

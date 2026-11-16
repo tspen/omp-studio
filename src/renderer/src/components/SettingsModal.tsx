@@ -211,6 +211,12 @@ function GeneralTab() {
         <Row label="Auto-compact context" hint="OMP summarizes older history as the context window fills, including mid-turn. Applies to running sessions immediately.">
           <Toggle checked={settings.contextCompaction !== false} onChange={(value) => update({ contextCompaction: value })} />
         </Row>
+        <Row label="Background compact idle sessions" hint="When a session has been idle for a couple of minutes and its context is above the threshold, OMP summarizes it in the background. Sessions are never stopped and only one compacts at a time.">
+          <Toggle checked={settings.idleCompaction !== false} onChange={(value) => update({ idleCompaction: value })} />
+        </Row>
+        <Row label="Idle compaction threshold" hint="Percent of the context window that triggers background compaction.">
+          <input className="num-input" type="number" min={30} max={95} step={5} disabled={settings.idleCompaction === false} value={settings.idleCompactionThreshold ?? 60} onChange={(event) => update({ idleCompactionThreshold: Number(event.target.value) })} />
+        </Row>
         <Row label="Advisor runtime" hint="Passively reviews each turn and injects notes. More tokens, more scrutiny.">
           <Toggle checked={settings.advisor} onChange={(value) => update({ advisor: value })} />
         </Row>

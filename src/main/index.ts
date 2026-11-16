@@ -15,6 +15,7 @@ import { NamingService } from "./services/naming";
 import { NotificationService } from "./services/notifications";
 import { SettingsService } from "./services/settings";
 import { ShareService } from "./services/share";
+import { SiteService } from "./services/sites";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
 import { UsageService } from "./services/usage";
@@ -28,6 +29,7 @@ let browserController: BrowserController | null = null;
 let orchestrator: Orchestrator | null = null;
 let notifications: NotificationService | null = null;
 let share: ShareService | null = null;
+let sites: SiteService | null = null;
 let store: Store | null = null;
 
 const smokeTest = process.argv.includes("--smoke-test");
@@ -513,6 +515,13 @@ async function bootstrap(): Promise<void> {
   const providers = new ProviderService(dataStore, engine, models);
   const shareService = new ShareService(dataStore);
   share = shareService;
+  const siteService = new SiteService(dataStore);
+  sites = siteService;
+  try {
+    await siteService.start();
+  } catch (error) {
+    trace("sites-server-failed", error instanceof Error ? error.message : String(error));
+  }
   const notificationService = new NotificationService(dataStore, broadcast);
   notifications = notificationService;
   const naming = new NamingService(dataStore, engine, (threadId) => {
@@ -554,6 +563,7 @@ async function bootstrap(): Promise<void> {
     notifications: notificationService,
     settings,
     share: shareService,
+    sites: siteService,
     emit: broadcast,
   });
   await orchestrator.init();
@@ -571,6 +581,7 @@ async function bootstrap(): Promise<void> {
     notifications: notificationService,
     terminal,
     share: shareService,
+    sites: siteService,
     usage,
     broadcast,
     openBrowser: (url: string) => {
@@ -660,6 +671,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   void share?.stop().catch(() => undefined);
+  void sites?.stop().catch(() => undefined);
   void orchestrator?.shutdown().catch(() => undefined);
   notifications?.destroy();
   store?.flush();

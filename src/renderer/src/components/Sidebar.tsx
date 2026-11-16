@@ -8,6 +8,7 @@ import {
   Folder,
   FolderGit2,
   GitBranch,
+  Globe,
   Inbox,
   Layers,
   MoreHorizontal,
@@ -70,6 +71,7 @@ export function Sidebar() {
         <NavItem icon={<Inbox size={16} />} label="Inbox" badge={inbox ? String(inbox) : undefined} onClick={() => state.setOverlay("inbox")} />
         <NavItem icon={<TreePine size={16} />} label="All threads" onClick={() => state.setOverlay("search")} />
         <NavItem icon={<Archive size={16} />} label="Artifacts" onClick={() => { void state.loadArtifacts(); state.setOverlay("artifacts"); }} />
+        <NavItem icon={<Globe size={16} />} label="Sites" badge={state.sites.length ? String(state.sites.length) : undefined} onClick={() => { void state.loadSites(); state.setOverlay("sites"); }} />
         <NavItem icon={<TerminalSquare size={16} />} label="Terminal" onClick={() => { void state.loadTerminals(); state.setOverlay("terminal"); }} />
       </nav>
 

@@ -90,6 +90,11 @@ const api: OmpStudioApi = {
   shareThread: (threadId) => invoke("share:create", threadId) as Promise<any>,
   stopShare: () => invoke("share:stop") as Promise<any>,
 
+  listSites: () => invoke("sites:list") as Promise<any>,
+  createSite: (input) => invoke("sites:create", input) as Promise<any>,
+  publishSite: (id) => invoke("sites:publish", id) as Promise<any>,
+  deleteSite: (id) => invoke("sites:delete", id) as Promise<any>,
+
   pickDirectory: () => invoke("dialog:pick-directory") as Promise<any>,
   setWindowTheme: (theme) => invoke("window:theme", theme) as Promise<any>,
   openExternal: (url) => invoke("shell:open-external", url) as Promise<any>,

@@ -289,6 +289,31 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     parameters: object({ environmentId: { type: "string" }, nodeId: { type: "string" } }, ["environmentId"]),
   },
   {
+    name: "site_list",
+    label: "Sites: list",
+    description: "List locally published sites with their URL, source folder and version count.",
+    parameters: object({}),
+    loadMode: "essential",
+  },
+  {
+    name: "site_create",
+    label: "Sites: create",
+    description:
+      "Create a site from a static folder in this project and publish it to a local URL. Use for landing pages, demos, docs and shareable previews. Pass a folder path relative to the project (default '.'). Publishing copies the folder into the app's Sites store; node_modules and .git are skipped. Open the URL with app_browser_navigate to verify it.",
+    parameters: object(
+      { name: { type: "string" }, path: { type: "string" }, nodeId: { type: "string" }, publish: { type: "boolean" } },
+      ["name"],
+    ),
+    loadMode: "essential",
+  },
+  {
+    name: "site_publish",
+    label: "Sites: publish",
+    description: "Re-publish an existing site from its source folder and return the updated URL.",
+    parameters: object({ siteId: { type: "string" } }, ["siteId"]),
+    loadMode: "essential",
+  },
+  {
     name: "app_browser_navigate",
     label: "Browser: navigate",
     description: "Open a URL in the in-app Browser panel. Use this for visual web work you want the user to see.",

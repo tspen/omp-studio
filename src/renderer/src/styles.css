@@ -530,6 +530,23 @@ textarea { resize: vertical; line-height: 1.45; }
 .artifact-icon { color: var(--accent); }
 .artifact-card strong { font-size: 11.5px; }
 .artifact-card span, .artifact-card small { color: var(--muted); font-size: 9.5px; }
+.site-create { display: grid; grid-template-columns: 1fr 1.6fr 1fr auto; gap: 10px; align-items: end; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); margin-bottom: 12px; }
+.site-create .field { margin: 0; }
+.site-create > .btn { height: 30px; white-space: nowrap; }
+.site-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.site-card { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 11px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.site-card:hover { border-color: var(--accent-line); }
+.site-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.site-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: 0 0 auto; }
+.site-card-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.site-card-title strong { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-card-title span { color: var(--muted); font-size: 9.5px; }
+.site-url { font-size: 10px; color: var(--accent-2); background: var(--bg-2); border-radius: 6px; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-meta { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 9.5px; }
+.site-path { color: var(--muted-2); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-actions { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+.site-actions .btn:last-of-type { margin-left: auto; }
+@media (max-width: 1000px) { .site-create { grid-template-columns: 1fr 1fr; } .site-grid { grid-template-columns: 1fr; } }
 .terminal-layout { display: grid; grid-template-columns: 190px 1fr; gap: 10px; min-height: 360px; }
 .terminal-runs { border-right: 1px solid var(--line); padding-right: 8px; display: flex; flex-direction: column; gap: 3px; max-height: 430px; overflow: auto; }
 .terminal-run { border: 0; background: transparent; border-radius: 6px; padding: 5px 6px; display: flex; align-items: center; gap: 6px; text-align: left; }
