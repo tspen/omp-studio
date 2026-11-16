@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Bell, Command, Globe, Inbox, Search, Settings, Sparkles } from "lucide-react";
+import { Bell, Command, Globe, Inbox, Rocket, Search, Settings, Sparkles } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { BrowserPanel } from "./components/BrowserPanel";
@@ -126,6 +126,7 @@ function TitleBar({ unread, running, waiting }: { unread: number; running: numbe
           <Bell size={15} />
           {unread ? <span className="titlebar-badge">{unread > 9 ? "9+" : unread}</span> : null}
         </button>
+        <button type="button" className="titlebar-icon" title="Sites" onClick={() => { void state.loadSites(); state.setOverlay("sites"); }}><Rocket size={15} /></button>
         <button type="button" className="titlebar-icon" title="Browser" onClick={() => state.openBrowser()}><Globe size={15} /></button>
         <button type="button" className="titlebar-icon" title="Settings" onClick={() => state.setSettingsTab("general")}><Settings size={15} /></button>
         <div className="titlebar-drag-space" />

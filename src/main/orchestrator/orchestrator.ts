@@ -135,7 +135,8 @@ export class Orchestrator extends EventEmitter {
       if (this.compactingIdle.size >= 1) break;
       const thread = this.store.getThread(threadId);
       if (!thread) continue;
-      if (!["idle", "completed"].includes(thread.status)) continue;
+      if (thread.archived) continue;
+      if (thread.status !== "idle") continue;
       if (now - thread.lastActivityAt < 2 * 60_000) continue;
       if (pendingApprovals.has(threadId)) continue;
       if (!thread.contextTokens || !thread.contextWindow) continue;
