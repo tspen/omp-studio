@@ -309,7 +309,7 @@ export const useApp = create<AppState>((set, get) => ({
         set({ share: event.payload });
         break;
       case "browser:show":
-        set({ browserOpen: true, browserMinimized: false, ...(event.payload.url ? { browserUrl: event.payload.url } : {}) });
+        set({ browserOpen: true, browserMinimized: false, railOpen: false, ...(event.payload.url ? { browserUrl: event.payload.url } : {}) });
         break;
       case "usage:updated":
         if (state.snapshot) set({ snapshot: { ...state.snapshot, usage: event.payload } });
@@ -355,7 +355,7 @@ export const useApp = create<AppState>((set, get) => ({
     set({ rightTab: tab });
   },
   openBrowser(url) {
-    set({ browserOpen: true, browserMinimized: false, ...(url ? { browserUrl: url } : {}) });
+    set({ browserOpen: true, browserMinimized: false, railOpen: false, ...(url ? { browserUrl: url } : {}) });
   },
   closeBrowser() {
     set({ browserOpen: false });
