@@ -510,6 +510,28 @@ export interface Site {
   updatedAt: number;
 }
 
+export interface BrowserConsoleEntry {
+  id: string;
+  level: "debug" | "info" | "warning" | "error";
+  message: string;
+  source?: string;
+  line?: number;
+  timestamp: number;
+}
+
+export interface BrowserNetworkEntry {
+  id: string;
+  url: string;
+  method: string;
+  type: string;
+  status?: number;
+  ok?: boolean;
+  failed?: string;
+  fromCache?: boolean;
+  durationMs?: number;
+  timestamp: number;
+}
+
 export interface ShareInfo {
   threadId: string;
   url: string;
@@ -618,6 +640,8 @@ export type AppEvent =
   | { type: "share:updated"; payload: ShareInfo | null }
   | { type: "sites:updated"; payload: Site[] }
   | { type: "browser:show"; payload: { url?: string } }
+  | { type: "browser:console"; payload: BrowserConsoleEntry }
+  | { type: "browser:network"; payload: BrowserNetworkEntry }
   | { type: "focus"; payload: { threadId?: string; nodeId?: string } }
   | { type: "toast"; payload: { kind: "info" | "success" | "error" | "warning"; title: string; body?: string } };
 
@@ -797,6 +821,8 @@ export interface OmpStudioApi {
   setWindowTheme(theme: "light" | "dark"): Promise<void>;
   openExternal(url: string): Promise<void>;
   openBrowser(url: string): Promise<void>;
+  getBrowserDevtools(): Promise<{ console: BrowserConsoleEntry[]; network: BrowserNetworkEntry[] }>;
+  pickBrowserElement(): Promise<{ selector: string; text: string; tag: string } | null>;
   openPath(path: string): Promise<void>;
   downloadEngine(): Promise<EngineStatus>;
   restartApp(): Promise<void>;

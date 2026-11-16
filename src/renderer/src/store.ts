@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type {
   AppEvent,
   AppNotification,
+  BrowserConsoleEntry,
+  BrowserNetworkEntry,
   ApprovalRequest,
   Artifact,
   ChatMessage,
@@ -58,6 +60,9 @@ interface AppState {
   browserOpen: boolean;
   browserMinimized: boolean;
   browserUrl: string;
+  browserConsole: BrowserConsoleEntry[];
+  browserNetwork: BrowserNetworkEntry[];
+  composerInsert: { token: number; text: string } | null;
   rightTab: RightTab;
   railOpen: boolean;
   overlay: Overlay;
@@ -76,6 +81,11 @@ interface AppState {
   openBrowser(url?: string): void;
   closeBrowser(): void;
   toggleBrowserMinimized(): void;
+  loadBrowserDevtools(): Promise<void>;
+  clearBrowserConsole(): void;
+  clearBrowserNetwork(): void;
+  insertComposer(text: string): void;
+  clearComposerInsert(): void;
   toggleRail(): void;
   setOverlay(overlay: Overlay): void;
   setSettingsTab(tab: SettingsTab): void;
@@ -142,6 +152,9 @@ export const useApp = create<AppState>((set, get) => ({
   browserOpen: false,
   browserMinimized: false,
   browserUrl: "https://example.com",
+  browserConsole: [],
+  browserNetwork: [],
+  composerInsert: null,
   rightTab: "threads",
   railOpen: true,
   overlay: "none",
@@ -320,6 +333,16 @@ export const useApp = create<AppState>((set, get) => ({
       case "browser:show":
         set({ browserOpen: true, browserMinimized: false, railOpen: false, ...(event.payload.url ? { browserUrl: event.payload.url } : {}) });
         break;
+      case "browser:console": {
+        const next = [...state.browserConsole, event.payload];
+        set({ browserConsole: next.length > 400 ? next.slice(-400) : next });
+        break;
+      }
+      case "browser:network": {
+        const next = [...state.browserNetwork, event.payload];
+        set({ browserNetwork: next.length > 400 ? next.slice(-400) : next });
+        break;
+      }
       case "sites:updated":
         set({ sites: event.payload, ...(state.snapshot ? { snapshot: { ...state.snapshot, sites: event.payload } } : {}) });
         break;
@@ -386,6 +409,26 @@ export const useApp = create<AppState>((set, get) => ({
   },
   toggleBrowserMinimized() {
     set({ browserMinimized: !get().browserMinimized });
+  },
+  async loadBrowserDevtools() {
+    try {
+      const data = await api().getBrowserDevtools();
+      set({ browserConsole: data.console ?? [], browserNetwork: data.network ?? [] });
+    } catch {
+      /* browser not ready */
+    }
+  },
+  clearBrowserConsole() {
+    set({ browserConsole: [] });
+  },
+  clearBrowserNetwork() {
+    set({ browserNetwork: [] });
+  },
+  insertComposer(text) {
+    set({ composerInsert: { token: Date.now() + Math.random(), text } });
+  },
+  clearComposerInsert() {
+    set({ composerInsert: null });
   },
   toggleRail() {
     set({ railOpen: !get().railOpen });

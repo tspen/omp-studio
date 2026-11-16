@@ -508,7 +508,7 @@ async function bootstrap(): Promise<void> {
       mainWindow.show();
       mainWindow.focus();
     }
-  });
+  }, broadcast);
   const models = new ModelService(dataStore, engine);
   const settings = new SettingsService(dataStore, engine);
   const usage = new UsageService(dataStore, engine);
@@ -582,6 +582,7 @@ async function bootstrap(): Promise<void> {
     terminal,
     share: shareService,
     sites: siteService,
+    browser: browserController!,
     usage,
     broadcast,
     openBrowser: (url: string) => {

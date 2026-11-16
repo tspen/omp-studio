@@ -1910,6 +1910,41 @@ export class Orchestrator extends EventEmitter {
           this.deps.emit({ type: "sites:updated", payload: this.deps.sites.list() });
           return textResult(`Published "${site.name}" version ${site.currentVersion} at ${site.url}`);
         }
+        case "app_browser_console": {
+          const limit = Math.min(300, Math.max(1, Number(context.args.limit) || 80));
+          const level = context.args.level ? String(context.args.level) : "";
+          let entries = this.deps.browser.history().console;
+          if (level) entries = entries.filter((entry) => entry.level === level);
+          entries = entries.slice(-limit);
+          if (context.args.clear) this.deps.browser.clearConsole();
+          if (!entries.length) return textResult(level ? `No ${level} console messages.` : "No console messages yet.");
+          return textResult(
+            entries
+              .map((entry) => {
+                const source = entry.source ? ` (${entry.source}${entry.line ? `:${entry.line}` : ""})` : "";
+                return `[${entry.level}] ${entry.message}${source}`;
+              })
+              .join("\n"),
+          );
+        }
+        case "app_browser_network": {
+          const limit = Math.min(300, Math.max(1, Number(context.args.limit) || 80));
+          const filter = String(context.args.filter ?? "").toLowerCase();
+          let entries = this.deps.browser.history().network;
+          if (context.args.failedOnly) entries = entries.filter((entry) => !entry.ok);
+          if (filter) entries = entries.filter((entry) => entry.url.toLowerCase().includes(filter));
+          entries = entries.slice(-limit);
+          if (!entries.length) return textResult("No matching network requests.");
+          return textResult(
+            entries
+              .map((entry) => {
+                const status = entry.ok === false ? entry.failed ? `FAILED ${entry.failed}` : "FAILED" : String(entry.status ?? "?");
+                const duration = entry.durationMs !== undefined ? ` ${entry.durationMs}ms` : "";
+                return `${status} ${entry.method} ${entry.type} ${entry.url}${duration}`;
+              })
+              .join("\n"),
+          );
+        }
         case "app_browser_navigate": {
           const url = String(context.args.url ?? "");
           if (!/^https?:\/\//i.test(url)) throw new Error("Only http/https URLs are supported");

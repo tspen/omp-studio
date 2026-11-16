@@ -10,6 +10,7 @@ import type { NotificationService } from "./services/notifications";
 import type { SettingsService } from "./services/settings";
 import type { ShareService } from "./services/share";
 import type { SiteService } from "./services/sites";
+import type { BrowserController } from "./services/browser";
 import type { Store } from "./services/store";
 import { trace } from "./diagnostics";
 import type { TerminalService } from "./services/terminal";
@@ -30,13 +31,14 @@ export interface IpcContext {
   terminal: TerminalService;
   share: ShareService;
   sites: SiteService;
+  browser: BrowserController;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, sites, engine, usage, broadcast, openBrowser } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, sites, browser, engine, usage, broadcast, openBrowser } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -278,6 +280,8 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("browser:open", (_event, url: string) => {
     if (/^https?:\/\//i.test(url)) openBrowser(url);
   });
+  ipcMain.handle("browser:devtools", () => browser.history());
+  ipcMain.handle("browser:pick", () => browser.pickElement());
   ipcMain.handle("shell:open-path", (_event, path: string) => shell.openPath(path));
 
   ipcMain.handle("engine:download", async () => {

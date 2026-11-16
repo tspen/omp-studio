@@ -312,6 +312,14 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
     element.style.height = `${Math.min(220, Math.max(44, element.scrollHeight))}px`;
   }, [draft]);
 
+  const insert = state.composerInsert;
+  useEffect(() => {
+    if (!insert) return;
+    setDraft((value) => (value ? `${value}\n${insert.text}` : insert.text));
+    state.clearComposerInsert();
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [insert?.token]);
+
   const submit = async () => {
     if (!draft.trim() || state.sending) return;
     const text = draft;

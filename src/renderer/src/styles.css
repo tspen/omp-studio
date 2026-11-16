@@ -962,4 +962,25 @@ textarea { resize: vertical; line-height: 1.45; }
 .browser-loading { width: 11px; height: 11px; border: 1.5px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; flex: 0 0 auto; }
 .browser-view { flex: 1; min-height: 0; }
 .browser-view webview { width: 100%; height: 100%; }
+.browser-devtools { flex: 0 0 190px; min-height: 120px; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--panel); }
+.browser-devtools-head { display: flex; align-items: center; gap: 2px; padding: 3px 5px; background: var(--bg-2); border-bottom: 1px solid var(--line); }
+.browser-devtab { border: 0; background: transparent; color: var(--muted); font-size: 10.5px; font-weight: 600; padding: 4px 8px; border-radius: 5px; display: flex; align-items: center; gap: 4px; }
+.browser-devtab span { font-size: 9px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0 4px; color: var(--muted); }
+.browser-devtab.active { color: var(--accent-2); background: var(--accent-soft); }
+.browser-devspace { flex: 1; }
+.browser-devtools-body { flex: 1; min-height: 0; overflow: auto; padding: 2px 0; font: 10px ui-monospace, Consolas, monospace; }
+.browser-devrow { display: flex; align-items: baseline; gap: 6px; padding: 3px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.browser-devrow:hover { background: var(--bg-2); }
+.browser-devlevel { flex: 0 0 46px; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+.browser-devrow.log-error .browser-devlevel { color: var(--red); }
+.browser-devrow.log-warning .browser-devlevel { color: var(--amber); }
+.browser-devrow.log-info .browser-devlevel { color: var(--blue); }
+.browser-devmsg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.browser-devsrc { flex: 0 0 auto; color: var(--muted-2); font-size: 9px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-devstatus { flex: 0 0 38px; font-weight: 600; }
+.browser-devrow.net-ok .browser-devstatus { color: var(--green); }
+.browser-devrow.net-bad .browser-devstatus { color: var(--red); }
+.browser-devmethod { flex: 0 0 42px; color: var(--text-2); }
+.browser-devtype { flex: 0 0 62px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-devempty { margin: 0; padding: 14px 10px; color: var(--muted); font-size: 10.5px; }
 

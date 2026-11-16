@@ -314,6 +314,26 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "app_browser_console",
+    label: "Browser: console",
+    description: "Read recent console messages, warnings and errors from the in-app Browser, with source URLs and line numbers. Use after reloading or interacting with a page to catch runtime errors.",
+    parameters: object(
+      { level: { type: "string", enum: ["debug", "info", "warning", "error"] }, limit: { type: "number" }, clear: { type: "boolean" } },
+      [],
+    ),
+    loadMode: "essential",
+  },
+  {
+    name: "app_browser_network",
+    label: "Browser: network",
+    description: "Read recent network requests from the in-app Browser with method, status, resource type, duration and failure reason. Use to verify assets, API calls and 404s on a page.",
+    parameters: object(
+      { filter: { type: "string" }, failedOnly: { type: "boolean" }, limit: { type: "number" } },
+      [],
+    ),
+    loadMode: "essential",
+  },
+  {
     name: "app_browser_navigate",
     label: "Browser: navigate",
     description: "Open a URL in the in-app Browser panel. Use this for visual web work you want the user to see.",

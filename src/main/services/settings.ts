@@ -64,6 +64,8 @@ const HOST_TOOLS = [
   "site_create",
   "site_publish",
   "app_browser_navigate",
+  "app_browser_console",
+  "app_browser_network",
   "app_browser_read",
   "app_browser_click",
   "app_browser_type",
