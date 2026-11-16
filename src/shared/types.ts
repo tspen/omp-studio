@@ -594,6 +594,7 @@ export type AppEvent =
   | { type: "config:updated"; payload: OmpConfigSnapshot }
   | { type: "usage:updated"; payload: UsageSnapshot }
   | { type: "share:updated"; payload: ShareInfo | null }
+  | { type: "browser:show"; payload: { url?: string } }
   | { type: "focus"; payload: { threadId?: string; nodeId?: string } }
   | { type: "toast"; payload: { kind: "info" | "success" | "error" | "warning"; title: string; body?: string } };
 

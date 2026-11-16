@@ -76,12 +76,14 @@ export function IconButton({
   onClick,
   active,
   danger,
+  disabled,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick?: () => void;
   active?: boolean;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -89,6 +91,7 @@ export function IconButton({
       title={label}
       aria-label={label}
       onClick={onClick}
+      disabled={disabled}
       className={cx("icon-btn", active && "active", danger && "danger")}
     >
       {icon}

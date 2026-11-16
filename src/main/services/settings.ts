@@ -60,6 +60,14 @@ const HOST_TOOLS = [
   "tree_assign_environment",
   "tree_list_environments",
   "tree_test_environment",
+  "app_browser_navigate",
+  "app_browser_read",
+  "app_browser_click",
+  "app_browser_type",
+  "app_browser_back",
+  "app_browser_forward",
+  "app_browser_reload",
+  "app_browser_screenshot",
 ];
 
 export class SettingsService {

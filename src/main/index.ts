@@ -6,6 +6,7 @@ import { EngineLocator } from "./engine/engine-locator";
 import { registerIpc, type IpcContext } from "./ipc";
 import { Orchestrator } from "./orchestrator/orchestrator";
 import { ArtifactService } from "./services/artifacts";
+import { BrowserController } from "./services/browser";
 import { EnvironmentService } from "./services/environment";
 import { GitService } from "./services/git";
 import { MemoryService } from "./services/memory";
@@ -23,6 +24,7 @@ import type { AppEvent } from "../shared/types";
 
 let mainWindow: BrowserWindow | null = null;
 let browserWindow: BrowserWindow | null = null;
+let browserController: BrowserController | null = null;
 let orchestrator: Orchestrator | null = null;
 let notifications: NotificationService | null = null;
 let share: ShareService | null = null;
@@ -383,6 +385,7 @@ async function createWindow(): Promise<void> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      webviewTag: true,
     },
   });
 
@@ -391,7 +394,31 @@ async function createWindow(): Promise<void> {
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
+    browserController?.setContents(null);
     if (browserWindow && !browserWindow.isDestroyed()) browserWindow.close();
+  });
+  mainWindow.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    if (!(params.src === "about:blank" || /^https?:\/\//i.test(params.src))) {
+      event.preventDefault();
+      return;
+    }
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+  });
+  mainWindow.webContents.on("did-attach-webview", (_event, contents) => {
+    browserController?.setContents(contents);
+    contents.on("destroyed", () => browserController?.clearContents(contents));
+    contents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) {
+        void contents.loadURL(url).catch(() => undefined);
+      }
+      return { action: "deny" };
+    });
+    contents.on("will-navigate", (event, target) => {
+      if (!(target === "about:blank" || /^https?:\/\//i.test(target))) event.preventDefault();
+    });
   });
   let rendererReloads: number[] = [];
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -472,6 +499,14 @@ async function bootstrap(): Promise<void> {
   const git = new GitService();
   const memory = new MemoryService(dataStore);
   const artifacts = new ArtifactService(dataStore);
+  browserController = new BrowserController(dataStore.artifactsDir, (url) => {
+    broadcast({ type: "browser:show", payload: { url } });
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
   const models = new ModelService(dataStore, engine);
   const settings = new SettingsService(dataStore, engine);
   const usage = new UsageService(dataStore, engine);
@@ -515,6 +550,7 @@ async function bootstrap(): Promise<void> {
     naming,
     git,
     artifacts,
+    browser: browserController,
     notifications: notificationService,
     settings,
     share: shareService,
@@ -537,7 +573,11 @@ async function bootstrap(): Promise<void> {
     share: shareService,
     usage,
     broadcast,
-    openBrowser: openBrowserWindow,
+    openBrowser: (url: string) => {
+      broadcast({ type: "browser:show", payload: { url } });
+      mainWindow?.show();
+      mainWindow?.focus();
+    },
   };
   registerIpc(context);
 

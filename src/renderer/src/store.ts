@@ -53,6 +53,9 @@ interface AppState {
   share: ShareInfo | null;
   selectedNodeId: string | null;
   selectedThreadId: string | null;
+  browserOpen: boolean;
+  browserMinimized: boolean;
+  browserUrl: string;
   rightTab: RightTab;
   railOpen: boolean;
   overlay: Overlay;
@@ -68,6 +71,9 @@ interface AppState {
   selectThread(threadId: string, nodeId?: string): Promise<void>;
   loadMessages(threadId: string): Promise<void>;
   setRightTab(tab: RightTab): void;
+  openBrowser(url?: string): void;
+  closeBrowser(): void;
+  toggleBrowserMinimized(): void;
   toggleRail(): void;
   setOverlay(overlay: Overlay): void;
   setSettingsTab(tab: SettingsTab): void;
@@ -126,6 +132,9 @@ export const useApp = create<AppState>((set, get) => ({
   share: null,
   selectedNodeId: null,
   selectedThreadId: null,
+  browserOpen: false,
+  browserMinimized: false,
+  browserUrl: "https://example.com",
   rightTab: "threads",
   railOpen: true,
   overlay: "none",
@@ -299,6 +308,9 @@ export const useApp = create<AppState>((set, get) => ({
       case "share:updated":
         set({ share: event.payload });
         break;
+      case "browser:show":
+        set({ browserOpen: true, browserMinimized: false, ...(event.payload.url ? { browserUrl: event.payload.url } : {}) });
+        break;
       case "usage:updated":
         if (state.snapshot) set({ snapshot: { ...state.snapshot, usage: event.payload } });
         break;
@@ -341,6 +353,15 @@ export const useApp = create<AppState>((set, get) => ({
 
   setRightTab(tab) {
     set({ rightTab: tab });
+  },
+  openBrowser(url) {
+    set({ browserOpen: true, browserMinimized: false, ...(url ? { browserUrl: url } : {}) });
+  },
+  closeBrowser() {
+    set({ browserOpen: false });
+  },
+  toggleBrowserMinimized() {
+    set({ browserMinimized: !get().browserMinimized });
   },
   toggleRail() {
     set({ railOpen: !get().railOpen });

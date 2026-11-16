@@ -288,6 +288,62 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     description: "Run an environment's setup commands in a node's directory and return the output.",
     parameters: object({ environmentId: { type: "string" }, nodeId: { type: "string" } }, ["environmentId"]),
   },
+  {
+    name: "app_browser_navigate",
+    label: "Browser: navigate",
+    description: "Open a URL in the in-app Browser panel. Use this for visual web work you want the user to see.",
+    parameters: object({ url: { type: "string" } }, ["url"]),
+    loadMode: "essential",
+  },
+  {
+    name: "app_browser_read",
+    label: "Browser: read page",
+    description: "Read the visible text of the page in the in-app Browser panel.",
+    parameters: object({}),
+    loadMode: "essential",
+  },
+  {
+    name: "app_browser_click",
+    label: "Browser: click",
+    description: "Click an element in the in-app Browser panel by CSS selector.",
+    parameters: object({ selector: { type: "string" } }, ["selector"]),
+    loadMode: "essential",
+  },
+  {
+    name: "app_browser_type",
+    label: "Browser: type",
+    description: "Type into an element in the in-app Browser panel by CSS selector, optionally submitting the form.",
+    parameters: object(
+      { selector: { type: "string" }, text: { type: "string" }, submit: { type: "boolean" } },
+      ["selector", "text"],
+    ),
+    loadMode: "essential",
+  },
+  {
+    name: "app_browser_back",
+    label: "Browser: back",
+    description: "Go back in the in-app Browser panel.",
+    parameters: object({}),
+  },
+  {
+    name: "app_browser_forward",
+    label: "Browser: forward",
+    description: "Go forward in the in-app Browser panel.",
+    parameters: object({}),
+  },
+  {
+    name: "app_browser_reload",
+    label: "Browser: reload",
+    description: "Reload the page in the in-app Browser panel.",
+    parameters: object({}),
+  },
+  {
+    name: "app_browser_screenshot",
+    label: "Browser: screenshot",
+    description: "Capture the visible in-app Browser page as a PNG artifact and return its path. Use inspect_image to analyse it.",
+    parameters: object({}),
+    loadMode: "essential",
+  },
 ];
 
 for (const tool of HOST_TOOL_DEFINITIONS) {

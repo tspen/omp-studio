@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
@@ -30,6 +30,7 @@ import { HOST_TOOL_DEFINITIONS } from "./host-tools";
 import { MessageBus } from "./message-bus";
 import { buildSystemPrompt } from "./prompts";
 import type { ArtifactService } from "../services/artifacts";
+import type { BrowserController } from "../services/browser";
 import type { EnvironmentService } from "../services/environment";
 import type { GitService } from "../services/git";
 import type { MemoryService } from "../services/memory";
@@ -54,6 +55,7 @@ export interface OrchestratorDeps {
   naming: NamingService;
   git: GitService;
   artifacts: ArtifactService;
+  browser: BrowserController;
   notifications: NotificationService;
   settings: SettingsService;
   share: ShareService;
@@ -1814,6 +1816,57 @@ export class Orchestrator extends EventEmitter {
           if (["running", "starting"].includes(target.status)) throw new Error("Stop the thread before resolving it");
           const resolved = await this.resolveThread(threadId, context.args.note ? String(context.args.note) : undefined);
           return textResult(`Resolved and archived "${resolved.title}".`);
+        }
+        case "app_browser_navigate": {
+          const url = String(context.args.url ?? "");
+          if (!/^https?:\/\//i.test(url)) throw new Error("Only http/https URLs are supported");
+          const current = await this.deps.browser.navigate(url);
+          return textResult(`In-app browser is at ${current}.`);
+        }
+        case "app_browser_read": {
+          const text = await this.deps.browser.read();
+          return textResult(text || "(page is empty)");
+        }
+        case "app_browser_click": {
+          const result = await this.deps.browser.click(String(context.args.selector ?? ""));
+          return textResult(result);
+        }
+        case "app_browser_type": {
+          const result = await this.deps.browser.type(
+            String(context.args.selector ?? ""),
+            String(context.args.text ?? ""),
+            !!context.args.submit,
+          );
+          return textResult(result);
+        }
+        case "app_browser_back":
+          await this.deps.browser.back();
+          return textResult("Went back.");
+        case "app_browser_forward":
+          await this.deps.browser.forward();
+          return textResult("Went forward.");
+        case "app_browser_reload":
+          await this.deps.browser.reload();
+          return textResult("Reloaded.");
+        case "app_browser_screenshot": {
+          const path = await this.deps.browser.screenshot();
+          this.deps.artifacts.recordFile(context.thread, path, this.store.baseDir);
+          try {
+            const data = readFileSync(path).toString("base64");
+            if (data.length < 8_000_000) {
+              this.handleChat({
+                id: newId("msg"),
+                threadId: context.thread.id,
+                role: "assistant",
+                blocks: [{ type: "image", mimeType: "image/png", data, path }],
+                timestamp: Date.now(),
+                model: context.thread.model.name,
+              });
+            }
+          } catch {
+            /* artifact still exists */
+          }
+          return textResult(`Screenshot saved to ${path} and shown in this thread. Analyse it with inspect_image or open it from Artifacts.`);
         }
         case "tree_git":
           return this.handleGitTool(context);
