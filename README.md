@@ -100,6 +100,10 @@ token, the PWA install link, targets, cold move and a cleanup report.
   Tailscale. See [`runner/README.md`](runner/README.md).
 - Sessions move as portable bundles (workspace + OMP session + chat) at turn
   boundaries. The source is retained for rollback.
+- Automatic placement: pick a registered target, give consent, and idle worker
+  sessions move there without per-session prompts. Running turns are never
+  interrupted. Prompts, stop, continue and compact are proxied to the target and
+  the desktop mirrors status and messages.
 - Everything the runner creates is garbage-collected: startup plus every five
   minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
   `npm run runner:quota` and `POST /api/maintenance/sweep`.

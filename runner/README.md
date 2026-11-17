@@ -28,6 +28,24 @@ docker compose -f runner/docker-compose.yml logs runner | grep "pairing link"
 Replace `127.0.0.1` with the machine's Tailscale name in the link, or scan the QR
 from Settings → Remote on the desktop app.
 
+## Model and provider credentials
+
+A runner cannot run turns until the OMP engine has a provider. Either pass the
+provider key into the container or persist an OMP login in the data volume:
+
+```bash
+# Environment key (example: Anthropic)
+ANTHROPIC_API_KEY=sk-ant-... docker compose -f runner/docker-compose.yml up -d
+
+# Or log in once; HOME points at the persistent /data volume
+docker compose -f runner/docker-compose.yml exec runner \
+  /data/omp-studio/engine/omp
+```
+
+The engine is downloaded into `/data/omp-studio/engine/omp` on first use. Until a
+provider is configured, placed sessions show `Starting OMP...` and cannot
+execute turns.
+
 ## Configuration
 
 | Variable | Default | Meaning |

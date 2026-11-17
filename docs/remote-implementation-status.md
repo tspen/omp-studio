@@ -17,6 +17,8 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 | iOS | Capacitor project in `ios/`; ATS and local-network entries added; build/sign requires macOS (see CI workflow). |
 | Desktop UI | Settings → Remote: enable, bind host/port, keep-running toggles, URLs, token show/copy/rotate, QR, Tailscale steps, cleanup report, targets and cold move. |
 | Cold move | Export zip (manifest + workspace + OMP session + chat) and import on the same or another runner. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
+| Automatic placement | `remotePlacement` policy: enabled + explicit consent + selected target + idle threshold. A scheduler checks every 20 seconds, picks idle worker sessions with history, cold-moves at most two per pass, never interrupts a running turn, releases the local OMP session, and records `targetId`, `remoteThreadId`, `remoteNodeId`, `movedAt`. Settings shows policy, "Place idle sessions now", and the last automatic placement. `placeIdleSessions(force, threadId)` is also available over IPC for scoped placement. |
+| Remote control | Prompts, stop, continue and compact on a placed session are proxied to its target over the target API; the desktop mirrors target status and new messages every 8 seconds and keeps local chat in sync. |
 | Docker/VPS runner | `runner/Dockerfile`, `runner/docker-compose.yml`, `runner/entrypoint.sh`, `runner/README.md`. Headless Electron (`OMP_HEADLESS=1`) under Xvfb, data on a labeled volume, loopback port by default, healthcheck, no public exposure. |
 | Self-cleaning | `src/main/services/maintenance.ts` + `src/cli/runner.ts` (`gc`, `quota`, `bench`). Startup sweep and 5-minute interval; `Maintenance → Clean up now/Preview` in Settings; `POST /api/maintenance/sweep`. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
@@ -66,7 +68,6 @@ ios job passed, artifact omp-remote-ios-simulator.zip 1.5 MB
 ```
 
 Cold move (`scripts/remote-perf.mjs`, small repo):
-
 ```
 health: median 1.4 ms
 state snapshot: median 11.2 ms
@@ -75,6 +76,30 @@ export bundle: 44.2 ms (81 KB)
 cold move (export + import): median 40.8 ms
 gc sweep: 49 ms, reclaimed 147 KB across 2 items
 sessions: 17 -> 17 after cleanup
+```
+
+Automatic placement (fresh profile, policy enabled with consent, 5-second idle
+threshold, no manual "Place" call):
+
+```
+imported session thr_31756e9f6a034b2f (15 messages) at 1794894437597
+moved at 1794894459349 -> 21.75 s later (scheduler runs every 20 s)
+local thread: targetId=tgt_216fe5ee02b44f98
+              remoteThreadId=thr_c9792f7c4a4142be
+              remoteNodeId=prj_36eb855ee42a42e6
+              status=idle, messages=15
+target /api/state: threads=3 nodes=2
+target message threadIds rewritten to the target thread id
+forced scoped placement: 68 ms
+desktop proxy stop: ok
+```
+
+Target message id remap check after rebuilding the image:
+
+```
+import 200 {"threadId":"thr_e9c0dfdb80294a9e","nodeId":"prj_9d9866075e924d5c"}
+messages 15, threadIds thr_e9c0dfdb80294a9e
+cleanup 200, target threads 1 nodes 1
 ```
 
 GC CLI on the real data directory (216 MB):
@@ -120,9 +145,6 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   profile.
 - **Warm and live moves**: v1 only does cold move at turn boundaries. Paused
   microVM (E2B Embed) and memory snapshot migration are not implemented.
-- **Automatic placement**: targets are registered and sessions can be moved, but
-  new sessions still start on the local runner. There is no policy engine that
-  silently chooses a cloud target yet.
 - **Push notifications and cost meter**: not implemented.
 - **Relay**: Tailscale (or another user-owned reverse proxy) is the supported
   access path. No self-hosted encrypted relay service is included.

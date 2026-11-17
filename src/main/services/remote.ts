@@ -7,7 +7,7 @@ import QRCode from "qrcode";
 import JSZip from "jszip";
 import { WebSocketServer, type WebSocket } from "ws";
 import { app } from "electron";
-import type { AppEvent, ChatMessage, RemoteInfo, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
+import type { AppEvent, ChatMessage, PlacementPolicy, PlacementResult, RemoteInfo, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
 import type { Orchestrator } from "../orchestrator/orchestrator";
 import { collectGarbage } from "./maintenance";
 import { newId, type Store } from "./store";
@@ -33,6 +33,7 @@ export class RemoteService {
   private port = 0;
   private host = "";
   private lastError: string | undefined;
+  private placementReport: PlacementResult | null = null;
 
   constructor(store: Store, orchestrator: Orchestrator) {
     this.store = store;
@@ -125,6 +126,9 @@ export class RemoteService {
 
   /** Cold move: export this thread and import it into a registered target. */
   async moveThread(threadId: string, targetId: string): Promise<{ threadId: string; nodeId: string }> {
+    const thread = this.store.getThread(threadId);
+    if (!thread) throw new Error("Thread not found");
+    if (["running", "starting", "waiting", "queued"].includes(thread.status)) throw new Error("Wait for the current turn to finish before moving this session");
     const target = this.listTargets().find((item) => item.id === targetId);
     if (!target) throw new Error("Target not found");
     const token = this.targetToken(targetId);
@@ -138,9 +142,159 @@ export class RemoteService {
     });
     const body = (await response.json().catch(() => ({}))) as { threadId?: string; nodeId?: string; error?: string };
     if (!response.ok || !body.threadId || !body.nodeId) throw new Error(body.error || `Target import failed with HTTP ${response.status}`);
+    await this.orchestrator.releaseThreadSession(threadId);
     this.saveTargets(this.listTargets().map((item) => (item.id === targetId ? { ...item, lastSeen: Date.now(), status: "online", error: undefined } : item)));
     return { threadId: body.threadId, nodeId: body.nodeId };
   }
+
+  exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }> {
+    return this.exportBundle(threadId);
+  }
+
+  importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }> {
+    return this.importBundle(bundle);
+  }
+
+  placementPolicy(): PlacementPolicy {
+    return this.store.settings.remotePlacement ?? { enabled: false, targetId: "", idleSeconds: 60, consent: false };
+  }
+
+  /**
+   * Automatic placement: pick idle worker sessions and cold-move them to the
+   * selected user-owned runner. No per-session prompt. `force` is the explicit
+   * "Place now" action and skips the idle timer and auto-enable checks.
+   */
+  async placeIdleSessions(force = false, onlyThreadId?: string): Promise<PlacementResult> {
+    const policy = this.placementPolicy();
+    const result: PlacementResult = { at: Date.now(), placed: [], skipped: [] };
+    this.placementReport = result;
+    if (!force && (!policy.enabled || !policy.consent)) {
+      result.skipped.push(policy.enabled ? "consent missing" : "automatic placement disabled");
+      return result;
+    }
+    if (!policy.targetId) {
+      result.skipped.push("no target selected");
+      return result;
+    }
+    const target = this.listTargets().find((item) => item.id === policy.targetId);
+    if (!target) {
+      result.skipped.push("selected target no longer exists");
+      return result;
+    }
+    const token = this.targetToken(target.id);
+    if (!token) {
+      result.skipped.push("target token missing");
+      return result;
+    }
+    try {
+      const latency = await this.probe(target.url, token);
+      this.saveTargets(this.listTargets().map((item) => (item.id === target.id ? { ...item, status: "online", latencyMs: latency, lastSeen: Date.now(), error: undefined } : item)));
+      result.target = { id: target.id, name: target.name, status: "online" };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.saveTargets(this.listTargets().map((item) => (item.id === target.id ? { ...item, status: "offline", error: message } : item)));
+      result.skipped.push(`target offline: ${message}`);
+      return result;
+    }
+
+    const now = Date.now();
+    const idleMs = Math.max(5, policy.idleSeconds || 60) * 1000;
+    const candidates = this.store.threads.filter((thread) => {
+      if (onlyThreadId && thread.id !== onlyThreadId) return false;
+      if (thread.targetId || thread.archived) return false;
+      if (thread.kind !== "worker") return false;
+      if (!["idle", "parked", "completed", "error", "cancelled"].includes(thread.status)) return false;
+      if (!force && now - (thread.lastActivityAt || thread.updatedAt) < idleMs) return false;
+      return this.store.getChat(thread.id).length > 0;
+    });
+    if (!candidates.length) {
+      result.skipped.push("no idle worker sessions with history");
+      return result;
+    }
+    const limit = force ? 5 : 2;
+    for (const thread of candidates.sort((a, b) => a.lastActivityAt - b.lastActivityAt).slice(0, limit)) {
+      const started = Date.now();
+      try {
+        const moved = await this.moveThread(thread.id, target.id);
+        const updated = this.store.updateThread(thread.id, {
+          targetId: target.id,
+          remoteThreadId: moved.threadId,
+          remoteNodeId: moved.nodeId,
+          movedAt: Date.now(),
+          status: "parked",
+          statusMessage: `Placed on ${target.name}`,
+        });
+        this.orchestrator.notify({ type: "thread:updated", payload: updated });
+        result.placed.push({ threadId: thread.id, targetId: target.id, remoteThreadId: moved.threadId, remoteNodeId: moved.nodeId, ms: Date.now() - started });
+      } catch (error) {
+        result.skipped.push(`${thread.title}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return result;
+  }
+
+  lastPlacement(): PlacementResult | null {
+    return this.placementReport;
+  }
+
+  /** Send stop/continue/compact or a prompt to a thread that lives on a target. */
+  async proxyThreadAction(threadId: string, action: "send" | "stop" | "continue" | "compact", payload?: { text?: string }): Promise<boolean> {
+    const thread = this.store.getThread(threadId);
+    if (!thread?.targetId || !thread.remoteThreadId) return false;
+    const target = this.listTargets().find((item) => item.id === thread.targetId);
+    if (!target) throw new Error("The runner that owns this session is no longer registered");
+    const token = this.targetToken(target.id);
+    const response = await fetch(`${target.url}/api/threads/${encodeURIComponent(thread.remoteThreadId)}/${action}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(action === "send" ? { text: payload?.text ?? "" } : {}),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error || `Target returned HTTP ${response.status}`);
+    }
+    await this.syncRemoteThread(thread).catch(() => undefined);
+    return true;
+  }
+
+  /** Mirror status, transcript and new messages for sessions placed on targets. */
+  async syncRemoteThreads(): Promise<void> {
+    const remoteThreads = this.store.threads.filter((thread) => thread.targetId && thread.remoteThreadId);
+    await Promise.all(remoteThreads.slice(0, 8).map((thread) => this.syncRemoteThread(thread).catch(() => undefined)));
+  }
+
+  private async syncRemoteThread(thread: Thread): Promise<void> {
+    if (!thread.targetId || !thread.remoteThreadId) return;
+    const target = this.listTargets().find((item) => item.id === thread.targetId);
+    if (!target) return;
+    const token = this.targetToken(target.id);
+    const response = await fetch(`${target.url}/api/threads/${encodeURIComponent(thread.remoteThreadId)}`, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return;
+    const data = (await response.json()) as { thread?: Partial<Thread>; messages?: ChatMessage[] };
+    const messages = (data.messages ?? []).map((message) => ({ ...message, threadId: thread.id }));
+    const existing = this.store.getChat(thread.id);
+    const seen = new Set(existing.map((message) => message.id));
+    this.store.replaceChat(thread.id, messages);
+    const remote = data.thread ?? {};
+    const patch: Partial<Thread> = {};
+    if (remote.status && remote.status !== thread.status) patch.status = remote.status;
+    if ((remote.statusMessage ?? undefined) !== thread.statusMessage) patch.statusMessage = remote.statusMessage;
+    if (remote.lastMessage !== undefined) patch.lastMessage = remote.lastMessage;
+    if (remote.lastActivityAt) patch.lastActivityAt = remote.lastActivityAt;
+    if (remote.unread !== undefined) patch.unread = remote.unread;
+    if (Object.keys(patch).length) {
+      const updated = this.store.updateThread(thread.id, patch);
+      this.orchestrator.notify({ type: "thread:updated", payload: updated });
+    }
+    for (const message of messages) {
+      if (!seen.has(message.id)) this.orchestrator.notify({ type: "thread:message", payload: message });
+    }
+  }
+
 
   async info(): Promise<RemoteInfo> {
     const settings = this.store.settings.remote;
@@ -513,7 +667,10 @@ export class RemoteService {
       source: "app",
     };
     this.store.addThread(imported);
-    this.store.replaceChat(threadId, Array.isArray(manifest.chat) ? (manifest.chat as ChatMessage[]) : []);
+    this.store.replaceChat(
+      threadId,
+      Array.isArray(manifest.chat) ? (manifest.chat as ChatMessage[]).map((message) => ({ ...message, threadId })) : [],
+    );
     this.orchestrator.notify({ type: "node:updated", payload: node });
     this.orchestrator.notify({ type: "thread:updated", payload: orchestrator });
     this.orchestrator.notify({ type: "thread:updated", payload: imported });
@@ -600,6 +757,12 @@ function normalizeUrl(value: string): string {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   return new URL(withScheme).toString().replace(/\/+$/, "");
 }
+
+
+
+
+
+
 
 
 

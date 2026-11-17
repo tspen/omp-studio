@@ -668,7 +668,19 @@ async function bootstrap(): Promise<void> {
     void maintenance().catch(() => undefined);
   }, 5 * 60_000);
   gcTimer.unref();
-  app.on("before-quit", () => clearInterval(gcTimer));
+  const placementTimer = setInterval(() => {
+    void remoteService.placeIdleSessions().catch(() => undefined);
+  }, 20_000);
+  placementTimer.unref();
+  const syncTimer = setInterval(() => {
+    void remoteService.syncRemoteThreads().catch(() => undefined);
+  }, 8_000);
+  syncTimer.unref();
+  app.on("before-quit", () => {
+    clearInterval(gcTimer);
+    clearInterval(placementTimer);
+    clearInterval(syncTimer);
+  });
   if (dataStore.settings.remote.enabled !== false) {
     await remoteService.start().catch((error) => {
       trace("remote-start-failed", error instanceof Error ? error.message : String(error));

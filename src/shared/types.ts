@@ -263,6 +263,10 @@ export interface Thread {
   };
   error?: string;
   pendingApproval?: string;
+  targetId?: string;
+  remoteThreadId?: string;
+  remoteNodeId?: string;
+  movedAt?: number;
   source: "app" | "native";
   queue?: { steering: string[]; followUp: string[] };
 }
@@ -434,6 +438,20 @@ export interface RemoteTargetInput {
   kind?: "paired" | "docker";
 }
 
+export interface PlacementPolicy {
+  enabled: boolean;
+  targetId: string;
+  idleSeconds: number;
+  consent: boolean;
+}
+
+export interface PlacementResult {
+  at: number;
+  placed: Array<{ threadId: string; targetId: string; remoteThreadId: string; remoteNodeId: string; ms: number }>;
+  skipped: string[];
+  target?: { id: string; name: string; status: string };
+}
+
 export interface MaintenanceReport {
   at: number;
   dryRun: boolean;
@@ -507,6 +525,7 @@ export interface AppSettings {
   autoCheckpoints: boolean;
   remote: { enabled: boolean; port: number; host: string; keepRunning: boolean };
   remoteTargets: RemoteTarget[];
+  remotePlacement: PlacementPolicy;
   computerUse: boolean;
   autoFixCi: boolean;
   advisor: boolean;
@@ -1072,6 +1091,11 @@ export interface OmpStudioApi {
   removeRemoteTarget(id: string): Promise<RemoteTarget[]>;
   testRemoteTarget(id: string): Promise<RemoteTarget[]>;
   moveThreadToTarget(threadId: string, targetId: string): Promise<{ threadId: string; nodeId: string }>;
+  placeIdleSessions(force?: boolean, threadId?: string): Promise<PlacementResult>;
+  lastPlacement(): Promise<PlacementResult | null>;
+  exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;
+  importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }>;
+  syncRemoteSessions(): Promise<void>;
 
   setConnectorSecret(key: string, value: string): Promise<Record<string, boolean>>;
   connectorSecrets(): Promise<Record<string, boolean>>;
@@ -1140,4 +1164,8 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
+
+
+
 

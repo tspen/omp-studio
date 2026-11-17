@@ -82,11 +82,26 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("thread:update", (_event, id: string, patch) => orchestrator.updateThread(id, patch));
   ipcMain.handle("thread:delete", (_event, id: string) => orchestrator.deleteThread(id));
   ipcMain.handle("thread:resolve", (_event, id: string, note?: string) => orchestrator.resolveThread(id, note));
-  ipcMain.handle("thread:send", (_event, req: SendMessageRequest) => orchestrator.sendUserMessage(req));
-  ipcMain.handle("thread:stop", (_event, id: string) => orchestrator.stopThread(id));
-  ipcMain.handle("thread:restart", (_event, id: string) => orchestrator.restartThread(id));
-  ipcMain.handle("thread:continue", (_event, id: string) => orchestrator.continueThread(id));
-  ipcMain.handle("thread:compact", (_event, id: string) => orchestrator.compactThread(id));
+  ipcMain.handle("thread:send", async (_event, req: SendMessageRequest) => {
+    if (await remote.proxyThreadAction(req.threadId, "send", { text: req.text })) return;
+    return orchestrator.sendUserMessage(req);
+  });
+  ipcMain.handle("thread:stop", async (_event, id: string) => {
+    if (await remote.proxyThreadAction(id, "stop")) return;
+    return orchestrator.stopThread(id);
+  });
+  ipcMain.handle("thread:restart", async (_event, id: string) => {
+    if (await remote.proxyThreadAction(id, "continue")) return;
+    return orchestrator.restartThread(id);
+  });
+  ipcMain.handle("thread:continue", async (_event, id: string) => {
+    if (await remote.proxyThreadAction(id, "continue")) return;
+    return orchestrator.continueThread(id);
+  });
+  ipcMain.handle("thread:compact", async (_event, id: string) => {
+    if (await remote.proxyThreadAction(id, "compact")) return;
+    return orchestrator.compactThread(id);
+  });
   ipcMain.handle("thread:set-model", (_event, id: string, selector: string) => orchestrator.setThreadModel(id, selector));
   ipcMain.handle("thread:set-effort", (_event, id: string, effort: string) => orchestrator.setThreadEffort(id, effort));
   ipcMain.handle("thread:focus", (_event, id: string | null) => orchestrator.setFocusedThread(id));
@@ -438,6 +453,11 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("remote:target:remove", (_event, id: string) => remote.removeTarget(id));
   ipcMain.handle("remote:target:test", (_event, id: string) => remote.testTarget(id));
   ipcMain.handle("remote:move", (_event, threadId: string, targetId: string) => remote.moveThread(threadId, targetId));
+  ipcMain.handle("remote:place", (_event, force?: boolean, threadId?: string) => remote.placeIdleSessions(!!force, threadId));
+  ipcMain.handle("remote:last-placement", () => remote.lastPlacement());
+  ipcMain.handle("remote:export", (_event, threadId: string) => remote.exportThreadBundle(threadId));
+  ipcMain.handle("remote:import", (_event, bundle: string) => remote.importThreadBundle(bundle));
+  ipcMain.handle("remote:sync", () => remote.syncRemoteThreads());
   ipcMain.handle("mobile:status", () => mobile.available());
   ipcMain.handle("mobile:devices", () => mobile.devices());
   ipcMain.handle("mobile:avds", () => mobile.avds());
@@ -505,3 +525,6 @@ export function registerIpc(context: IpcContext): void {
     });
   });
 }
+
+
+

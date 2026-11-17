@@ -185,6 +185,7 @@ function ThreadRow({ thread, current }: { thread: Thread; current: string }) {
         <StatusDot status={thread.status} pulse={thread.status === "running" || thread.status === "starting"} />
         <span className="thread-row-title">{thread.title}</span>
         {thread.kind === "native" ? <Badge tone="purple">sub</Badge> : null}
+        {thread.targetId ? <Badge tone="blue" title="Runs on a remote target">cloud</Badge> : null}
         {thread.pendingApproval ? <ShieldAlert size={13} className="warn-icon" /> : null}
         <span className="thread-row-time">{relativeTime(thread.lastActivityAt)}</span>
       </div>

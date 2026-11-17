@@ -79,6 +79,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoCheckpoints: true,
   remote: { enabled: true, port: 43120, host: "127.0.0.1", keepRunning: false },
   remoteTargets: [],
+  remotePlacement: { enabled: false, targetId: "", idleSeconds: 60, consent: false },
   computerUse: false,
   autoFixCi: false,
   advisor: false,

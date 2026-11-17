@@ -252,6 +252,7 @@ function ThreadHeader({
             {statusLabel(thread.status)}
           </span>
           <span>{thread.kind === "orchestrator" ? node.type : thread.kind}</span>
+          {thread.targetId ? <span className="chip-inline">cloud target</span> : null}
           <span>{thread.model.name ?? thread.model.selector}</span>
           <span>{thread.effort} effort</span>
           {/compact/i.test(thread.statusMessage ?? "") ? <span className="compaction-inline">{thread.statusMessage}</span> : null}

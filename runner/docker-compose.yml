@@ -27,6 +27,11 @@ services:
       OMP_REMOTE_HOST: 0.0.0.0
       OMP_REMOTE_PORT: "43120"
       OMP_STUDIO_USER_DATA: /data
+      HOME: /data
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:
       - omp-data:/data
     security_opt:
@@ -39,3 +44,5 @@ volumes:
       omp.managed: "true"
       omp.runner: "docker"
       omp.kind: "volume"
+
+

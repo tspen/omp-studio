@@ -3,6 +3,7 @@ import {
   Activity,
   Bell,
   Check,
+  Cloud,
   ChevronRight,
   Clock,
   Cpu,
@@ -31,7 +32,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, RemoteInfo, RemoteTarget, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, PlacementResult, RemoteInfo, RemoteTarget, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -1353,14 +1354,24 @@ function RemoteTab() {
 
 function RemoteTargets() {
   const state = useApp();
+  const settings = state.snapshot?.settings;
+  const policy = settings?.remotePlacement ?? { enabled: false, targetId: "", idleSeconds: 60, consent: false };
   const [targets, setTargets] = useState<RemoteTarget[]>([]);
   const [form, setForm] = useState({ name: "", url: "", token: "" });
   const [busy, setBusy] = useState<string | null>(null);
   const [threadId, setThreadId] = useState("");
   const [targetId, setTargetId] = useState("");
   const [result, setResult] = useState("");
-  useEffect(() => { void window.omp.listRemoteTargets().then(setTargets).catch(() => undefined); }, []);
+  const [placement, setPlacement] = useState("");
+  const [lastPlacement, setLastPlacement] = useState<PlacementResult | null>(null);
+  useEffect(() => {
+    void window.omp.listRemoteTargets().then(setTargets).catch(() => undefined);
+    void window.omp.lastPlacement().then(setLastPlacement).catch(() => undefined);
+    const timer = window.setInterval(() => { void window.omp.lastPlacement().then(setLastPlacement).catch(() => undefined); }, 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const threads = useMemo(() => [...(state.snapshot?.threads ?? [])].sort((a, b) => b.updatedAt - a.updatedAt), [state.snapshot?.threads]);
+  const updatePolicy = (patch: Partial<typeof policy>) => state.updateSettings({ settings: { remotePlacement: { ...policy, ...patch } } });
   return (
     <Section title="Targets and cold move" subtitle="Register another user-owned runner (a VPS, a spare PC, or the Docker runner). Moving exports the workspace, OMP session and chat, then imports them on the target. The source stays for rollback.">
       {targets.length ? (
@@ -1399,6 +1410,47 @@ function RemoteTargets() {
           } finally { setBusy(null); }
         }}>{busy === "add" ? <Spinner /> : <Plus size={12} />} Add target</Button>
       </div>
+
+      <div className="remote-policy">
+        <div className="remote-policy-head">
+          <div>
+            <strong>Automatic placement</strong>
+            <span>Move idle worker sessions to a user-owned runner at a turn boundary. No per-session prompt.</span>
+          </div>
+          <Toggle checked={policy.enabled} onChange={(value) => updatePolicy({ enabled: value })} />
+        </div>
+        <div className="remote-target-form">
+          <select value={policy.targetId} onChange={(event) => updatePolicy({ targetId: event.target.value })}>
+            <option value="">Choose a runner…</option>
+            {targets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
+          </select>
+          <select value={policy.idleSeconds} onChange={(event) => updatePolicy({ idleSeconds: Number(event.target.value) })}>
+            <option value={60}>After 1 minute idle</option>
+            <option value={300}>After 5 minutes idle</option>
+            <option value={900}>After 15 minutes idle</option>
+          </select>
+          <label className="remote-consent">
+            <input type="checkbox" checked={policy.consent} onChange={(event) => updatePolicy({ consent: event.target.checked })} />
+            I understand moved sessions run on that machine and their files leave this PC.
+          </label>
+          <Button size="sm" variant="soft" disabled={busy !== null || !policy.targetId} onClick={async () => {
+            setBusy("place");
+            setPlacement("");
+            try {
+              const report = await window.omp.placeIdleSessions(true);
+              setPlacement(report.placed.length
+                ? `Placed ${report.placed.length} session(s) on ${report.target?.name ?? "target"} in ${report.placed.map((item: { ms: number }) => item.ms).join(", ")} ms.`
+                : `Nothing placed: ${report.skipped.join("; ") || "no eligible sessions"}.`);
+            } catch (error) {
+              setPlacement(String(error));
+            } finally { setBusy(null); }
+          }}>{busy === "place" ? <Spinner /> : <Cloud size={12} />} Place idle sessions now</Button>
+        </div>
+        {placement ? <p className="muted">{placement}</p> : null}
+        {lastPlacement?.placed.length ? <p className="muted">Last automatic placement: {lastPlacement.placed.length} session(s) at {new Date(lastPlacement.at).toLocaleTimeString()} ({lastPlacement.placed.map((item) => `${item.ms} ms`).join(", ")}).</p> : null}
+        <p className="muted">Checks every 20 seconds when enabled and consented. Only idle worker sessions with history are moved; running turns are never interrupted.</p>
+      </div>
+
       <div className="remote-target-form">
         <select value={threadId} onChange={(event) => setThreadId(event.target.value)}>
           <option value="">Choose a session…</option>
@@ -1431,6 +1483,7 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
 
 
 

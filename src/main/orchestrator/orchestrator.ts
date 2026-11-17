@@ -1152,6 +1152,11 @@ export class Orchestrator extends EventEmitter {
     return { ok: result.code === 0, output: `${result.stdout}\n${result.stderr}`.trim() || (result.code === 0 ? `Reverted hunk in ${path}` : "Patch failed") };
   }
 
+  /** Stop a local OMP session without deleting its stored transcript. */
+  async releaseThreadSession(threadId: string): Promise<void> {
+    await this.disposeSession(threadId).catch(() => undefined);
+  }
+
   async deleteNode(id: string): Promise<void> {
     if (id === "root") throw new Error("Cannot delete the root node");
     const node = this.store.getNode(id);
@@ -2816,3 +2821,4 @@ function envToolNames(node: TreeNode, environment?: Environment): string[] {
   const names = environment?.toolNames?.length ? environment.toolNames : node.toolNames;
   return names?.length ? names : [];
 }
+
