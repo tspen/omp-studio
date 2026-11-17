@@ -35,7 +35,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
   ios:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,3 +60,4 @@ jobs:
         with:
           name: omp-remote-ios-simulator
           path: ios/App/build/Build/Products/Debug-iphonesimulator/omp-remote-ios-simulator.zip
+
