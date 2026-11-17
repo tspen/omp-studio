@@ -2756,7 +2756,7 @@ function cleanThreadTitle(value: string): string {
 function denyValue(request: ApprovalRequest): unknown {
   if (request.kind === "confirm") return false;
   if (request.kind === "select") {
-    return request.options?.find((option) => /deny|reject|cancel/i.test(option.label))?.value ?? request.options?.[0]?.value ?? null;
+    return request.options?.find((option) => /deny|reject|cancel/i.test(option.label))?.value ?? null;
   }
   return null;
 }
