@@ -115,9 +115,9 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 ## Known scope and choices
 
 - Environments are local only (env vars, secrets, setup scripts, services via commands). Docker/WSL/remote are intentionally deferred.
-- Sites are served locally on `127.0.0.1:4338` from `%APPDATA%\omp-studio\omp-studio\sites`. Each publish snapshots the folder (skipping `node_modules` and `.git`), keeps the last 12 versions and serves localhost only. Cloudflare Pages and GitHub Pages deploys are supported; custom domains and Cloudflare Access are configured in Cloudflare itself.
+- Sites are served locally on `127.0.0.1:4338` from `%APPDATA%\omp-studio\omp-studio\sites`. Each publish snapshots the folder (skipping `node_modules` and `.git`), keeps the last 12 versions and serves localhost only. Cloudflare Pages and GitHub Pages deploys are supported, along with Cloudflare custom domains and Access allow-list apps from the site card.
 - The sandbox is a policy layer, not a kernel sandbox: it blocks configured command fragments in app terminals/dev servers, injects path and network rules into agent prompts, and records an audit trail. OMP's own shell still runs under your Windows account.
-- Windows computer use and desktop input are opt-in and disabled by default. iOS/Android simulators, mobile control and cloud VMs are not implemented.
+- Windows computer use and desktop input are opt-in and disabled by default. Android emulators/devices are supported through adb. iOS simulators require macOS, and cloud/remote execution plus mobile control are explicitly excluded.
 - Model scores come from the public Artificial Analysis leaderboard; the app fetches it daily and labels the source. No API key is required.
 - The tree is logically unlimited, but concurrent OMP sessions are capped in Settings (default 8) and idle sessions are parked.
 - Tool approval defaults to YOLO because the app is built for unattended orchestration. Change it per node from the chat toolbar, or set the app-wide default and apply it to all nodes in Settings -> General. Interactive questions from OMP are still surfaced; only permission prompts are auto-approved.

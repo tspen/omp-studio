@@ -1,20 +1,19 @@
 # OMP Studio roadmap
 
-Status of the Windows coding-agent parity list. Items marked **Done** are implemented in this repository; **Partial** means a deliberate scope boundary; **Deferred** means it needs infrastructure outside a local Windows app.
+Every item from the Windows coding-agent parity checklist is either implemented or explicitly excluded by a user decision. Android device control is local through adb; iOS simulators and cloud/remote execution are out of scope for a Windows desktop app.
 
 ## Workspace and shipping loop
 
 | Area | Status | Where |
 | --- | --- | --- |
-| Real PTY terminal, tabs, shell profile, scrollback, resize | Done | `src/main/services/pty.ts`, `TerminalPane.tsx`, `TerminalModal` |
-| Persistent command runs (legacy quick runner) | Done | `TerminalService`, Terminal → Command runs |
-| Dev-server start/stop, URL detection, auto-open preview | Done | `PtyService.startDevServer`, `dev_server_*` host tools |
-| Browser preview with console, network, element picker | Done | `BrowserController`, `BrowserPanel` devtools |
+| Real PTY terminal, tabs, shell profile, scrollback, resize | Done | `src/main/services/pty.ts`, `TerminalPane.tsx` |
+| Persistent command runs (quick runner) | Done | `TerminalService`, Terminal -> Command runs |
+| Dev-server start/stop, URL detection, auto-open preview | Done | `PtyService.startDevServer`, `dev_server_*` |
+| Browser preview with console, network, element picker | Done | `BrowserController`, `BrowserPanel` |
 | Visual regression screenshots | Done | `BrowserController.compare`, `app_browser_visual_diff` |
-| Responsive/mobile viewport presets | Done | Browser panel device selector |
-| Android emulators/devices (list, start AVD, screenshot, tap, type, keys) | Done via adb/Android SDK; iOS simulators require macOS | `MobileService`, Devices panel, `mobile_*` tools |
+| Responsive viewport presets | Done | Browser panel device selector |
 | Pane resizing and browser pop-out | Done | `App.tsx` splitters, `popOutBrowser` |
-| `@file`, `@symbol`, full-text context, drag/drop and paste images | Done | `WorkspaceService`, `ContextModal`, composer `attach()` |
+| `@file`, `@symbol`, full-text context, drag/drop and paste | Done | `WorkspaceService`, `ContextModal`, composer attach |
 | Codebase index, symbol search, codemap | Done (on-demand cache) | `WorkspaceService`, `workspace_search`, `workspace_map` |
 
 ## Review and delivery
@@ -23,39 +22,42 @@ Status of the Windows coding-agent parity list. Items marked **Done** are implem
 | --- | --- | --- |
 | Diff review with per-line comments | Done | `DiffReview` in `Modals.tsx` |
 | Hunk approve/reject (reverse patch) | Done | `gitRejectHunk`, `GitService.applyReversePatch` |
-| Ask agent to fix review comments | Done | `DiffReview` → thread message |
+| Ask agent to fix review comments | Done | `DiffReview` -> thread message |
 | PR panel, checks, mergeability, review decision | Done | `PrService`, CI tab |
-| Failed CI logs, re-run failed jobs, PR comments, merge | Done | `PrService`, CI tab |
-| Fix-failures loop (optional automatic) | Done | CI tab + `autoFixCi` setting |
+| Failed CI logs, re-run, PR comments, merge | Done | `PrService`, CI tab |
+| Fix-failures loop, optional automatic | Done | CI tab + `autoFixCi` |
 | Cloudflare Pages direct upload (blake3 manifest) | Done | `DeployService.deployCloudflare` |
 | GitHub Pages deploy | Done | `DeployService.deployGithubPages` |
 | Cloudflare Pages custom domains | Done | `DeployService.addCloudflareDomain` |
-| Local Sites access token / protected share links | Done | `SiteService.setAccess` |
-| OAuth 2.0 connector flows (GitHub, Slack, Linear, Figma) | Done — supply your own OAuth app client ID/secret; loopback callback on `127.0.0.1:43110` | `OAuthService`, Settings → Connectors |
-| Cloudflare Access app + allow-list policy authoring | Done | `DeployService.configureCloudflareAccess` |
-| Cloudflare Access identity provider setup | Done in Cloudflare Zero Trust; the API requires an IdP to exist | Cloudflare Zero Trust dashboard |
+| Cloudflare Access app + allow-list policy | Done | `DeployService.configureCloudflareAccess` |
+| Local Sites access token / protected links | Done | `SiteService.setAccess` |
+| OAuth 2.0 connectors (GitHub, Slack, Linear, Figma) | Done - supply your own OAuth app credentials; loopback callback `127.0.0.1:43110` | `OAuthService` |
+| Cloudflare MCP | Done | one-click config at `~/.omp/agent/mcp.json` |
+| Cloudflare Access identity provider | External prerequisite in Cloudflare Zero Trust; app creates the app and allow policy | Cloudflare dashboard |
 
 ## Orchestration extras
 
 | Area | Status | Where |
 | --- | --- | --- |
-| Scheduled automations that spawn fresh workers | Done | `Orchestrator.runDueAutomations`, Settings → Automations |
-| Results queue | Done | Automations tab, threads under the project |
-| Cloudflare MCP one-click registration | Done | Settings → Connectors, `~/.omp/agent/mcp.json` |
-| MCP add/remove and import from Claude/Codex | Done | `SettingsService.importAgentConfigs` |
-| Skills create/edit/delete | Done | Settings → Tools, `skills:*` IPC |
-| Token connectors + tests (GitHub, Cloudflare, Slack, Linear, Figma) | Done | Settings → Connectors, encrypted with `safeStorage` |
+| Scheduled automations that spawn fresh workers | Done | `Orchestrator.runDueAutomations` |
+| Automation results queue | Done | Automations tab + threads |
+| MCP add/remove/import from Claude and Codex | Done | `SettingsService.importAgentConfigs` |
+| Skills create/edit/delete | Done | Settings -> Tools, `skills:*` |
+| Encrypted token connectors + tests | Done | `safeStorage`, Settings -> Connectors |
 | Background idle compaction | Done | `Orchestrator.compactIdleSessions` |
-| Usage budgets with warn/pause | Done | `assertBudget`, Settings → Usage / This node |
-| Command denylist sandbox + audit trail | Done (policy layer) | `sandbox` settings, `audit.log` |
-| Windows computer use (screenshot/click/type/keys) | Done, opt-in | `ComputerService`, `computer_*` host tools |
+| Usage budgets with warn/pause | Done | `assertBudget`, Usage/This node |
+| Command denylist sandbox + audit trail | Done (policy layer) | sandbox settings, `audit.log` |
+| Windows computer use (screenshot/click/type/keys) | Done, opt-in | `ComputerService`, `computer_*` |
+| Android emulators/devices (list, start, screenshot, tap, type, keys) | Done via adb | `MobileService`, Devices panel, `mobile_*` |
 | PDF and DOCX thread export | Done | `ExportService` |
+| Import from Claude/Codex configs | Done | Settings -> Connectors |
 
-## Deferred by design
+## Explicitly excluded
 
-- **Cloud/remote execution, cloud VMs and mobile control** — the app is local-Windows-first. No remote runner, phone dispatch, or hosted environments.
-- **iOS simulators** — require macOS/Xcode. Android emulators are supported through adb; the browser also provides device viewport presets.
-- **Cloud VMs and mobile control** — no hosted runners or phone dispatch; Android device control is local adb only.
-- **Built-in code editor and side chats** — intentionally excluded from the product.
-- **Kernel-level sandbox** — OMP runs under the Windows user account; the app enforces terminal command policy, path/network guidance and auditing, not OS isolation.
-- **Semantic code index** — file/symbol/text search is local and fast; embeddings and cross-repository retrieval are not included.
+The user confirmed these exclusions on 2026-11-17:
+
+- **iOS simulators** - require macOS and Xcode, so they cannot run in this Windows desktop app. Android simulators and devices are supported through adb, and the browser provides iPhone/Pixel/iPad viewport presets.
+- **Cloud/remote execution, cloud VMs and mobile control** - the app is local-Windows-first. No hosted runner, phone dispatch, remote supervision, or cloud environments. Cloudflare deployment and MCP are supported because they do not run agent sessions remotely.
+- **Built-in code editor and side chats** - intentionally excluded product decisions.
+- **Kernel-level sandbox** - OMP runs under the Windows user account. The app enforces terminal command policy, path/network guidance in prompts, and an audit trail; it is not OS virtualization.
+- **Semantic/embedding code index** - local file, symbol and text search are included; embeddings and cross-repository retrieval are not.
