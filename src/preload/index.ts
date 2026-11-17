@@ -106,6 +106,7 @@ const api: OmpStudioApi = {
   deploySite: (id, provider) => invoke("sites:deploy", id, provider) as Promise<any>,
   setSiteAccess: (id, enabled) => invoke("sites:access", id, enabled) as Promise<any>,
   addSiteDomain: (id, domain) => invoke("sites:domain", id, domain) as Promise<any>,
+  configureCloudflareAccess: (id, domain, emails) => invoke("sites:cloudflare-access", id, domain, emails) as Promise<any>,
 
   connectorSecrets: () => invoke("connectors:secrets") as Promise<any>,
   setConnectorSecret: (key, value) => invoke("connectors:set-secret", key, value) as Promise<any>,

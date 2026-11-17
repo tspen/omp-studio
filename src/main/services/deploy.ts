@@ -26,8 +26,7 @@ export class DeployService {
     return deployment;
   }
 
-  async addCloudflareDomain(siteId: string, domain: string): Promise<{ ok: boolean; output: string; url?: string }> {
-    const site = this.store.sites.find((item) => item.id === siteId);
+  async addCloudflareDomain(siteId: string, domain: string): Promise<{ ok: boolean; output: string; url?: string }> {    const site = this.store.sites.find((item) => item.id === siteId);
     if (!site) throw new Error("Site not found");
     if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) throw new Error("Enter a valid domain name");
     const token = this.store.getSecret("cloudflare.token") || process.env.CLOUDFLARE_API_TOKEN || "";
@@ -42,6 +41,60 @@ export class DeployService {
     const payload = (await response.json().catch(() => ({}))) as any;
     if (!response.ok || payload.success === false) throw new Error(`Cloudflare domain failed: ${describe(payload)}`);
     return { ok: true, output: `Domain ${domain} added to ${project}. Point DNS at the Pages project if it is not on this Cloudflare account.`, url: `https://${domain}/` };
+  }
+
+  async configureCloudflareAccess(siteId: string, domain: string, emails: string[]): Promise<{ ok: boolean; output: string }> {
+    const site = this.store.sites.find((item) => item.id === siteId);
+    if (!site) throw new Error("Site not found");
+    const token = this.store.getSecret("cloudflare.token") || process.env.CLOUDFLARE_API_TOKEN || "";
+    const accountId = this.store.settings.connectors.cloudflare.accountId || process.env.CLOUDFLARE_ACCOUNT_ID || "";
+    if (!token || !accountId) throw new Error("Add a Cloudflare API token and account ID first");
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) throw new Error("A valid custom domain is required before Access can be configured");
+    const allowed = emails.map((email) => email.trim()).filter((email) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email));
+    if (!allowed.length) throw new Error("Add at least one allowed email address");
+    const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
+    const appsResponse = await fetch(`${API}/accounts/${accountId}/access/apps?per_page=100`, { headers });
+    const appsPayload = (await appsResponse.json().catch(() => ({}))) as any;
+    if (!appsResponse.ok) throw new Error(`Cloudflare Access lookup failed: ${describe(appsPayload)}`);
+    let app = (appsPayload.result ?? []).find((item: any) => String(item.domain ?? "").toLowerCase() === domain.toLowerCase());
+    if (!app) {
+      const created = await fetch(`${API}/accounts/${accountId}/access/apps`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: `${site.name} (OMP Studio)`,
+          domain,
+          type: "self_hosted",
+          session_duration: "24h",
+        }),
+      });
+      const createdPayload = (await created.json().catch(() => ({}))) as any;
+      if (!created.ok || createdPayload.success === false) throw new Error(`Cloudflare Access app failed: ${describe(createdPayload)}`);
+      app = createdPayload.result;
+    }
+    const appId = app?.id ?? app?.uid;
+    if (!appId) throw new Error("Cloudflare Access did not return an application id");
+    const policiesResponse = await fetch(`${API}/accounts/${accountId}/access/apps/${appId}/policies?per_page=100`, { headers });
+    const policiesPayload = (await policiesResponse.json().catch(() => ({}))) as any;
+    const existing = (policiesPayload.result ?? []) as any[];
+    const alreadyAllows = existing.some((policy) => policy.decision === "allow");
+    if (!alreadyAllows) {
+      const policy = await fetch(`${API}/accounts/${accountId}/access/apps/${appId}/policies`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: "OMP Studio allow list",
+          decision: "allow",
+          include: allowed.map((email) => ({ email: { email } })),
+        }),
+      });
+      const policyPayload = (await policy.json().catch(() => ({}))) as any;
+      if (!policy.ok || policyPayload.success === false) throw new Error(`Cloudflare Access policy failed: ${describe(policyPayload)}`);
+    }
+    return {
+      ok: true,
+      output: `Cloudflare Access protects https://${domain} for ${allowed.join(", ")}.${alreadyAllows ? " Existing allow policy kept." : ""} Configure an identity provider in Zero Trust if you have not already.`,
+    };
   }
 
   private async deployCloudflare(site: Site, versionDir: string): Promise<SiteDeployment> {

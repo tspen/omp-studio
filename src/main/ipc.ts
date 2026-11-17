@@ -317,6 +317,7 @@ export function registerIpc(context: IpcContext): void {
     return site;
   });
   ipcMain.handle("sites:domain", (_event, id: string, domain: string) => deploy.addCloudflareDomain(id, domain));
+  ipcMain.handle("sites:cloudflare-access", (_event, id: string, domain: string, emails: string[]) => deploy.configureCloudflareAccess(id, domain, emails));
 
   const connectorState = () => ({
     "cloudflare.token": store.hasSecret("cloudflare.token"),

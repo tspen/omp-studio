@@ -32,7 +32,8 @@ Status of the Windows coding-agent parity list. Items marked **Done** are implem
 | Cloudflare Pages custom domains | Done | `DeployService.addCloudflareDomain` |
 | Local Sites access token / protected share links | Done | `SiteService.setAccess` |
 | OAuth 2.0 connector flows (GitHub, Slack, Linear, Figma) | Done — supply your own OAuth app client ID/secret; loopback callback on `127.0.0.1:43110` | `OAuthService`, Settings → Connectors |
-| Cloudflare Access policy authoring | Via Cloudflare MCP/API (connected in Settings → Connectors), not a separate native UI | Cloudflare MCP `execute()` |
+| Cloudflare Access app + allow-list policy authoring | Done | `DeployService.configureCloudflareAccess` |
+| Cloudflare Access identity provider setup | Done in Cloudflare Zero Trust; the API requires an IdP to exist | Cloudflare Zero Trust dashboard |
 
 ## Orchestration extras
 

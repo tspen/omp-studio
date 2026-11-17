@@ -26,6 +26,7 @@ import {
   Search,
   Send,
   Share2,
+  ShieldCheck,
   Smartphone,
   Square,
   Terminal,
@@ -550,6 +551,21 @@ function SitesModal() {
                     state.pushToast({ kind: "success", title: "Domain added", body: result.output });
                   } catch (error) {
                     state.pushToast({ kind: "error", title: "Could not add domain", body: String(error) });
+                  } finally {
+                    setBusy(null);
+                  }
+                }} disabled={busy !== null} />
+                <IconButton icon={<ShieldCheck size={13} />} label="Protect custom domain with Cloudflare Access" onClick={async () => {
+                  const domain = window.prompt("Domain to protect with Cloudflare Access", `${site.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pages.dev`);
+                  if (!domain) return;
+                  const emails = window.prompt("Allowed emails (comma separated)", "");
+                  if (!emails) return;
+                  setBusy(`${site.id}-access`);
+                  try {
+                    const result = await window.omp.configureCloudflareAccess(site.id, domain.trim(), emails.split(",").map((email) => email.trim()).filter(Boolean));
+                    state.pushToast({ kind: "success", title: "Cloudflare Access configured", body: result.output });
+                  } catch (error) {
+                    state.pushToast({ kind: "error", title: "Cloudflare Access failed", body: String(error) });
                   } finally {
                     setBusy(null);
                   }

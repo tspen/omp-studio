@@ -954,6 +954,7 @@ export interface OmpStudioApi {
   deploySite(id: string, provider: "cloudflare" | "github-pages"): Promise<SiteDeployment>;
   setSiteAccess(id: string, enabled: boolean): Promise<Site>;
   addSiteDomain(id: string, domain: string): Promise<{ ok: boolean; output: string; url?: string }>;
+  configureCloudflareAccess(id: string, domain: string, emails: string[]): Promise<{ ok: boolean; output: string }>;
 
   setConnectorSecret(key: string, value: string): Promise<Record<string, boolean>>;
   connectorSecrets(): Promise<Record<string, boolean>>;
