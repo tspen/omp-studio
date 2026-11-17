@@ -30,6 +30,7 @@ export class CheckpointService {
       url: config.url,
       container: config.container,
       checkpoints: [],
+      bundles: [],
       error: this.lastError,
     };
     if (!base.configured) return base;
@@ -38,6 +39,8 @@ export class CheckpointService {
       base.running = !!health?.ok;
       const list = await this.request(`/checkpoints?container=${encodeURIComponent(config.container)}`, "GET");
       base.checkpoints = Array.isArray(list) ? list.map((item: { Name?: string }) => String(item.Name ?? "")).filter(Boolean) : [];
+      const bundles = await this.request("/bundles", "GET");
+      base.bundles = Array.isArray(bundles) ? bundles.map((item: { name?: string; path?: string }) => ({ name: String(item.name ?? ""), path: String(item.path ?? "") })) : [];
       this.lastError = undefined;
     } catch (error) {
       base.running = false;
@@ -69,6 +72,17 @@ export class CheckpointService {
     return this.info();
   }
 
+  async exportBundle(name?: string): Promise<{ bundle: string; bytes: number }> {
+    const checkpoint = name?.trim() || `omp-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+    const result = await this.request("/export", "POST", { container: this.config().container, name: checkpoint });
+    return { bundle: String(result.bundle ?? ""), bytes: Number(result.bytes ?? 0) };
+  }
+
+  async importBundle(bundle: string, name?: string): Promise<{ container: string; id: string }> {
+    const result = await this.request("/import", "POST", { bundle, name });
+    return { container: String(result.container ?? ""), id: String(result.id ?? "") };
+  }
+
   async remove(name: string): Promise<CheckpointInfo> {
     await this.request("/checkpoint", "DELETE", { container: this.config().container, name });
     return this.info();
@@ -91,3 +105,4 @@ export class CheckpointService {
     return payload;
   }
 }
+

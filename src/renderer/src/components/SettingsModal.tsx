@@ -1433,6 +1433,8 @@ function CheckpointSettings() {
   const [info, setInfo] = useState<CheckpointInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
+  const [bundlePath, setBundlePath] = useState("");
+  const [bundleMessage, setBundleMessage] = useState("");
   const [form, setForm] = useState({ url: "http://127.0.0.1:43160", container: "omp-runner", token: "" });
   useEffect(() => {
     void window.omp.runnerCheckpointInfo().then((next: CheckpointInfo) => {
@@ -1473,9 +1475,33 @@ function CheckpointSettings() {
           setName("");
           return next;
         })}>{busy ? <Spinner /> : <Pause size={12} />} Checkpoint now</Button>
+      </div>\n      <div className="remote-target-form">
+        <input placeholder="/backups/handoff.tar.gz" value={bundlePath} onChange={(event) => setBundlePath(event.target.value)} />
+        <Button size="sm" variant="soft" disabled={busy || !info?.running} onClick={async () => {
+          setBusy(true);
+          setBundleMessage("");
+          try {
+            const result = await window.omp.exportRunnerCheckpoint(name);
+            setBundleMessage(`Bundle ${result.bundle} (${(result.bytes / 1024 / 1024).toFixed(1)} MB). Copy it to the other host, then import.`);
+            setInfo(await window.omp.runnerCheckpointInfo());
+          } catch (error) {
+            setBundleMessage(String(error));
+          } finally { setBusy(false); }
+        }}>Export bundle</Button>
+        <Button size="sm" variant="outline" disabled={busy || !info?.running || !bundlePath.trim()} onClick={async () => {
+          setBusy(true);
+          setBundleMessage("");
+          try {
+            const result = await window.omp.importRunnerCheckpoint(bundlePath.trim());
+            setBundleMessage(`Restored as ${result.container} on this host.`);
+            setInfo(await window.omp.runnerCheckpointInfo());
+          } catch (error) {
+            setBundleMessage(String(error));
+          } finally { setBusy(false); }
+        }}>Import bundle</Button>
       </div>
-      {info?.error ? <p className="muted">{info.error}</p> : null}
-      {info?.checkpoints.length ? (
+      {bundleMessage ? <p className="muted">{bundleMessage}</p> : null}
+      {info?.error ? <p className="muted">{info.error}</p> : null}\n      {info?.checkpoints.length ? (
         <div className="remote-targets">
           {info.checkpoints.map((checkpoint) => (
             <div key={checkpoint} className="remote-target">
@@ -1690,6 +1716,7 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
 
 
 

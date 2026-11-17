@@ -37,3 +37,6 @@ ios/DerivedData/
 ios/App/*.xcworkspace/
 vendor/omp/omp
 vendor/omp/omp.part
+
+runner/backups/
+

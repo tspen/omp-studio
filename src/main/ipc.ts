@@ -483,6 +483,8 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("checkpoint:create", (_event, name?: string) => checkpoint.create(name));
   ipcMain.handle("checkpoint:restore", (_event, name: string) => checkpoint.restore(name));
   ipcMain.handle("checkpoint:delete", (_event, name: string) => checkpoint.remove(name));
+  ipcMain.handle("checkpoint:export", (_event, name?: string) => checkpoint.exportBundle(name));
+  ipcMain.handle("checkpoint:import", (_event, bundle: string, name?: string) => checkpoint.importBundle(bundle, name));
   ipcMain.handle("remote:export", (_event, threadId: string) => remote.exportThreadBundle(threadId));
   ipcMain.handle("remote:import", (_event, bundle: string) => remote.importThreadBundle(bundle));
   ipcMain.handle("remote:sync", () => remote.syncRemoteThreads());
@@ -553,6 +555,7 @@ export function registerIpc(context: IpcContext): void {
     });
   });
 }
+
 
 
 

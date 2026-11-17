@@ -83,8 +83,12 @@ Configure Settings → Remote → **Live checkpoint** with that URL, container
 
 Checkpoint stops the runner after CRIU writes the memory image; Restore starts
 it again from that image, continuing the same process tree and in-flight turn.
-Checkpoints live under Docker's data directory on the same host; cross-host
-transfer is not automated.
+**Export bundle** writes checkpoint images, container metadata and the `/data`
+archive to `runner/backups/`; copy that `.tar.gz` to the second host's backup
+directory and use **Import bundle**. Both hosts must use the same image digest,
+architecture, Docker data-root/volume names and CRIU/Docker versions. Docker
+checkpoints are path-sensitive; a stateless handoff was verified, but runner
+handoff needs matching hosts.
 
 **Security:** the agent mounts the Docker socket, which is root-equivalent on
 the host. Keep it bound to loopback, use a strong token, and do not expose it
@@ -126,3 +130,4 @@ are touched. No global `docker system prune`.
   unavailable, the rest of the runner still starts and reports terminals as
   unavailable instead of crashing.
 - The container is stateless except for the `omp-data` volume.
+

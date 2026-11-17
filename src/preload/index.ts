@@ -164,6 +164,8 @@ const api: OmpStudioApi = {
   createRunnerCheckpoint: (name?: string) => invoke("checkpoint:create", name) as Promise<any>,
   restoreRunnerCheckpoint: (name: string) => invoke("checkpoint:restore", name) as Promise<any>,
   deleteRunnerCheckpoint: (name: string) => invoke("checkpoint:delete", name) as Promise<any>,
+  exportRunnerCheckpoint: (name?: string) => invoke("checkpoint:export", name) as Promise<any>,
+  importRunnerCheckpoint: (bundle: string, name?: string) => invoke("checkpoint:import", bundle, name) as Promise<any>,
   exportThreadBundle: (threadId: string) => invoke("remote:export", threadId) as Promise<any>,
   importThreadBundle: (bundle: string) => invoke("remote:import", bundle) as Promise<any>,
   syncRemoteSessions: () => invoke("remote:sync") as Promise<any>,
@@ -216,6 +218,7 @@ const api: OmpStudioApi = {
 };
 
 contextBridge.exposeInMainWorld("omp", api);
+
 
 
 

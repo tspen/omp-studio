@@ -26,13 +26,18 @@ services:
       omp.kind: "container"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker:/var/lib/docker
+      - ./backups:/backups
       - ./checkpoint-agent.mjs:/app/checkpoint-agent.mjs:ro
     environment:
       CHECKPOINT_HOST: 127.0.0.1
       CHECKPOINT_PORT: "43160"
       CHECKPOINT_TOKEN: ${CHECKPOINT_TOKEN:?set CHECKPOINT_TOKEN}
+      DOCKER_ROOT: /var/lib/docker
+      BACKUP_DIR: /backups
     read_only: true
     tmpfs:
       - /tmp
     security_opt:
       - no-new-privileges:true
+

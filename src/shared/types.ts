@@ -443,6 +443,7 @@ export interface CheckpointInfo {
   url: string;
   container: string;
   checkpoints: string[];
+  bundles: Array<{ name: string; path: string }>;
   error?: string;
 }
 
@@ -1195,6 +1196,8 @@ export interface OmpStudioApi {
   createRunnerCheckpoint(name?: string): Promise<CheckpointInfo>;
   restoreRunnerCheckpoint(name: string): Promise<CheckpointInfo>;
   deleteRunnerCheckpoint(name: string): Promise<CheckpointInfo>;
+  exportRunnerCheckpoint(name?: string): Promise<{ bundle: string; bytes: number }>;
+  importRunnerCheckpoint(bundle: string, name?: string): Promise<{ container: string; id: string }>;
   lastPlacement(): Promise<PlacementResult | null>;
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;
   importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }>;
@@ -1267,6 +1270,7 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
 
 
 
