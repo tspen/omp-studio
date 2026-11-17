@@ -2,11 +2,13 @@
 
 Date: 2026-11-17
 
+Status: **design only**. Nothing here is implemented in the app yet; there is no runner, relay, PWA, Sprites/E2B/Daytona dependency or remote execution code in `src/`. The only committed artifacts are this document and `docs/remote-phase1-spec.md`.
+
 Goal: one execution model for OMP Studio where a session can run locally, on a spare VPS, on a home machine, or in a cloud sandbox; the user can reach it from the desktop app or phone anywhere; agents and the tree can move work between places; and the default is cloud.
 
 ## Recommendation in one sentence
 
-Build **one OMP Runner**, register every place it can run as a **target**, move sessions as **portable bundles at turn boundaries**, and reach runners through an **outbound-only encrypted relay** (with Tailscale/Cloudflare Tunnel as bring-your-own alternatives). Use **Fly Sprites** as the first managed cloud target; keep Docker/VPS as the self-hosted target.
+Build **one OMP Runner**, register every place it can run as a **target**, move sessions as **portable bundles at turn boundaries**, and reach runners only through **networks the user controls** (Tailscale, a self-hosted relay, or a Cloudflare Tunnel with Access). Make a **user-owned cloud target** (their VPS, or self-hosted E2B Embed) the default cloud; Sprites is an optional convenience adapter, never required and never in the traffic path. No OMP-hosted relay or compute sees prompts, code or transcripts.
 
 That is the "all in one" shape: placement is a property of a session, not a separate product.
 
@@ -22,6 +24,25 @@ Codex Cloud is the closest reference:
 - Internet allowlists, Tailscale VPN access and OIDC cloud credentials are first-class environment settings.
 
 So "Codex containers" is real: a cached, isolated workspace with a setup phase, a network proxy, secret injection, and persistent task state. That is the minimum bar for a credible cloud execution product.
+
+## Open-source and trust status
+
+| Option | Open source? | Who runs it | Fit with "no exposure" |
+| --- | --- | --- | --- |
+| **OMP Runner (ours)** | Yes, by definition | You, on your PC/VPS | Best. This is the thing to build. |
+| **Docker/VPS + Tailscale** | Yes | You | Best default "cloud" target. |
+| **E2B Embed** | Apache-2.0, `e2b-dev/runtime`, Docker Compose / one Linux host, no account or license key | You | Good open-source self-hosted sandbox; heavier than plain Docker. |
+| **E2B Cloud** | Runtime OSS, managed service proprietary | E2B | Opt-in only; code leaves your machine. |
+| **Firecracker / CRIU** | OSS (AWS / community) | You | Building blocks, not a product. |
+| **Fly Sprites** | **No.** Proprietary Fly.io managed service. Client SDKs (`@fly/sprites`, Go/TS/Elixir) are OSS, but the platform/orchestration is not. Fly announced an open-source local version at launch; it has not shipped. | Fly.io | **Not the default.** Convenience adapter only. |
+| **Daytona** | Was AGPL-3.0; production core went closed-source June 2026. Community fork `Nightona` continues the last open release v0.190.0. | You / community | Possible, but churny. |
+| **Cloudflare Containers** | Proprietary managed service; Workers runtime tooling is OSS | Cloudflare | Opt-in for Sites/preview only. |
+
+**Are we using Sprites?** No. No source file references it and no dependency is installed. It appears only as a proposed optional adapter in these design documents.
+
+**Does Sprites "just work"?** For a human with a Fly account, surprisingly close: `curl https://sprites.dev/install.sh | bash`, `sprite login`, `sprite create`, preinstalled Claude/Codex/Gemini, persistent disk, ~300 ms disk checkpoints, port forwarding, and a Tailscale-based mobile PWA. For OMP Studio it does **not** just work yet: we still need a runner image, OMP auth, git/secrets, pairing, relay/PWA, and a provider adapter. It also requires a Fly account/billing and puts code on a third-party VM, which conflicts with "I don't want to open myself up to anything".
+
+**Plain English: Sprites vs E2B.** Sprites is a persistent cloud computer: it sleeps when idle, the disk survives, and you checkpoint the whole disk. E2B is a freeze button for a running sandbox: pause saves memory and running processes, resume brings them back. Sprites feels like a dev machine; E2B feels like pausing a program mid-execution. For coding agents a dev machine is usually the better fit.
 
 ## What Simon Willison's writing implies
 
@@ -94,33 +115,33 @@ Three move qualities:
 
 The append-only session event log is the source of truth. Clients resume from the last sequence number; runners replay unacknowledged events. That makes reconnects and device switches reliable.
 
-### 4. Reachability: zero setup by default
+### 4. Reachability: zero setup, no public exposure
 
-Three options, in order of user experience:
+**Locked decision:** no OMP-hosted relay, no public inbound ports, no third-party plaintext. Every path is a network the user controls.
 
-**A. OMP relay (recommended default)**
-
-- Runner opens an outbound WebSocket over TLS.
-- Phone/desktop pair with a QR or 8-character code.
-- Messages are end-to-end encrypted with per-device keys; the relay only sees ciphertext and routing metadata.
-- No ports, DNS, certificates or VPN.
-- Push notifications go through the relay to the PWA/native app.
-- This is how Happy, T3 Code and several Claude remote projects work.
-
-**B. Tailscale (bring your own network)**
+**A. Tailscale (default)**
 
 - Embed `tsnet` in the runner or install Tailscale next to it.
-- App/phone joins the tailnet; `tailscale serve` provides HTTPS PWA.
-- No public exposure; good for privacy-conscious users.
-- Requires installing Tailscale on each device (not truly zero setup on iPhone, but close).
+- App/phone joins the user's tailnet; `tailscale serve` provides an HTTPS PWA.
+- No public exposure at all; access is enforced by tailnet ACLs.
+- The runner still dials out, so no port forwarding or dynamic DNS.
+- Cost: Tailscale install on each device; not quite zero-setup on iPhone, but closest to zero-trust.
+
+**B. Self-hosted relay**
+
+- A tiny relay the user runs on their own VPS (or on the same machine as the runner).
+- Runner opens an outbound WebSocket to it; phone/desktop pair with QR code.
+- End-to-end encryption means the relay never sees code, prompts or transcripts.
+- No inbound ports on the runner; only the relay has a reachable endpoint, protected by device keys.
+- This is the zero-app-store path for a phone, with no third-party service.
 
 **C. Cloudflare Tunnel + Access**
 
-- `cloudflared` connects outbound to Cloudflare; Access enforces email/SSO.
-- Needs a Cloudflare account and a domain (or a quick tunnel for testing).
-- Good for a stable public hostname and team access.
+- `cloudflared` connects outbound; Access enforces exact-email/SSO.
+- Needs a Cloudflare account/domain (or a quick tunnel for testing).
+- Best for a stable public hostname and team access.
 
-Recommendation: ship A as the default, offer B/C as "bring your own tunnel". Never require port forwarding.
+Recommendation: **A for privacy, B for phone convenience, C for teams**. Never require port forwarding, and never ship a managed OMP relay. PWA push metadata never contains prompt or code content.
 
 ### 5. Clients
 
@@ -179,23 +200,37 @@ session.terminate { sessionId, keepVolume }
 
 All payloads are E2E encrypted between client and runner; the relay forwards envelopes. Session events are the durable log; runner state is reconstructable.
 
+## FAQ: sessions on PCs and phone
+
+**Can I see my sessions from another PC or on my phone?** Yes, in the design. Every paired device shows the same session list, status, last output and pending approvals because the session registry and append-only event log are shared. The transcript/code itself stays on the runner that owns the session; your phone streams it over the E2E channel instead of holding a copy.
+
+**What about many PCs?** Each PC is a target. Sessions running on a laptop that is asleep/offline show as `offline` until it wakes; they are not visible as live streams. That is exactly why the default should be an always-on user-owned target (VPS/home server/cloud VM), not the laptop you close. A cold move can relocate an offline session to an always-on target once the source is reachable again.
+
+**Do I have to pick a place for each agent?** No. Placement is automatic: a policy plus the orchestrator choose the target from defaults, budget and data-residency constraints. You set the default once; routine worker placement is invisible. You can still use "Move to…" manually.
+
+**Can the agent move itself?** Yes, through `runtime_list` / `session_move` host tools, subject to policy. Moves that spend money or change data residency require consent.
+
+**Is this implemented today?** No. It is a design. The current app is local Windows only.
+
 ## Phased plan
 
 ### Phase 1 — one runner, one relay, desktop + PWA (2-4 weeks)
 
 - `omp-runner` executable/container with OMP, worktrees, PTY, checkpoints.
-- Outbound relay with QR pairing and E2E encryption.
+- Outbound-only connectivity through Tailscale, a self-hosted relay, or Cloudflare Tunnel + Access. No managed OMP relay.
+- Device pairing with QR/device code; E2E encryption; push metadata only.
 - Target registry: local + paired host + Docker/VPS.
 - Cold session move: export/import bundle; stop at turn boundary.
 - PWA with session list, chat, approvals, push notifications.
-- Tailscale/Cloudflare Tunnel instructions as BYO.
+- Automatic placement policy; no per-session placement dialog.
 
-### Phase 2 — cloud default (2-3 weeks)
+### Phase 2 - user-owned cloud default (2-3 weeks)
 
-- Sprites adapter: create computer, install runner, pair, suspend/resume, checkpoints, port forwarding.
-- Onboarding: "Start a cloud computer" (Sprites) or "Connect a machine".
-- Placement UI: target switcher, per-node defaults, "Move to…", cost meter, idle policy.
+- Self-hosted cloud target: Docker Compose / E2B Embed on a VPS, with Tailscale or a self-hosted relay.
+- Onboarding: "Connect a machine" (VPS/home PC) first. Cloud becomes the default only after that target is paired and consent is given; the target stays user-owned.
+- Placement UI: target switcher, per-node defaults, "Move to…", cost meter, idle policy. Placement decisions themselves are automatic.
 - Push notifications and mobile session cards.
+- Sprites adapter as a later **optional plugin**, not part of the default path.
 - Agent host tools for listing/moving sessions within policy.
 
 ### Phase 3 — move anything, anywhere (3-5 weeks)
@@ -212,14 +247,22 @@ All payloads are E2E encrypted between client and runner; the relay forwards env
 - Native mobile app before PWA proves the flow.
 - Kubernetes or multi-region orchestration.
 - Running cloud by default without a configured target or explicit consent.
+- A managed OMP relay or OMP-hosted compute in the traffic path.
 
-## Key product decisions to make
+## Decisions (2026-11-17)
 
-1. **Managed relay vs BYO-only.** Managed relay is the only true zero-setup path; it costs infrastructure and requires trust. Recommendation: managed relay with E2E, plus BYO tunnels.
-2. **Default cloud provider.** Sprites is the best fit for persistent agent computers; E2B is the best "pause everything including memory" API. Recommendation: Sprites first, E2B second.
-3. **What "default cloud" means at onboarding.** Recommend: cloud default once a target is connected; otherwise local. Never silently upload code.
+1. **No exposure.** No managed relay, no public inbound ports, no OMP-hosted compute in the traffic path. Use Tailscale, a self-hosted relay, or Cloudflare Tunnel + Access. E2E encryption regardless of transport. Cloud default applies only to a target the user explicitly pairs; code is never uploaded silently.
+2. **Sprites vs E2B.** Sprites = a persistent cloud computer with a sleeping disk and whole-disk checkpoints; proprietary Fly.io service, not open source. E2B = freeze/resume of a running sandbox including RAM and processes; runtime and Embed are Apache-2.0. Because "no exposure" wins, **user-owned Docker/VPS or self-hosted E2B Embed is the default cloud target**. Sprites is an optional convenience adapter, never required.
+3. **Seamless placement.** No "which session goes to cloud?" dialog per worker. A placement policy plus the orchestrator choose automatically; the user sets defaults, budget and data-residency constraints once. Agents can request a move through host tools, but routine placement is invisible.
+4. **No live migration.** Cold move at turn boundaries is enough for v1. No scheduler, hypervisor or CRIU/Firecracker live-move work until there is a real multi-user reason for it.
+
+## Remaining product defaults
+
+1. **Tailscale vs self-hosted relay vs both.** Recommend both, Tailscale first.
+2. **Default cloud provider.** A user-owned cloud target first: Docker/VPS runner or self-hosted E2B Embed. Sprites is a later opt-in convenience adapter only.
+3. **What "default cloud" means at onboarding.** Cloud default once a user-owned target is paired; otherwise local. Never silently upload code.
 4. **Secrets in snapshots.** Never include raw secrets in session bundles; re-inject per target.
-5. **Live migration scope.** Cold move at turn boundaries is enough for v1 and works across all providers.
+5. **Live migration scope.** Explicitly out of v1.
 
 ## Sources
 
@@ -235,6 +278,11 @@ All payloads are E2E encrypted between client and runner; the relay forwards env
 - Vercel sandbox comparison: https://vercel.com/i/ai-sandbox-providers
 - Firecracker snapshotting: https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md
 - CRIU: https://criu.org/
+- E2B open source and self-hosting: https://github.com/e2b-dev/E2B , https://e2b.dev/open-source , https://e2b.dev/docs/self-hosting
+- E2B Embed (Apache-2.0, one-machine self-host): https://e2b.dev/resources/introducing-e2b-embed
+- Fly Sprites SDK (client only, platform proprietary): https://www.npmjs.com/package/@fly/sprites
+- Fly Sprites open-source local version announcement/status: https://www.devclass.com/ai-ml/2026/01/13/flyio-introduces-sprites-lightweight-persistent-vms-to-isolate-agentic-ai/4079557
+- Daytona open-source history and Nightona fork: https://github.com/OpenSystemsLab/daytona , https://github.com/nightona-co/nightona
 - Simon Willison lethal trifecta: https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/
 - Happy remote client: https://github.com/slopus/happy
 - T3 Code: https://github.com/pingdotgg/t3code
