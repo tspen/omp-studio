@@ -21,6 +21,8 @@ const api: OmpStudioApi = {
   restartThread: (id) => invoke("thread:restart", id) as Promise<any>,
   continueThread: (id) => invoke("thread:continue", id) as Promise<any>,
   compactThread: (id) => invoke("thread:compact", id) as Promise<any>,
+  pauseThread: (id) => invoke("thread:pause", id) as Promise<any>,
+  resumeThread: (id) => invoke("thread:resume", id) as Promise<any>,
   setThreadModel: (id, selector) => invoke("thread:set-model", id, selector) as Promise<any>,
   setThreadEffort: (id, effort) => invoke("thread:set-effort", id, effort) as Promise<any>,
   focusThread: (id) => invoke("thread:focus", id) as Promise<any>,
@@ -209,6 +211,7 @@ const api: OmpStudioApi = {
 };
 
 contextBridge.exposeInMainWorld("omp", api);
+
 
 
 

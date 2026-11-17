@@ -251,7 +251,7 @@ export class RemoteService {
   }
 
   /** Send stop/continue/compact or a prompt to a thread that lives on a target. */
-  async proxyThreadAction(threadId: string, action: "send" | "stop" | "continue" | "compact", payload?: { text?: string }): Promise<boolean> {
+  async proxyThreadAction(threadId: string, action: "send" | "stop" | "continue" | "compact" | "pause" | "resume", payload?: { text?: string }): Promise<boolean> {
     const thread = this.store.getThread(threadId);
     if (!thread?.targetId || !thread.remoteThreadId) return false;
     const target = this.listTargets().find((item) => item.id === thread.targetId);
@@ -299,6 +299,7 @@ export class RemoteService {
     if (remote.lastMessage !== undefined) patch.lastMessage = remote.lastMessage;
     if (remote.lastActivityAt) patch.lastActivityAt = remote.lastActivityAt;
     if (remote.unread !== undefined) patch.unread = remote.unread;
+    if (remote.paused !== undefined) patch.paused = remote.paused;
     if (remote.cost !== undefined && remote.cost !== thread.cost) patch.cost = remote.cost;
     if (remote.tokens !== undefined && remote.tokens !== thread.tokens) patch.tokens = remote.tokens;
     if (remote.contextTokens !== undefined) patch.contextTokens = remote.contextTokens;
@@ -623,6 +624,14 @@ export class RemoteService {
         }
         if (action === "compact") {
           await this.orchestrator.compactThread(threadId);
+          return json(200, { ok: true });
+        }
+        if (action === "pause") {
+          await this.orchestrator.suspendThread(threadId);
+          return json(200, { ok: true });
+        }
+        if (action === "resume") {
+          await this.orchestrator.resumeThread(threadId);
           return json(200, { ok: true });
         }
       }
@@ -1112,6 +1121,8 @@ function normalizeUrl(value: string): string {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   return new URL(withScheme).toString().replace(/\/+$/, "");
 }
+
+
 
 
 

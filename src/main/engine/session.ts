@@ -221,6 +221,18 @@ export class OmpSession extends EventEmitter {
     this.options.onStatus(mode === "prompt" ? "running" : this.thread.status, mode === "prompt" ? "Working…" : undefined);
   }
 
+  async suspend(): Promise<void> {
+    if (!this.client?.isRunning) throw new Error("This session has no running turn to pause");
+    await this.client.suspend();
+    this.options.onStatus("running", "Paused");
+  }
+
+  async resume(): Promise<void> {
+    if (!this.client?.isRunning) throw new Error("This session is not running");
+    await this.client.resume();
+    this.options.onStatus("running", "Resumed");
+  }
+
   async abort(): Promise<void> {
     if (!this.client?.isRunning) return;
     await this.client.request("abort", {}, 30_000).catch(() => undefined);
@@ -916,3 +928,4 @@ function normalizeAnswers(frame: any, response: any): Array<{ id: string; select
   }
   return questions.map((question) => ({ id: question.id, selectedOptions: response ? [String(response)] : [] }));
 }
+

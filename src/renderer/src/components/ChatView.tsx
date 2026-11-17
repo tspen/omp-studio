@@ -16,6 +16,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Paperclip,
+  Pause,
+  Play,
   Plus,
   RotateCw,
   Save,
@@ -465,12 +467,25 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
             </span>
           </div>
           <div className="composer-right">
+                        {running ? (
+              <Button size="sm" variant="ghost" onClick={async () => {
+                try {
+                  if (thread.paused) await window.omp.resumeThread(thread.id);
+                  else await window.omp.pauseThread(thread.id);
+                  await state.refresh();
+                } catch (error) {
+                  state.pushToast({ kind: "error", title: "Pause failed", body: String(error) });
+                }
+              }}>
+                {thread.paused ? <Play size={14} /> : <Pause size={14} />} {thread.paused ? "Resume" : "Pause"}
+              </Button>
+            ) : null}
             {running ? (
               <Button size="sm" variant="ghost" onClick={() => void state.stop()}>
                 <CircleStop size={14} /> Stop
               </Button>
             ) : null}
-            <Button size="sm" variant="primary" disabled={!draft.trim() || state.sending} onClick={() => void submit()}>
+<Button size="sm" variant="primary" disabled={!draft.trim() || state.sending} onClick={() => void submit()}>
               {state.sending ? <Spinner size={13} /> : running ? <Split size={14} /> : <ArrowUp size={14} />}
               {running ? "Steer" : "Send"}
             </Button>
@@ -485,3 +500,4 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
     </div>
   );
 }
+

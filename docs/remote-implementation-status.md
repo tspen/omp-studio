@@ -25,6 +25,7 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 | Push notifications | VAPID keys stored as secrets; `GET /api/push/key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`. Push fires on approval requests, waiting/error status, and reply-required envelopes even when no WebSocket is connected. PWA service worker shows the notification and opens `/?thread=<id>` on click. |
 | Cost meter | `GET /api/usage` aggregates thread cost/tokens; `targetUsage` fetches it, records cost/tokens/usageAt on the target and mirrors cost/tokens for placed sessions. Settings shows placed-session cost and a per-target meter refresh. |
 | Self-hosted relay | `relay/server.mjs` is a stateless WebSocket relay. Runner dials out, clients connect to a room, frames are AES-256-GCM encrypted with HKDF-SHA256, and the relay only routes ciphertext. Serves the PWA, enforces room tokens, frame/client limits and reaps empty rooms. Dockerfile/compose and cleanup/security notes in `relay/`. |
+| Live pause/resume | Threads have `pauseThread`/`resumeThread` on the runner and `POST /api/threads/:id/{pause,resume}`. The OMP process tree is suspended (SIGSTOP or `NtSuspendProcess` on Windows) and resumed (SIGCONT/`NtResumeProcess`), preserving memory and the in-flight turn. Desktop and PWA expose Pause/Resume; placed sessions proxy the action to their target. |
 | E2B Embed target | `src/main/services/e2b.ts` creates Firecracker sandboxes from an `omp-runner` template on a self-hosted E2B Embed API, passes a per-sandbox `OMP_REMOTE_TOKEN`, waits for `/api/health`, and registers a normal target. Settings lets you configure API URL/domain/template/key/timeout and create or terminate sandbox targets. Template and host setup are documented in `e2b/README.md`. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
 
@@ -190,6 +191,19 @@ nested-virtualization VM) with kernel 6.8+, cgroup v2, `/dev/kvm` and
 settings UI and `omp-runner` template build instructions ship, but a sandbox
 session could not be created or measured on this machine.
 
+Live pause/resume (real OMP turn):
+
+```
+copy thread: thr_1c23d05799114232 (74 MB workspace, 441 files)
+prompt sent, status running
+pause -> statusMessage "Paused (process suspended)", paused=true
+OMP process 7912 threads: 75 Suspended, 1 Executive
+resume -> paused=false, status completed
+OMP threads: 0 Suspended, 64 Unknown, 10 EventPairLow
+```
+
+The process keeps its memory and in-flight turn; only execution is frozen.
+
 GC CLI on the real data directory (216 MB):
 
 ```
@@ -231,13 +245,16 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   `omp-remote-ios-simulator.zip` 1.5 MB). A signed installable device build
   still needs an Apple account, a signing certificate and a provisioning
   profile.
-- **Live migration**: moves are cold or warm at turn boundaries. Memory/device
-  snapshot migration and paused-microVM (E2B Embed) resume are not implemented.
+- **Cross-host memory migration**: same-host pause/resume is implemented and
+  verified. Moving a live process/memory image to another host (CRIU or E2B
+  pause/resume) is not implemented; moves remain cold or warm at turn boundaries.
 - **E2B live verification**: the adapter and template instructions ship, but the
   available WSL2 host fails E2B preflight (kernel 5.15, no cgroup v2). Verification
   requires a Linux/KVM host with kernel 6.8+ and cgroup v2.
 - **Docker image size**: includes Electron and build tooling; the OMP binary is
   downloaded on first use.
+
+
 
 
 

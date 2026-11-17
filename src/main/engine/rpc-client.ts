@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { trace } from "../diagnostics";
 
@@ -246,6 +246,20 @@ export class RpcClient extends EventEmitter {
     this.write(frame);
   }
 
+  get pid(): number | undefined {
+    return this.child?.pid;
+  }
+
+  async suspend(): Promise<void> {
+    if (!this.child?.pid) throw new Error("OMP process is not running");
+    await setSuspended(this.child.pid, true);
+  }
+
+  async resume(): Promise<void> {
+    if (!this.child?.pid) throw new Error("OMP process is not running");
+    await setSuspended(this.child.pid, false);
+  }
+
   interrupt(): void {
     if (!this.child) return;
     if (process.platform === "win32") {
@@ -340,4 +354,24 @@ export class RpcClient extends EventEmitter {
     }
     this.pending.clear();
   }
+}
+
+function setSuspended(pid: number, suspended: boolean): Promise<void> {
+  if (process.platform !== "win32") {
+    process.kill(pid, suspended ? "SIGSTOP" : "SIGCONT");
+    return Promise.resolve();
+  }
+  const call = suspended ? "NtSuspendProcess" : "NtResumeProcess";
+  const script = [
+    "$sig = '[DllImport(\"ntdll.dll\")] public static extern int NtSuspendProcess(IntPtr h); [DllImport(\"ntdll.dll\")] public static extern int NtResumeProcess(IntPtr h);'",
+    "Add-Type -MemberDefinition $sig -Name Nt -Namespace Win32 -ErrorAction SilentlyContinue | Out-Null",
+    "$p = Get-Process -Id " + pid + " -ErrorAction Stop",
+    "[Win32.Nt]::" + call + "($p.Handle) | Out-Null",
+  ].join("; ");
+  return new Promise((resolve, reject) => {
+    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { timeout: 15_000, windowsHide: true }, (error, _stdout, stderr) => {
+      if (error) reject(new Error(stderr || error.message));
+      else resolve();
+    });
+  });
 }

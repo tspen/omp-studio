@@ -324,7 +324,7 @@ export function App() {
     }
   };
 
-  const action = async (id: string, name: "stop" | "continue") => {
+  const action = async (id: string, name: "stop" | "continue" | "pause" | "resume") => {
     try {
       await api(`/api/threads/${encodeURIComponent(id)}/${name}`, { method: "POST", body: "{}" });
     } catch (failure) {
@@ -622,14 +622,14 @@ function urlBase64ToUint8Array(value: string): Uint8Array {
   return bytes;
 }
 
-function Composer({ running, disabled, onSend, onStop, onContinue }: { running: boolean; disabled: boolean; onSend: (text: string) => Promise<boolean>; onStop: () => void; onContinue: () => void }) {
+function Composer({ running, paused, disabled, onSend, onStop, onPause, onContinue }: { running: boolean; paused: boolean; disabled: boolean; onSend: (text: string) => Promise<boolean>; onStop: () => void; onPause: () => void; onContinue: () => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   return (
     <div className="composer">
       <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder={running ? "Steer this turn…" : "Ask the agent…"} rows={2} />
       <div className="composer-actions">
-        {running ? <button className="danger" onClick={onStop}>Stop</button> : <button className="ghost" onClick={onContinue}>Continue</button>}
+        {running ? <button className="ghost" onClick={onPause}>{paused ? "Resume" : "Pause"}</button> : null}\n        {running ? <button className="danger" onClick={onStop}>Stop</button> : <button className="ghost" onClick={onContinue}>Continue</button>}
         <button className="primary" disabled={disabled || busy || !text.trim()} onClick={async () => {
           setBusy(true);
           const ok = await onSend(text);
@@ -685,6 +685,7 @@ function relativeTime(at: number): string {
   if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
   return `${Math.round(seconds / 86400)}d`;
 }
+
 
 
 

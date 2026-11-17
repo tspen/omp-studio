@@ -751,6 +751,28 @@ export class Orchestrator extends EventEmitter {
     });
   }
 
+  async suspendThread(threadId: string): Promise<void> {
+    const thread = this.store.getThread(threadId);
+    if (!thread) throw new Error("Thread not found");
+    const session = this.sessions.get(threadId);
+    if (!session) throw new Error("This session has no live process to pause");
+    await session.suspend();
+    const updated = this.store.updateThread(threadId, { paused: true, statusMessage: "Paused (process suspended)" });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+    audit("thread-pause", { threadId });
+  }
+
+  async resumeThread(threadId: string): Promise<void> {
+    const thread = this.store.getThread(threadId);
+    if (!thread) throw new Error("Thread not found");
+    const session = this.sessions.get(threadId);
+    if (!session) throw new Error("This session has no live process to resume");
+    await session.resume();
+    const updated = this.store.updateThread(threadId, { paused: false, statusMessage: "Resumed" });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+    audit("thread-resume", { threadId });
+  }
+
   async stopThread(threadId: string): Promise<void> {
     const session = this.sessions.get(threadId);
     if (session) await session.abort();
@@ -2821,4 +2843,6 @@ function envToolNames(node: TreeNode, environment?: Environment): string[] {
   const names = environment?.toolNames?.length ? environment.toolNames : node.toolNames;
   return names?.length ? names : [];
 }
+
+
 

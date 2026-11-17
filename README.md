@@ -116,6 +116,8 @@ token, the PWA install link, targets, cold move and a cleanup report.
   the desktop mirrors status and messages.
 - Push notifications (VAPID Web Push) for approvals, waiting/error sessions and
   reply requests, with notification-click deep links; per-target cost/token meter.
+- Live pause/resume: freeze the OMP process tree and resume the same in-flight
+  turn; exposed in desktop and PWA, proxied for placed sessions.
 - Everything the runner creates is garbage-collected: startup plus every five
   minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
   `npm run runner:quota` and `POST /api/maintenance/sweep`.
@@ -125,7 +127,7 @@ Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
 (51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push and the cost meter
 reads `GET /api/usage`. Relay traffic is end-to-end encrypted (17 sessions
 loaded through the relay in the checks). Full evidence and remaining gaps
-(signed iOS, live migration, E2B live verification) are in
+(signed iOS, cross-host memory migration, E2B live verification) are in
 [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 
 ## Architecture
@@ -179,3 +181,4 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 ## License
 
 MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+

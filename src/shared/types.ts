@@ -229,6 +229,7 @@ export interface Thread {
   statusMessage?: string;
   interrupted?: boolean;
   interruptedAt?: number;
+  paused?: boolean;
   model: ModelRef;
   modelManual?: boolean;
   effort: string;
@@ -1061,6 +1062,8 @@ export interface OmpStudioApi {
   restartThread(id: string): Promise<void>;
   continueThread(id: string): Promise<void>;
   compactThread(id: string): Promise<void>;
+  pauseThread(id: string): Promise<void>;
+  resumeThread(id: string): Promise<void>;
   setThreadModel(id: string, selector: string): Promise<Thread>;
   setThreadEffort(id: string, effort: string): Promise<Thread>;
   focusThread(id: string | null): Promise<void>;
@@ -1243,6 +1246,8 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
+
 
 
 

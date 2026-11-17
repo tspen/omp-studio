@@ -106,6 +106,14 @@ export function registerIpc(context: IpcContext): void {
     if (await remote.proxyThreadAction(id, "compact")) return;
     return orchestrator.compactThread(id);
   });
+  ipcMain.handle("thread:pause", async (_event, id: string) => {
+    if (await remote.proxyThreadAction(id, "pause")) return;
+    return orchestrator.suspendThread(id);
+  });
+  ipcMain.handle("thread:resume", async (_event, id: string) => {
+    if (await remote.proxyThreadAction(id, "resume")) return;
+    return orchestrator.resumeThread(id);
+  });
   ipcMain.handle("thread:set-model", (_event, id: string, selector: string) => orchestrator.setThreadModel(id, selector));
   ipcMain.handle("thread:set-effort", (_event, id: string, effort: string) => orchestrator.setThreadEffort(id, effort));
   ipcMain.handle("thread:focus", (_event, id: string | null) => orchestrator.setFocusedThread(id));
@@ -538,6 +546,8 @@ export function registerIpc(context: IpcContext): void {
     });
   });
 }
+
+
 
 
 
