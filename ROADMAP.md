@@ -65,6 +65,10 @@ Implemented from the analysis:
 
 Deliberately not pursued after user review: plan mode, lifecycle hooks, and a separate shared task board/mailbox (the tree already covers coordination for this workflow).
 
+## Remote execution design
+
+A full architecture for cloud/remote/mobile execution is in [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md): one runner, target registry, portable session bundles, outbound-only E2E relay, Sprites/E2B/Docker targets, mobile PWA and phased rollout.
+
 ## Explicitly excluded
 
 The user confirmed these exclusions on 2026-11-17:
