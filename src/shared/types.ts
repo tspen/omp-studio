@@ -192,6 +192,15 @@ export interface MobileDevice {
   model?: string;
 }
 
+export interface PaneDiff {
+  title: string;
+  content: string;
+  path?: string;
+  review?: { nodeId: string; threadId?: string; path: string };
+}
+
+export type PaneKind = "terminal" | "diff" | "tasks";
+
 export interface CiRun {
   id: string;
   title: string;
@@ -993,6 +1002,9 @@ export interface OmpStudioApi {
   getBrowserDevtools(): Promise<{ console: BrowserConsoleEntry[]; network: BrowserNetworkEntry[] }>;
   pickBrowserElement(): Promise<{ selector: string; text: string; tag: string } | null>;
   popOutBrowser(url: string): Promise<void>;
+  popOutPane(input: { kind: PaneKind; threadId?: string; diff?: PaneDiff }): Promise<void>;
+  getPaneData(kind: PaneKind): Promise<PaneDiff | null>;
+  closeWindow(): Promise<void>;
   captureBrowser(): Promise<string>;
   compareBrowserScreenshots(before: string, after: string): Promise<{ path: string; diffPixels: number; totalPixels: number; percent: number }>;
 

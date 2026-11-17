@@ -3,12 +3,14 @@ import { Bell, Command, Globe, Inbox, Rocket, Search, Settings, Sparkles } from 
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { BrowserPanel } from "./components/BrowserPanel";
+import { PaneHost, PopoutPane } from "./components/PaneHost";
 import { ThreadRail } from "./components/ThreadRail";
 import { SettingsModal } from "./components/SettingsModal";
 import { ApprovalModal, Modals } from "./components/Modals";
 import { Onboarding } from "./components/Onboarding";
 import { Badge, IconButton, Logo, Toasts, cx, formatCost, formatNumber } from "./components/Common";
 import { selectedNode, selectedThread, useApp } from "./store";
+import type { PaneKind } from "../../shared/types";
 
 export function App() {
   const state = useApp();
@@ -71,6 +73,11 @@ export function App() {
   const projects = state.snapshot.nodes.filter((item) => item.type === "project").length;
   const running = state.snapshot.threads.filter((item) => item.status === "running").length;
   const waiting = state.snapshot.threads.filter((item) => item.status === "waiting" || item.pendingApproval).length;
+  const paneParam = new URLSearchParams(window.location.search).get("pane") as PaneKind | null;
+  const paneThread = new URLSearchParams(window.location.search).get("thread") ?? undefined;
+  if (paneParam === "terminal" || paneParam === "diff" || paneParam === "tasks") {
+    return <PopoutPane kind={paneParam} threadId={paneThread || undefined} />;
+  }
 
   return (
     <div className="app">
@@ -78,7 +85,10 @@ export function App() {
       <div className="shell" style={{ "--sidebar-width": `${state.paneWidths.sidebar}px`, "--right-width": `${state.paneWidths.right}px`, "--browser-width": `${state.paneWidths.browser}px` } as React.CSSProperties}>
         <Sidebar />
         <Splitter pane="sidebar" />
-        <ChatView />
+        <div className="main-column">
+          <ChatView />
+          {state.paneOpen ? <PaneHost /> : null}
+        </div>
         {state.browserOpen ? <><Splitter pane="browser" /><BrowserPanel /></> : null}
         {state.railOpen ? <><Splitter pane="right" /><ThreadRail /></> : null}
       </div>

@@ -30,7 +30,7 @@ import { UsageService } from "./services/usage";
 import { ProviderService } from "./services/providers";
 import { initDiagnostics, trace } from "./diagnostics";
 import { initAudit } from "./audit";
-import type { AppEvent } from "../shared/types";
+import type { AppEvent, PaneDiff, PaneKind } from "../shared/types";
 
 let mainWindow: BrowserWindow | null = null;
 let browserWindow: BrowserWindow | null = null;
@@ -41,6 +41,8 @@ let share: ShareService | null = null;
 let sites: SiteService | null = null;
 let store: Store | null = null;
 let terminals: PtyService | null = null;
+const paneWindows = new Map<PaneKind, BrowserWindow>();
+const panePayload = new Map<PaneKind, PaneDiff | null>();
 
 const smokeTest = process.argv.includes("--smoke-test");
 const integrationTest = process.argv.includes("--integration-test");
@@ -375,6 +377,41 @@ function openBrowserWindow(url: string): void {
   browserWindow.show();
 }
 
+function openPaneWindow(input: { kind: PaneKind; threadId?: string; diff?: PaneDiff }): void {
+  const existing = paneWindows.get(input.kind);
+  if (existing && !existing.isDestroyed()) existing.close();
+  panePayload.set(input.kind, input.diff ?? null);
+  const win = new BrowserWindow({
+    width: 1000,
+    height: 760,
+    minWidth: 460,
+    minHeight: 320,
+    title: `OMP Studio - ${input.kind}`,
+    backgroundColor: "#f7f7f8",
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  paneWindows.set(input.kind, win);
+  win.on("closed", () => {
+    if (paneWindows.get(input.kind) === win) paneWindows.delete(input.kind);
+  });
+  if (process.env.ELECTRON_RENDERER_URL) {
+    void win.loadURL(
+      `${process.env.ELECTRON_RENDERER_URL}?pane=${encodeURIComponent(input.kind)}&thread=${encodeURIComponent(input.threadId ?? "")}`,
+    );
+  } else {
+    void win.loadFile(join(__dirname, "../renderer/index.html"), {
+      query: { pane: input.kind, thread: input.threadId ?? "" },
+    });
+  }
+  win.show();
+}
+
 async function createWindow(): Promise<void> {
   const icon = iconPath();
   mainWindow = new BrowserWindow({
@@ -630,6 +667,8 @@ async function bootstrap(): Promise<void> {
       mainWindow?.focus();
     },
     popOutBrowser: (url: string) => openBrowserWindow(url),
+    popOutPane: (input: { kind: PaneKind; threadId?: string; diff?: PaneDiff }) => openPaneWindow(input),
+    getPaneData: (kind: PaneKind) => panePayload.get(kind) ?? null,
   };
   registerIpc(context);
 

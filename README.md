@@ -29,7 +29,7 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 - **Sandbox and audit**: command denylist enforced in app terminals and dev servers, path/network policy injected into agent guidance, Windows computer-use toggle, and a JSONL audit trail of prompts, host tools, approvals and deploys.
 - **Budgets**: app-level and per-node USD budgets with warn-only or pause-new-work enforcement.
 - **Codebase intelligence**: workspace file index, symbol codemap, content search, and recent-file ranking exposed to both the UI and `workspace_search`/`workspace_map`.
-- **Workspace panes**: draggable splitters for sidebar, chat, browser and rail, browser pop-out, and a maximized terminal/browser workflow without an in-app code editor.
+- **Workspace panes**: a tabbed bottom pane host for Terminal, Diff and Tasks with a draggable splitter, pop-out windows for each pane, plus draggable sidebar/browser/rail splitters and a browser pop-out. No in-app code editor.
 - **Exports and extras**: thread export to PDF or DOCX, desktop screenshots and clicks/typing for Windows apps (opt-in), visual regression diffs from the browser, Android emulator/device control through adb (screenshot, tap, type, keys), and mobile viewport presets for responsive checks.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 

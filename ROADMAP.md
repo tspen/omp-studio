@@ -12,7 +12,8 @@ Every item from the Windows coding-agent parity checklist is either implemented 
 | Browser preview with console, network, element picker | Done | `BrowserController`, `BrowserPanel` |
 | Visual regression screenshots | Done | `BrowserController.compare`, `app_browser_visual_diff` |
 | Responsive viewport presets | Done | Browser panel device selector |
-| Pane resizing and browser pop-out | Done | `App.tsx` splitters, `popOutBrowser` |
+| Pane host with tabs and pop-outs (terminal, diff, tasks) | Done | `PaneHost.tsx`, `pane:popout` |
+| Pane resizing, bottom pane splitter and browser pop-out | Done | `App.tsx` splitters, `popOutBrowser` |
 | `@file`, `@symbol`, full-text context, drag/drop and paste | Done | `WorkspaceService`, `ContextModal`, composer attach |
 | Codebase index, symbol search, codemap | Done (on-demand cache) | `WorkspaceService`, `workspace_search`, `workspace_map` |
 

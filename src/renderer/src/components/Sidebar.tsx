@@ -73,7 +73,7 @@ export function Sidebar() {
         <NavItem icon={<TreePine size={16} />} label="All threads" onClick={() => state.setOverlay("search")} />
         <NavItem icon={<Archive size={16} />} label="Artifacts" onClick={() => { void state.loadArtifacts(); state.setOverlay("artifacts"); }} />
         <NavItem icon={<Globe size={16} />} label="Sites" badge={state.sites.length ? String(state.sites.length) : undefined} onClick={() => { void state.loadSites(); state.setOverlay("sites"); }} />
-        <NavItem icon={<TerminalSquare size={16} />} label="Terminal" onClick={() => { void state.loadTerminals(); state.setOverlay("terminal"); }} />
+        <NavItem icon={<TerminalSquare size={16} />} label="Terminal" onClick={() => state.openPane("terminal")} />
         <NavItem icon={<Smartphone size={16} />} label="Devices" onClick={() => state.setOverlay("devices")} />
       </nav>
 

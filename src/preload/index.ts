@@ -145,6 +145,9 @@ const api: OmpStudioApi = {
   getBrowserDevtools: () => invoke("browser:devtools") as Promise<any>,
   pickBrowserElement: () => invoke("browser:pick") as Promise<any>,
   popOutBrowser: (url) => invoke("browser:popout", url) as Promise<any>,
+  popOutPane: (input) => invoke("pane:popout", input) as Promise<any>,
+  getPaneData: (kind) => invoke("pane:data", kind) as Promise<any>,
+  closeWindow: () => invoke("window:close") as Promise<any>,
   captureBrowser: () => invoke("browser:screenshot") as Promise<any>,
   compareBrowserScreenshots: (before, after) => invoke("browser:diff", before, after) as Promise<any>,
 

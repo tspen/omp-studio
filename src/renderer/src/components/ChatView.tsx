@@ -26,6 +26,7 @@ import {
   Users,
   Zap,
   History,
+  ListChecks,
   Target,
   Trash2,
   X,
@@ -271,6 +272,7 @@ function ThreadHeader({
           <Plus size={14} /> Thread
         </Button>
         <IconButton icon={<Target size={15} />} label="Goal mode" onClick={() => state.setOverlay("goal")} />
+        <IconButton icon={<ListChecks size={15} />} label="Open tasks pane" onClick={() => state.openPane("tasks")} />
         <IconButton icon={<Minimize2 size={15} />} label="Compact context now" onClick={async () => {
           if (thread.status === "running" && !confirm("Manual compaction aborts the current turn. Continue?")) return;
           state.pushToast({ kind: "info", title: "Compacting context", body: "OMP is summarizing older history." });

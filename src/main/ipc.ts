@@ -1,5 +1,5 @@
 import { app, dialog, ipcMain, shell, BrowserWindow } from "electron";
-import type { AppEvent, NewNodeRequest, NewThreadRequest, OnboardingPayload, SendMessageRequest, SettingsPatch } from "../shared/types";
+import type { AppEvent, NewNodeRequest, NewThreadRequest, OnboardingPayload, PaneDiff, PaneKind, SendMessageRequest, SettingsPatch } from "../shared/types";
 import type { EngineLocator } from "./engine/engine-locator";
 import type { Orchestrator } from "./orchestrator/orchestrator";
 import type { ArtifactService } from "./services/artifacts";
@@ -51,10 +51,12 @@ export interface IpcContext {
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
   popOutBrowser: (url: string) => void;
+  popOutPane: (input: { kind: PaneKind; threadId?: string; diff?: PaneDiff }) => void;
+  getPaneData: (kind: PaneKind) => PaneDiff | null;
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -433,6 +435,9 @@ export function registerIpc(context: IpcContext): void {
   });
   ipcMain.handle("browser:screenshot", () => browser.screenshot());
   ipcMain.handle("browser:diff", (_event, before: string, after: string) => browser.compare(before, after));
+  ipcMain.handle("pane:popout", (_event, input: { kind: PaneKind; threadId?: string; diff?: PaneDiff }) => popOutPane(input));
+  ipcMain.handle("pane:data", (_event, kind: PaneKind) => getPaneData(kind));
+  ipcMain.handle("window:close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
 
   ipcMain.handle("pty:list", () => pty.list());
   ipcMain.handle("pty:start", (_event, input) => pty.start(input ?? {}));

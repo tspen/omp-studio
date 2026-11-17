@@ -13,6 +13,8 @@ import type {
   MemoryEntry,
   ModelInfo,
   OmpConfigSnapshot,
+  PaneDiff,
+  PaneKind,
   PtySession,
   ShareInfo,
   Site,
@@ -66,6 +68,10 @@ interface AppState {
   browserConsole: BrowserConsoleEntry[];
   browserNetwork: BrowserNetworkEntry[];
   paneWidths: { sidebar: number; right: number; browser: number };
+  paneOpen: boolean;
+  paneTab: PaneKind;
+  paneHeight: number;
+  paneDiff: PaneDiff | null;
   composerInsert: { token: number; text: string } | null;
   rightTab: RightTab;
   railOpen: boolean;
@@ -92,6 +98,10 @@ interface AppState {
   clearComposerInsert(): void;
   toggleRail(): void;
   setPaneWidth(pane: "sidebar" | "right" | "browser", width: number): void;
+  openPane(kind: PaneKind, diff?: PaneDiff): void;
+  closePane(): void;
+  setPaneTab(kind: PaneKind): void;
+  setPaneHeight(height: number): void;
   setOverlay(overlay: Overlay): void;
   setSettingsTab(tab: SettingsTab): void;
   openPreview(preview: PreviewState): void;
@@ -164,6 +174,10 @@ export const useApp = create<AppState>((set, get) => ({
   browserConsole: [],
   browserNetwork: [],
   paneWidths: { sidebar: 280, right: 320, browser: 440 },
+  paneOpen: false,
+  paneTab: "terminal",
+  paneHeight: 300,
+  paneDiff: null,
   composerInsert: null,
   rightTab: "threads",
   railOpen: true,
@@ -475,6 +489,18 @@ export const useApp = create<AppState>((set, get) => ({
     if (pane === "right") next.right = Math.min(620, Math.max(260, width));
     if (pane === "browser") next.browser = Math.min(1100, Math.max(340, width));
     set({ paneWidths: next });
+  },
+  setPaneHeight(height) {
+    set({ paneHeight: Math.min(760, Math.max(160, height)) });
+  },
+  openPane(kind, diff) {
+    set({ paneOpen: true, paneTab: kind, ...(diff ? { paneDiff: diff } : {}) });
+  },
+  closePane() {
+    set({ paneOpen: false });
+  },
+  setPaneTab(kind) {
+    set({ paneTab: kind, paneOpen: true });
   },
   setOverlay(overlay) {
     set({ overlay, preview: overlay === "preview" ? get().preview : null });

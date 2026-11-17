@@ -262,6 +262,46 @@ textarea { resize: vertical; line-height: 1.45; }
 
 /* ---------- chat ---------- */
 .chat { flex: 1; min-width: 320px; display: flex; flex-direction: column; background: var(--panel); position: relative; }
+.main-column { flex: 1; min-width: 320px; min-height: 0; display: flex; flex-direction: column; }
+.pane-host { flex: 0 0 auto; display: flex; flex-direction: column; border-top: 1px solid var(--line-strong); background: var(--panel); min-height: 160px; position: relative; }
+.pane-resize { height: 5px; margin-top: -3px; cursor: row-resize; flex: 0 0 auto; }
+.pane-resize:hover { background: var(--accent-line); }
+body.resizing-row { cursor: row-resize; user-select: none; }
+.pane-host-head { display: flex; align-items: center; gap: 4px; padding: 4px 6px; background: var(--bg-2); border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.pane-host-tabs { display: flex; align-items: center; gap: 2px; }
+.pane-host-tab { border: 0; background: transparent; color: var(--muted); font-size: 10.5px; font-weight: 600; padding: 4px 8px; border-radius: 6px; display: flex; align-items: center; gap: 4px; }
+.pane-host-tab:hover { background: var(--panel); color: var(--text); }
+.pane-host-tab.active { background: var(--panel); color: var(--accent-2); box-shadow: var(--shadow-sm); }
+.pane-host-spacer { flex: 1; }
+.pane-host-link { border: 0; background: transparent; color: var(--accent-2); font-size: 9.5px; display: flex; align-items: center; gap: 3px; padding: 3px 5px; border-radius: 5px; white-space: nowrap; }
+.pane-host-link:hover { background: var(--accent-soft); }
+.pane-host-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.pane-host-body > * { flex: 1; min-width: 0; min-height: 0; }
+.pane-diff { display: flex; flex-direction: column; min-height: 0; }
+.pane-diff-head { display: flex; align-items: center; gap: 8px; padding: 5px 9px; border-bottom: 1px solid var(--line); font-size: 10.5px; flex: 0 0 auto; }
+.pane-diff-head .mono { color: var(--muted); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-diff-body { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 4px 0; font: 10.5px/1.45 var(--mono); }
+.pane-diff-body > div { display: flex; gap: 5px; padding: 0 8px; white-space: pre-wrap; }
+.pane-tasks { overflow: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.pane-tasks-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pane-tasks-head strong { font-size: 11.5px; }
+.pane-task-status { font-size: 9px; color: var(--muted); text-transform: uppercase; }
+.pane-task-status.running { color: var(--blue); }
+.pane-task-status.error { color: var(--red); }
+.pane-task-phase { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+.pane-task-phase-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.pane-task { display: flex; align-items: flex-start; gap: 6px; font-size: 11px; color: var(--text-2); }
+.pane-task-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-2); margin-top: 4px; flex: 0 0 auto; }
+.pane-task.completed { color: var(--muted); text-decoration: line-through; }
+.pane-task.completed .pane-task-dot { background: var(--green); }
+.pane-task.in_progress .pane-task-dot { background: var(--blue); animation: pulse 1.2s infinite; }
+.pane-task.abandoned { color: var(--muted-2); }
+.popout-root { height: 100vh; display: flex; flex-direction: column; background: var(--panel); }
+.popout-head { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-size: 11px; }
+.popout-head span:first-child { font-weight: 600; text-transform: capitalize; }
+.popout-head span:nth-child(2) { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.popout-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.popout-body > * { flex: 1; min-width: 0; min-height: 0; }
 .pane-splitter { flex: 0 0 4px; width: 4px; cursor: col-resize; background: transparent; position: relative; z-index: 5; }
 .pane-splitter:hover, .pane-splitter:active { background: var(--accent-line); }
 body.resizing { cursor: col-resize; user-select: none; }

@@ -564,7 +564,7 @@ function GitTab() {
             <div className="git-files">
               {files.map((file) => <GitFileRow key={file.path} file={file} onClick={async () => {
                 const value = await window.omp.getGitDiff(node.id, thread?.id, file.path);
-                state.openPreview({ title: file.path, kind: "diff", content: value || "No diff (untracked or binary file).", path: file.path, review: { nodeId: node.id, threadId: thread?.id, path: file.path } });
+                state.openPane("diff", { title: file.path, content: value || "No diff (untracked or binary file).", path: file.path, review: { nodeId: node.id, threadId: thread?.id, path: file.path } });
               }} />)}
               {!files.length ? <p className="rail-empty">Working tree clean.</p> : null}
             </div>
