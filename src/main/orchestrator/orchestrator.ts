@@ -45,6 +45,7 @@ import type { PtyService } from "../services/pty";
 import type { WorkspaceService } from "../services/workspace";
 import type { DeployService } from "../services/deploy";
 import type { ComputerService } from "../services/computer";
+import type { MobileService } from "../services/mobile";
 import type { Store } from "../services/store";
 import { newId } from "../services/store";
 import { trace } from "../diagnostics";
@@ -67,6 +68,7 @@ export interface OrchestratorDeps {
   workspace: WorkspaceService;
   deploy: DeployService;
   computer: ComputerService;
+  mobile: MobileService;
   notifications: NotificationService;
   settings: SettingsService;
   share: ShareService;
@@ -1998,6 +2000,48 @@ export class Orchestrator extends EventEmitter {
           const resolved = await this.resolveThread(threadId, context.args.note ? String(context.args.note) : undefined);
           return textResult(`Resolved and archived "${resolved.title}".`);
         }
+        case "mobile_devices": {
+          const status = this.deps.mobile.available();
+          if (!status.adb) return textResult("adb was not found on PATH. Install Android platform-tools or add them to PATH.");
+          const devices = this.deps.mobile.devices();
+          const avds = this.deps.mobile.avds();
+          return textResult(
+            [
+              devices.length ? `Devices:\n${devices.map((device) => `${device.serial} ${device.state}${device.model ? ` ${device.model}` : ""}`).join("\n")}` : "No running devices.",
+              avds.length ? `AVDs:\n${avds.join("\n")}` : "No AVDs found.",
+            ].join("\n\n"),
+          );
+        }
+        case "mobile_start_avd": {
+          this.deps.mobile.startAvd(String(context.args.name ?? ""));
+          return textResult(`Started emulator ${context.args.name}. It may take a minute to appear in mobile_devices.`);
+        }
+        case "mobile_screenshot": {
+          const path = await this.deps.mobile.screenshot(context.args.device ? String(context.args.device) : undefined);
+          this.deps.artifacts.recordFile(context.thread, path, this.store.baseDir);
+          try {
+            const data = readFileSync(path).toString("base64");
+            if (data.length < 8_000_000) {
+              this.handleChat({
+                id: newId("msg"),
+                threadId: context.thread.id,
+                role: "assistant",
+                blocks: [{ type: "image", mimeType: "image/png", data, path }],
+                timestamp: Date.now(),
+                model: context.thread.model.name,
+              });
+            }
+          } catch {
+            /* artifact exists */
+          }
+          return textResult(`Android screenshot saved to ${path} and shown in this thread.`);
+        }
+        case "mobile_tap":
+          return textResult(this.deps.mobile.tap(context.args.device ? String(context.args.device) : undefined, Number(context.args.x), Number(context.args.y)));
+        case "mobile_text":
+          return textResult(this.deps.mobile.text(context.args.device ? String(context.args.device) : undefined, String(context.args.text ?? "")));
+        case "mobile_key":
+          return textResult(this.deps.mobile.key(context.args.device ? String(context.args.device) : undefined, String(context.args.key ?? "")));
         case "computer_screenshot": {
           this.assertComputerUse();
           const path = await this.deps.computer.screenshot();

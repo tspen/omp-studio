@@ -22,6 +22,8 @@ import { PrService } from "./services/pr";
 import { DeployService } from "./services/deploy";
 import { ComputerService } from "./services/computer";
 import { ExportService } from "./services/exporter";
+import { OAuthService } from "./services/oauth";
+import { MobileService } from "./services/mobile";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
 import { UsageService } from "./services/usage";
@@ -555,6 +557,8 @@ async function bootstrap(): Promise<void> {
   const deploy = new DeployService(dataStore);
   const computer = new ComputerService(dataStore.artifactsDir);
   const exporter = new ExportService(dataStore, artifacts);
+  const oauth = new OAuthService(dataStore);
+  const mobile = new MobileService(dataStore.artifactsDir);
 
   if (dataStore.data.models.length) {
     models.ensureDefaults();
@@ -587,6 +591,7 @@ async function bootstrap(): Promise<void> {
     workspace,
     deploy,
     computer,
+    mobile,
     notifications: notificationService,
     settings,
     share: shareService,
@@ -612,6 +617,8 @@ async function bootstrap(): Promise<void> {
     pr,
     deploy,
     exporter,
+    oauth,
+    mobile,
     share: shareService,
     sites: siteService,
     browser: browserController!,

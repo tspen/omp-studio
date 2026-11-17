@@ -889,6 +889,34 @@ function ConnectorsTab() {
       setBusy(null);
     }
   };
+  const oauthFields = (provider: string, label: string) => {
+    const current = (settings.connectors as any)?.[provider] ?? {};
+    return (
+      <>
+        <Row label={`${label} OAuth client ID`} hint="Create an OAuth app with the provider and paste its client ID. Callback URL: http://127.0.0.1:43110/oauth/callback">
+          <input value={current.clientId ?? ""} onChange={(event) => update({ [provider]: { ...current, clientId: event.target.value } })} placeholder="Client ID" />
+        </Row>
+        <Row label="OAuth client secret" hint="Encrypted locally with Windows safeStorage.">
+          <div className="inline-actions">
+            <input type="password" value={drafts[`oauth.${provider}.secret`] ?? ""} placeholder={secrets[`oauth.${provider}.secret`] ? "Saved (enter to replace)" : "Client secret"} onChange={(event) => setDrafts((items) => ({ ...items, [`oauth.${provider}.secret`]: event.target.value }))} />
+            <Button size="sm" variant="soft" disabled={!drafts[`oauth.${provider}.secret`]} onClick={() => void save(`oauth.${provider}.secret`)}><Save size={12} /> Save</Button>
+            <Button size="sm" variant="outline" disabled={busy === `oauth-${provider}`} onClick={async () => {
+              setBusy(`oauth-${provider}`);
+              try {
+                const result = await window.omp.connectOAuth(provider);
+                setResults((items) => ({ ...items, [provider]: `${result.ok ? "OK" : "Failed"}: ${result.output}` }));
+                setSecrets(await window.omp.connectorSecrets());
+              } catch (error) {
+                setResults((items) => ({ ...items, [provider]: `Failed: ${String(error)}` }));
+              } finally {
+                setBusy(null);
+              }
+            }}>{busy === `oauth-${provider}` ? <Spinner /> : <ExternalLink size={12} />} Connect with OAuth</Button>
+          </div>
+        </Row>
+      </>
+    );
+  };
   const credential = (provider: string, key: string, label: string, placeholder: string, hint: string) => (
     <Row label={label} hint={hint}>
       <div className="inline-actions">
@@ -929,14 +957,18 @@ function ConnectorsTab() {
       </Section>
       <Section title="GitHub" subtitle="Optional personal token. Without it, the app uses the GitHub CLI (gh) session.">
         {credential("github", "github.token", "Personal access token", "ghp_...", "Repo scope is enough for PRs, Pages and CI logs.")}
+        {oauthFields("github", "GitHub")}
       </Section>
-      <Section title="Slack" subtitle="Incoming webhook for automation and CI summaries.">
+      <Section title="Slack" subtitle="OAuth bot token or incoming webhook for automation and CI summaries.">
+        {oauthFields("slack", "Slack")}
         {credential("slack", "slack.webhook", "Webhook URL", "https://hooks.slack.com/...", "Messages are posted as OMP Studio.")}
       </Section>
-      <Section title="Linear" subtitle="API key for issue creation and project context.">
+      <Section title="Linear" subtitle="OAuth app or API key for issue creation and project context.">
+        {oauthFields("linear", "Linear")}
         {credential("linear", "linear.token", "API key", "lin_api_...", "Read access is enough to start.")}
       </Section>
-      <Section title="Figma" subtitle="Personal access token for design context.">
+      <Section title="Figma" subtitle="OAuth app or personal access token for design context.">
+        {oauthFields("figma", "Figma")}
         {credential("figma", "figma.token", "Personal access token", "figd_...", "Used by agents through the browser and connectors.")}
       </Section>
       <Section title="MCP servers" subtitle="Remote and local MCP servers discovered from ~/.omp/agent/mcp.json." right={<Button size="sm" variant="soft" onClick={async () => {

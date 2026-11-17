@@ -12,6 +12,7 @@ Status of the Windows coding-agent parity list. Items marked **Done** are implem
 | Browser preview with console, network, element picker | Done | `BrowserController`, `BrowserPanel` devtools |
 | Visual regression screenshots | Done | `BrowserController.compare`, `app_browser_visual_diff` |
 | Responsive/mobile viewport presets | Done | Browser panel device selector |
+| Android emulators/devices (list, start AVD, screenshot, tap, type, keys) | Done via adb/Android SDK; iOS simulators require macOS | `MobileService`, Devices panel, `mobile_*` tools |
 | Pane resizing and browser pop-out | Done | `App.tsx` splitters, `popOutBrowser` |
 | `@file`, `@symbol`, full-text context, drag/drop and paste images | Done | `WorkspaceService`, `ContextModal`, composer `attach()` |
 | Codebase index, symbol search, codemap | Done (on-demand cache) | `WorkspaceService`, `workspace_search`, `workspace_map` |
@@ -28,9 +29,10 @@ Status of the Windows coding-agent parity list. Items marked **Done** are implem
 | Fix-failures loop (optional automatic) | Done | CI tab + `autoFixCi` setting |
 | Cloudflare Pages direct upload (blake3 manifest) | Done | `DeployService.deployCloudflare` |
 | GitHub Pages deploy | Done | `DeployService.deployGithubPages` |
+| Cloudflare Pages custom domains | Done | `DeployService.addCloudflareDomain` |
 | Local Sites access token / protected share links | Done | `SiteService.setAccess` |
-| OAuth apps for Slack/Linear/Figma | Partial — token/webhook credentials are supported; OAuth consent flows need per-provider app registration |
-| Custom domains / Cloudflare Access policy authoring | Deferred — configure in Cloudflare; the app deploys and links |
+| OAuth 2.0 connector flows (GitHub, Slack, Linear, Figma) | Done — supply your own OAuth app client ID/secret; loopback callback on `127.0.0.1:43110` | `OAuthService`, Settings → Connectors |
+| Cloudflare Access policy authoring | Via Cloudflare MCP/API (connected in Settings → Connectors), not a separate native UI | Cloudflare MCP `execute()` |
 
 ## Orchestration extras
 
@@ -51,7 +53,8 @@ Status of the Windows coding-agent parity list. Items marked **Done** are implem
 ## Deferred by design
 
 - **Cloud/remote execution, cloud VMs and mobile control** — the app is local-Windows-first. No remote runner, phone dispatch, or hosted environments.
-- **iOS/Android simulators** — requires platform SDKs; the browser provides device viewport presets instead.
+- **iOS simulators** — require macOS/Xcode. Android emulators are supported through adb; the browser also provides device viewport presets.
+- **Cloud VMs and mobile control** — no hosted runners or phone dispatch; Android device control is local adb only.
 - **Built-in code editor and side chats** — intentionally excluded from the product.
 - **Kernel-level sandbox** — OMP runs under the Windows user account; the app enforces terminal command policy, path/network guidance and auditing, not OS isolation.
 - **Semantic code index** — file/symbol/text search is local and fast; embeddings and cross-repository retrieval are not included.

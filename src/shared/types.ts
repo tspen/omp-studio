@@ -186,6 +186,12 @@ export interface AuditEntry {
   detail: unknown;
 }
 
+export interface MobileDevice {
+  serial: string;
+  state: string;
+  model?: string;
+}
+
 export interface CiRun {
   id: string;
   title: string;
@@ -393,10 +399,10 @@ export interface AppSettings {
   previewAutoOpen: boolean;
   connectors: {
     cloudflare: { accountId?: string; projectName?: string; branch?: string; mcp: boolean };
-    github: { enabled: boolean };
-    slack: { enabled: boolean };
-    linear: { enabled: boolean };
-    figma: { enabled: boolean };
+    github: { enabled: boolean; clientId?: string };
+    slack: { enabled: boolean; clientId?: string };
+    linear: { enabled: boolean; clientId?: string };
+    figma: { enabled: boolean; clientId?: string };
   };
   sandbox: { enabled: boolean; allowedPaths: string[]; deniedCommands: string[]; allowNetwork: boolean };
   computerUse: boolean;
@@ -947,10 +953,12 @@ export interface OmpStudioApi {
   deleteSite(id: string): Promise<void>;
   deploySite(id: string, provider: "cloudflare" | "github-pages"): Promise<SiteDeployment>;
   setSiteAccess(id: string, enabled: boolean): Promise<Site>;
+  addSiteDomain(id: string, domain: string): Promise<{ ok: boolean; output: string; url?: string }>;
 
   setConnectorSecret(key: string, value: string): Promise<Record<string, boolean>>;
   connectorSecrets(): Promise<Record<string, boolean>>;
   testConnector(provider: string): Promise<{ ok: boolean; output: string }>;
+  connectOAuth(provider: string): Promise<{ ok: boolean; output: string }>;
   addMcpServer(name: string, config: Record<string, unknown>): Promise<McpServerInfo[]>;
   removeMcpServer(name: string): Promise<McpServerInfo[]>;
   addCloudflareMcp(): Promise<{ path: string; servers: McpServerInfo[] }>;
@@ -966,6 +974,16 @@ export interface OmpStudioApi {
   deleteAutomation(id: string): Promise<void>;
   runAutomation(id: string): Promise<void>;
   listAudit(limit?: number): Promise<AuditEntry[]>;
+
+  mobileStatus(): Promise<{ adb: boolean; emulator: boolean }>;
+  listMobileDevices(): Promise<MobileDevice[]>;
+  listAvds(): Promise<string[]>;
+  startAvd(name: string): Promise<void>;
+  mobileScreenshot(device?: string): Promise<{ path: string }>;
+  mobileTap(device: string | undefined, x: number, y: number): Promise<void>;
+  mobileText(device: string | undefined, text: string): Promise<void>;
+  mobileKey(device: string | undefined, key: string): Promise<void>;
+  mobileSwipe(device: string | undefined, x1: number, y1: number, x2: number, y2: number): Promise<void>;
 
   pickDirectory(): Promise<string | null>;
   setWindowTheme(theme: "light" | "dark"): Promise<void>;

@@ -15,8 +15,7 @@ export class DeployService {
     this.store = store;
   }
 
-  async deploy(siteId: string, provider: "cloudflare" | "github-pages"): Promise<SiteDeployment> {
-    const site = this.store.sites.find((item) => item.id === siteId);
+  async deploy(siteId: string, provider: "cloudflare" | "github-pages"): Promise<SiteDeployment> {    const site = this.store.sites.find((item) => item.id === siteId);
     if (!site) throw new Error("Site not found");
     if (!site.currentVersion) throw new Error("Publish the site before deploying");
     const versionDir = join(this.store.baseDir, "sites", site.id, site.currentVersion);
@@ -25,6 +24,24 @@ export class DeployService {
     const deployments = [deployment, ...(site.deployments ?? [])].slice(0, 12);
     this.store.updateSite(site.id, { deployments });
     return deployment;
+  }
+
+  async addCloudflareDomain(siteId: string, domain: string): Promise<{ ok: boolean; output: string; url?: string }> {
+    const site = this.store.sites.find((item) => item.id === siteId);
+    if (!site) throw new Error("Site not found");
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) throw new Error("Enter a valid domain name");
+    const token = this.store.getSecret("cloudflare.token") || process.env.CLOUDFLARE_API_TOKEN || "";
+    const accountId = this.store.settings.connectors.cloudflare.accountId || process.env.CLOUDFLARE_ACCOUNT_ID || "";
+    const project = (this.store.settings.connectors.cloudflare.projectName || site.name).replace(/[^a-z0-9-_]/gi, "-").toLowerCase();
+    if (!token || !accountId) throw new Error("Add a Cloudflare API token and account ID first");
+    const response = await fetch(`${API}/accounts/${accountId}/pages/projects/${project}/domains`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ name: domain }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as any;
+    if (!response.ok || payload.success === false) throw new Error(`Cloudflare domain failed: ${describe(payload)}`);
+    return { ok: true, output: `Domain ${domain} added to ${project}. Point DNS at the Pages project if it is not on this Cloudflare account.`, url: `https://${domain}/` };
   }
 
   private async deployCloudflare(site: Site, versionDir: string): Promise<SiteDeployment> {

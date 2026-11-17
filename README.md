@@ -30,7 +30,7 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 - **Budgets**: app-level and per-node USD budgets with warn-only or pause-new-work enforcement.
 - **Codebase intelligence**: workspace file index, symbol codemap, content search, and recent-file ranking exposed to both the UI and `workspace_search`/`workspace_map`.
 - **Workspace panes**: draggable splitters for sidebar, chat, browser and rail, browser pop-out, and a maximized terminal/browser workflow without an in-app code editor.
-- **Exports and extras**: thread export to PDF or DOCX, desktop screenshots and clicks/typing for Windows apps (opt-in), visual regression diffs from the browser, and mobile viewport presets (iPhone/Pixel/iPad) for responsive checks.
+- **Exports and extras**: thread export to PDF or DOCX, desktop screenshots and clicks/typing for Windows apps (opt-in), visual regression diffs from the browser, Android emulator/device control through adb (screenshot, tap, type, keys), and mobile viewport presets for responsive checks.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 
 ## First run

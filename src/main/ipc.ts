@@ -16,6 +16,8 @@ import type { WorkspaceService } from "./services/workspace";
 import type { PrService } from "./services/pr";
 import type { DeployService } from "./services/deploy";
 import type { ExportService } from "./services/exporter";
+import type { OAuthService } from "./services/oauth";
+import type { MobileService } from "./services/mobile";
 import type { Store } from "./services/store";
 import { trace } from "./diagnostics";
 import { audit, readAudit } from "./audit";
@@ -43,6 +45,8 @@ export interface IpcContext {
   pr: PrService;
   deploy: DeployService;
   exporter: ExportService;
+  oauth: OAuthService;
+  mobile: MobileService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
@@ -50,7 +54,7 @@ export interface IpcContext {
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -312,6 +316,7 @@ export function registerIpc(context: IpcContext): void {
     broadcast({ type: "sites:updated", payload: sites.list() });
     return site;
   });
+  ipcMain.handle("sites:domain", (_event, id: string, domain: string) => deploy.addCloudflareDomain(id, domain));
 
   const connectorState = () => ({
     "cloudflare.token": store.hasSecret("cloudflare.token"),
@@ -319,6 +324,10 @@ export function registerIpc(context: IpcContext): void {
     "slack.webhook": store.hasSecret("slack.webhook"),
     "linear.token": store.hasSecret("linear.token"),
     "figma.token": store.hasSecret("figma.token"),
+    "oauth.github.secret": store.hasSecret("oauth.github.secret"),
+    "oauth.slack.secret": store.hasSecret("oauth.slack.secret"),
+    "oauth.linear.secret": store.hasSecret("oauth.linear.secret"),
+    "oauth.figma.secret": store.hasSecret("oauth.figma.secret"),
   });
   ipcMain.handle("connectors:secrets", () => connectorState());
   ipcMain.handle("connectors:set-secret", (_event, key: string, value: string) => {
@@ -327,8 +336,8 @@ export function registerIpc(context: IpcContext): void {
     audit("connector-secret", { key, set: !!value });
     return connectorState();
   });
-  ipcMain.handle("connectors:test", async (_event, provider: string) => {
-    const signal = AbortSignal.timeout(20_000);
+  ipcMain.handle("oauth:connect", (_event, provider: string) => oauth.connect(provider));
+  ipcMain.handle("connectors:test", async (_event, provider: string) => {    const signal = AbortSignal.timeout(20_000);
     try {
       if (provider === "cloudflare") {
         const token = store.getSecret("cloudflare.token");
@@ -346,9 +355,15 @@ export function registerIpc(context: IpcContext): void {
       }
       if (provider === "slack") {
         const webhook = store.getSecret("slack.webhook");
-        if (!webhook) return { ok: false, output: "No Slack webhook saved." };
-        const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "OMP Studio connected." }), signal });
-        return { ok: response.ok, output: response.ok ? "Test message sent." : `Slack returned ${response.status}` };
+        if (webhook) {
+          const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "OMP Studio connected." }), signal });
+          return { ok: response.ok, output: response.ok ? "Test message sent." : `Slack returned ${response.status}` };
+        }
+        const token = store.getSecret("slack.token");
+        if (!token) return { ok: false, output: "No Slack token or webhook saved." };
+        const response = await fetch("https://slack.com/api/auth.test", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/x-www-form-urlencoded" }, signal });
+        const data = (await response.json().catch(() => ({}))) as any;
+        return { ok: response.ok && data.ok, output: data.ok ? `Signed in to ${data.team ?? "Slack"} as ${data.user ?? "bot"}` : String(data.error ?? response.status) };
       }
       if (provider === "linear") {
         const token = store.getSecret("linear.token");
@@ -392,6 +407,15 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("automations:delete", (_event, id: string) => orchestrator.deleteAutomation(id));
   ipcMain.handle("automations:run", (_event, id: string) => orchestrator.runAutomation(id).then(() => undefined));
   ipcMain.handle("audit:list", (_event, limit?: number) => readAudit(limit ?? 200));
+  ipcMain.handle("mobile:status", () => mobile.available());
+  ipcMain.handle("mobile:devices", () => mobile.devices());
+  ipcMain.handle("mobile:avds", () => mobile.avds());
+  ipcMain.handle("mobile:start", (_event, name: string) => mobile.startAvd(name));
+  ipcMain.handle("mobile:screenshot", (_event, device?: string) => mobile.screenshot(device));
+  ipcMain.handle("mobile:tap", (_event, device: string | undefined, x: number, y: number) => mobile.tap(device, x, y));
+  ipcMain.handle("mobile:text", (_event, device: string | undefined, text: string) => mobile.text(device, text));
+  ipcMain.handle("mobile:key", (_event, device: string | undefined, key: string) => mobile.key(device, key));
+  ipcMain.handle("mobile:swipe", (_event, device: string | undefined, x1: number, y1: number, x2: number, y2: number) => mobile.swipe(device, x1, y1, x2, y2));
 
   ipcMain.handle("dialog:pick-directory", async () => {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });

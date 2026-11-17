@@ -21,10 +21,12 @@ import {
   MessageSquare,
   Play,
   Plus,
+  RefreshCw,
   Rocket,
   Search,
   Send,
   Share2,
+  Smartphone,
   Square,
   Terminal,
   Trash2,
@@ -32,7 +34,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import type { ApprovalRequest, Artifact, ChatBlock, Environment, ModelInfo, Thread, TreeNode, WorkspaceFile, WorkspaceMatch, WorkspaceSymbol } from "../../../shared/types";
+import type { ApprovalRequest, Artifact, ChatBlock, Environment, MobileDevice, ModelInfo, Thread, TreeNode, WorkspaceFile, WorkspaceMatch, WorkspaceSymbol } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
 import { ModelPicker } from "./ModelPicker";
 import { ShellsTab } from "./TerminalPane";
@@ -53,6 +55,8 @@ export function Modals() {
       return <SitesModal />;
     case "context":
       return <ContextModal />;
+    case "devices":
+      return <DevicesModal />;
     case "terminal":
       return <TerminalModal />;
     case "search":
@@ -537,6 +541,19 @@ function SitesModal() {
                   state.pushToast({ kind: "info", title: site.accessToken ? "Site is public" : "Site protected", body: site.accessToken ? "Anyone on this machine can open it." : "Share the copy link, which includes the token." });
                 }} />
                 <IconButton icon={<Cloud size={13} />} label="Deploy to Cloudflare Pages" onClick={() => void deploy(site.id, "cloudflare")} disabled={busy !== null} />
+                <IconButton icon={<Globe size={13} />} label="Add Cloudflare custom domain" onClick={async () => {
+                  const domain = window.prompt("Custom domain for the Cloudflare Pages project", `${site.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pages.dev`);
+                  if (!domain) return;
+                  setBusy(`${site.id}-domain`);
+                  try {
+                    const result = await window.omp.addSiteDomain(site.id, domain.trim());
+                    state.pushToast({ kind: "success", title: "Domain added", body: result.output });
+                  } catch (error) {
+                    state.pushToast({ kind: "error", title: "Could not add domain", body: String(error) });
+                  } finally {
+                    setBusy(null);
+                  }
+                }} disabled={busy !== null} />
                 <IconButton icon={<Upload size={13} />} label="Deploy to GitHub Pages" onClick={() => void deploy(site.id, "github-pages")} disabled={busy !== null} />
                 <IconButton icon={<Trash2 size={13} />} label="Delete site" onClick={async () => {
                   if (confirm(`Delete ${site.name}? Published files are removed.`)) await state.deleteSite(site.id);
@@ -596,6 +613,118 @@ function CommandRuns() {
         </div>
       </div>
     </div>
+  );
+}
+
+function DevicesModal() {
+  const state = useApp();
+  const [status, setStatus] = useState<{ adb: boolean; emulator: boolean } | null>(null);
+  const [devices, setDevices] = useState<MobileDevice[]>([]);
+  const [avds, setAvds] = useState<string[]>([]);
+  const [serial, setSerial] = useState("");
+  const [shot, setShot] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = async () => {
+    setStatus(await window.omp.mobileStatus());
+    setDevices(await window.omp.listMobileDevices());
+    setAvds(await window.omp.listAvds());
+  };
+  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (!serial && devices.length) setSerial(devices.find((device) => device.state === "device")?.serial ?? devices[0].serial);
+  }, [devices, serial]);
+
+  const shoot = async () => {
+    setBusy("shot");
+    try {
+      const result = await window.omp.mobileScreenshot(serial || undefined);
+      setShot(result.path);
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Screenshot failed", body: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const tapAt = async (event: React.MouseEvent<HTMLImageElement>) => {
+    if (!shot) return;
+    const image = event.currentTarget;
+    const rect = image.getBoundingClientRect();
+    const x = Math.round(((event.clientX - rect.left) / rect.width) * image.naturalWidth);
+    const y = Math.round(((event.clientY - rect.top) / rect.height) * image.naturalHeight);
+    try {
+      await window.omp.mobileTap(serial || undefined, x, y);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await shoot();
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Tap failed", body: String(error) });
+    }
+  };
+
+  return (
+    <Modal title="Devices" subtitle="Android emulators and devices through adb. iOS simulators require macOS." onClose={() => state.setOverlay("none")} width={900}>
+      {!status ? <div className="settings-loading"><Spinner /> Checking Android tools</div> : null}
+      {status && !status.adb ? (
+        <div className="device-missing">
+          <Smartphone size={26} />
+          <strong>adb not found</strong>
+          <p>Install Android platform-tools and add them to PATH to control emulators and devices.</p>
+          <Button size="sm" variant="soft" onClick={() => void window.omp.openExternal("https://developer.android.com/tools/releases/platform-tools")}><ExternalLink size={12} /> Download platform-tools</Button>
+          <Button size="sm" variant="ghost" onClick={() => void load()}><RefreshCw size={12} /> Check again</Button>
+        </div>
+      ) : null}
+      {status?.adb ? (
+        <div className="device-layout">
+          <div className="device-side">
+            <div className="device-side-head"><strong>Devices</strong><IconButton icon={<RefreshCw size={13} />} label="Refresh" onClick={() => void load()} /></div>
+            {devices.map((device) => (
+              <button key={device.serial} type="button" className={cx("device-row", serial === device.serial && "active")} onClick={() => setSerial(device.serial)}>
+                <span className={cx("run-dot", device.state === "device" ? "running" : "done")} />
+                <span className="device-name">{device.model ?? device.serial}<small>{device.serial} · {device.state}</small></span>
+              </button>
+            ))}
+            {!devices.length ? <p className="rail-empty">No running devices.</p> : null}
+            <div className="device-side-head"><strong>AVDs</strong></div>
+            {avds.map((avd) => (
+              <div key={avd} className="device-row">
+                <span className="device-name">{avd}</span>
+                <Button size="sm" variant="ghost" disabled={busy === avd} onClick={async () => {
+                  setBusy(avd);
+                  try {
+                    await window.omp.startAvd(avd);
+                    state.pushToast({ kind: "info", title: "Emulator starting", body: avd });
+                    setTimeout(() => void load(), 12_000);
+                  } finally {
+                    setBusy(null);
+                  }
+                }}><Play size={11} /> Start</Button>
+              </div>
+            ))}
+            {!avds.length ? <p className="rail-empty">No AVDs. Create one in Android Studio.</p> : null}
+          </div>
+          <div className="device-main">
+            <div className="device-bar">
+              <span>{serial || "No device selected"}</span>
+              <Button size="sm" variant="soft" disabled={!serial || busy === "shot"} onClick={() => void shoot()}>{busy === "shot" ? <Spinner /> : <Smartphone size={12} />} Screenshot</Button>
+              <input className="device-text" value={text} onChange={(event) => setText(event.target.value)} placeholder="Type text or a keyevent" />
+              <Button size="sm" variant="ghost" disabled={!text} onClick={async () => { await window.omp.mobileText(serial || undefined, text); setText(""); await new Promise((r) => setTimeout(r, 400)); await shoot(); }}>Type</Button>
+              <Button size="sm" variant="ghost" disabled={!text} onClick={async () => { await window.omp.mobileKey(serial || undefined, text); setText(""); await new Promise((r) => setTimeout(r, 400)); await shoot(); }}>Key</Button>
+              <Button size="sm" variant="ghost" onClick={async () => { await window.omp.mobileKey(serial || undefined, "KEYCODE_BACK"); }}>Back</Button>
+            </div>
+            {shot ? (
+              <img className="device-shot" src={fileUrl(shot)} alt="Android device" onClick={(event) => void tapAt(event)} title="Click to tap at this point" />
+            ) : (
+              <div className="device-empty">
+                <Smartphone size={30} />
+                <p>Select a device, then take a screenshot. Click the screenshot to tap.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </Modal>
   );
 }
 

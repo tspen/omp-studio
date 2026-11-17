@@ -24,7 +24,7 @@ import type {
 
 export type RightTab = "threads" | "bus" | "git" | "ci";
 export type SettingsTab = "general" | "models" | "tools" | "memory" | "environments" | "git" | "notifications" | "engine" | "advanced" | "usage" | "connectors" | "automations" | "sandbox";
-export type Overlay = "none" | "inbox" | "artifacts" | "terminal" | "search" | "memory" | "settings" | "new-node" | "new-thread" | "share" | "preview" | "history" | "goal" | "sites" | "context";
+export type Overlay = "none" | "inbox" | "artifacts" | "terminal" | "search" | "memory" | "settings" | "new-node" | "new-thread" | "share" | "preview" | "history" | "goal" | "sites" | "context" | "devices";
 
 interface Toast {
   id: string;

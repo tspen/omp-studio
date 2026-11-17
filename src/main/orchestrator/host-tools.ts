@@ -289,6 +289,43 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     parameters: object({ environmentId: { type: "string" }, nodeId: { type: "string" } }, ["environmentId"]),
   },
   {
+    name: "mobile_devices",
+    label: "Devices: list",
+    description: "List connected Android devices and available emulators (AVDs). Requires adb/Android SDK tools on PATH.",
+    parameters: object({}),
+    loadMode: "essential",
+  },
+  {
+    name: "mobile_start_avd",
+    label: "Devices: start emulator",
+    description: "Start an Android emulator by AVD name and wait for it to boot.",
+    parameters: object({ name: { type: "string" } }, ["name"]),
+  },
+  {
+    name: "mobile_screenshot",
+    label: "Devices: screenshot",
+    description: "Capture an Android device screen to a PNG artifact and show it in this thread.",
+    parameters: object({ device: { type: "string" } }, []),
+  },
+  {
+    name: "mobile_tap",
+    label: "Devices: tap",
+    description: "Tap Android screen coordinates.",
+    parameters: object({ device: { type: "string" }, x: { type: "number" }, y: { type: "number" } }, ["x", "y"]),
+  },
+  {
+    name: "mobile_text",
+    label: "Devices: type",
+    description: "Type text into the focused Android field.",
+    parameters: object({ device: { type: "string" }, text: { type: "string" } }, ["text"]),
+  },
+  {
+    name: "mobile_key",
+    label: "Devices: key",
+    description: "Send an Android keyevent, e.g. KEYCODE_BACK, KEYCODE_HOME, KEYCODE_ENTER.",
+    parameters: object({ device: { type: "string" }, key: { type: "string" } }, ["key"]),
+  },
+  {
     name: "computer_screenshot",
     label: "Computer: screenshot",
     description: "Capture the Windows desktop as a PNG artifact and show it in this thread. Requires computer use enabled in Settings → Sandbox.",
