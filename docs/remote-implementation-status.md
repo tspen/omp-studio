@@ -52,6 +52,19 @@ sessions: 19
 chat: "Implement Pure-typescript Cricket Rules Engine", messages: 15, composer: true
 ```
 
+Android → Docker runner (`http://10.0.2.2:43121`, token `doctortoken123`):
+
+```
+top: "OMP Remote connected", sessions: 1, banner: "", runtime errors: []
+```
+
+CI (GitHub Actions run 44025063671):
+
+```
+android job passed, artifact omp-remote-android/app-debug.apk 3.9 MB
+ios job passed, artifact omp-remote-ios-simulator.zip 1.5 MB
+```
+
 Cold move (`scripts/remote-perf.mjs`, small repo):
 
 ```
@@ -100,9 +113,11 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
 
 ## Remaining gaps
 
-- **iOS build/signature**: the generated Capacitor project cannot be compiled on
-  Windows. `.github/workflows/mobile.yml` builds an unsigned simulator app on a
-  macOS runner; a signed device build needs an Apple account and macOS signing.
+- **iOS device signing**: the Capacitor project builds for the iOS Simulator in
+  CI (`.github/workflows/mobile.yml`, run 44025063671: iOS job passed, artifact
+  `omp-remote-ios-simulator.zip` 1.5 MB). A signed installable device build
+  still needs an Apple account, a signing certificate and a provisioning
+  profile.
 - **Warm and live moves**: v1 only does cold move at turn boundaries. Paused
   microVM (E2B Embed) and memory snapshot migration are not implemented.
 - **Automatic placement**: targets are registered and sessions can be moved, but
