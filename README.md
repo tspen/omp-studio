@@ -99,7 +99,9 @@ token, the PWA install link, targets, cold move and a cleanup report.
   then read the pairing link from the logs. Loopback by default; front it with
   Tailscale. See [`runner/README.md`](runner/README.md).
 - Sessions move as portable bundles (workspace + OMP session + chat) at turn
-  boundaries. The source is retained for rollback.
+  boundaries. The source is retained for rollback. Repeats to the same target are
+  **warm**: the target keeps the workspace, and only changed files plus the
+  session are sent (74 MB cold → 51 KB warm; 7.1 s → 207 ms measured).
 - Automatic placement: pick a registered target, give consent, and idle worker
   sessions move there without per-session prompts. Running turns are never
   interrupted. Prompts, stop, continue and compact are proxied to the target and

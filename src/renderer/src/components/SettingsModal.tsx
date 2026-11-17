@@ -1439,7 +1439,7 @@ function RemoteTargets() {
             try {
               const report = await window.omp.placeIdleSessions(true);
               setPlacement(report.placed.length
-                ? `Placed ${report.placed.length} session(s) on ${report.target?.name ?? "target"} in ${report.placed.map((item: { ms: number }) => item.ms).join(", ")} ms.`
+                ? `Placed ${report.placed.length} session(s) on ${report.target?.name ?? "target"}: ${report.placed.map((item) => `${item.warm ? "warm" : "cold"} ${item.ms} ms, ${item.filesWritten} file(s)${item.filesUnchanged ? `, ${item.filesUnchanged} unchanged` : ""}`).join("; ")}.`
                 : `Nothing placed: ${report.skipped.join("; ") || "no eligible sessions"}.`);
             } catch (error) {
               setPlacement(String(error));
@@ -1447,7 +1447,7 @@ function RemoteTargets() {
           }}>{busy === "place" ? <Spinner /> : <Cloud size={12} />} Place idle sessions now</Button>
         </div>
         {placement ? <p className="muted">{placement}</p> : null}
-        {lastPlacement?.placed.length ? <p className="muted">Last automatic placement: {lastPlacement.placed.length} session(s) at {new Date(lastPlacement.at).toLocaleTimeString()} ({lastPlacement.placed.map((item) => `${item.ms} ms`).join(", ")}).</p> : null}
+        {lastPlacement?.placed.length ? <p className="muted">Last automatic placement: {lastPlacement.placed.length} session(s) at {new Date(lastPlacement.at).toLocaleTimeString()} ({lastPlacement.placed.map((item) => `${item.warm ? "warm" : "cold"} ${item.ms} ms`).join(", ")}).</p> : null}
         <p className="muted">Checks every 20 seconds when enabled and consented. Only idle worker sessions with history are moved; running turns are never interrupted.</p>
       </div>
 
@@ -1466,7 +1466,7 @@ function RemoteTargets() {
           setResult("");
           try {
             const moved = await window.omp.moveThreadToTarget(threadId, target.id);
-            setResult(`Moved to ${target.name} as ${moved.threadId}. Continue it there from the PWA or that runner.`);
+            setResult(`Moved to ${target.name} as ${moved.threadId} (${moved.warm ? "warm" : "cold"}, ${moved.filesWritten} file(s) written, ${moved.filesUnchanged} unchanged, ${(moved.bytesSent / 1024).toFixed(0)} KB). Continue it there from the PWA or that runner.`);
           } catch (error) {
             setResult(String(error));
           } finally { setBusy(null); }
@@ -1483,6 +1483,7 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
 
 
 

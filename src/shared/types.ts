@@ -445,9 +445,19 @@ export interface PlacementPolicy {
   consent: boolean;
 }
 
+export interface MoveResult {
+  threadId: string;
+  nodeId: string;
+  warm: boolean;
+  filesWritten: number;
+  filesDeleted: number;
+  filesUnchanged: number;
+  bytesSent: number;
+}
+
 export interface PlacementResult {
   at: number;
-  placed: Array<{ threadId: string; targetId: string; remoteThreadId: string; remoteNodeId: string; ms: number }>;
+  placed: Array<{ threadId: string; targetId: string; remoteThreadId: string; remoteNodeId: string; ms: number; warm: boolean; filesWritten: number; filesUnchanged: number; bytesSent: number }>;
   skipped: string[];
   target?: { id: string; name: string; status: string };
 }
@@ -1090,7 +1100,7 @@ export interface OmpStudioApi {
   addRemoteTarget(input: RemoteTargetInput): Promise<RemoteTarget[]>;
   removeRemoteTarget(id: string): Promise<RemoteTarget[]>;
   testRemoteTarget(id: string): Promise<RemoteTarget[]>;
-  moveThreadToTarget(threadId: string, targetId: string): Promise<{ threadId: string; nodeId: string }>;
+  moveThreadToTarget(threadId: string, targetId: string): Promise<MoveResult>;
   placeIdleSessions(force?: boolean, threadId?: string): Promise<PlacementResult>;
   lastPlacement(): Promise<PlacementResult | null>;
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;

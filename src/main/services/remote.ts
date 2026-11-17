@@ -1,13 +1,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { extname, join, normalize, relative, resolve } from "node:path";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
 import JSZip from "jszip";
 import { WebSocketServer, type WebSocket } from "ws";
 import { app } from "electron";
-import type { AppEvent, ChatMessage, PlacementPolicy, PlacementResult, RemoteInfo, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
+import type { AppEvent, ChatMessage, MoveResult, PlacementPolicy, PlacementResult, RemoteInfo, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
 import type { Orchestrator } from "../orchestrator/orchestrator";
 import { collectGarbage } from "./maintenance";
 import { newId, type Store } from "./store";
@@ -34,6 +34,7 @@ export class RemoteService {
   private host = "";
   private lastError: string | undefined;
   private placementReport: PlacementResult | null = null;
+  private fileHashes = new Map<string, { mtimeMs: number; size: number; hash: string }>();
 
   constructor(store: Store, orchestrator: Orchestrator) {
     this.store = store;
@@ -124,8 +125,8 @@ export class RemoteService {
     return this.saveTargets(targets.map((item) => (item.id === id ? next : item)));
   }
 
-  /** Cold move: export this thread and import it into a registered target. */
-  async moveThread(threadId: string, targetId: string): Promise<{ threadId: string; nodeId: string }> {
+  /** Cold or warm move: export this thread and import it into a registered target. */
+  async moveThread(threadId: string, targetId: string): Promise<MoveResult> {
     const thread = this.store.getThread(threadId);
     if (!thread) throw new Error("Thread not found");
     if (["running", "starting", "waiting", "queued"].includes(thread.status)) throw new Error("Wait for the current turn to finish before moving this session");
@@ -133,25 +134,33 @@ export class RemoteService {
     if (!target) throw new Error("Target not found");
     const token = this.targetToken(targetId);
     if (!token) throw new Error("Target token is missing; remove and re-add the target");
-    const bundle = await this.exportBundle(threadId);
+    const bundle = await this.exportBundle(threadId, { target, token });
     const response = await fetch(`${target.url}/api/import`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ bundle: bundle.bundle }),
       signal: AbortSignal.timeout(120_000),
     });
-    const body = (await response.json().catch(() => ({}))) as { threadId?: string; nodeId?: string; error?: string };
+    const body = (await response.json().catch(() => ({}))) as Partial<MoveResult> & { error?: string };
     if (!response.ok || !body.threadId || !body.nodeId) throw new Error(body.error || `Target import failed with HTTP ${response.status}`);
     await this.orchestrator.releaseThreadSession(threadId);
     this.saveTargets(this.listTargets().map((item) => (item.id === targetId ? { ...item, lastSeen: Date.now(), status: "online", error: undefined } : item)));
-    return { threadId: body.threadId, nodeId: body.nodeId };
+    return {
+      threadId: body.threadId!,
+      nodeId: body.nodeId!,
+      warm: !!body.warm,
+      filesWritten: Number(body.filesWritten ?? bundle.filesWritten),
+      filesDeleted: Number(body.filesDeleted ?? bundle.filesDeleted),
+      filesUnchanged: Number(body.filesUnchanged ?? bundle.filesUnchanged),
+      bytesSent: Number(body.bytesSent ?? bundle.bytesSent),
+    };
   }
 
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }> {
     return this.exportBundle(threadId);
   }
 
-  importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }> {
+  importThreadBundle(bundle: string): Promise<MoveResult> {
     return this.importBundle(bundle);
   }
 
@@ -225,7 +234,7 @@ export class RemoteService {
           statusMessage: `Placed on ${target.name}`,
         });
         this.orchestrator.notify({ type: "thread:updated", payload: updated });
-        result.placed.push({ threadId: thread.id, targetId: target.id, remoteThreadId: moved.threadId, remoteNodeId: moved.nodeId, ms: Date.now() - started });
+        result.placed.push({ threadId: thread.id, targetId: target.id, remoteThreadId: moved.threadId, remoteNodeId: moved.nodeId, ms: Date.now() - started, warm: moved.warm, filesWritten: moved.filesWritten, filesUnchanged: moved.filesUnchanged, bytesSent: moved.bytesSent });
       } catch (error) {
         result.skipped.push(`${thread.title}: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -492,6 +501,12 @@ export class RemoteService {
       const body = await readJson(request);
       return json(200, await this.importBundle(String(body.bundle ?? "")));
     }
+    if (parts[1] === "workspace" && parts[2] && parts[3] === "manifest" && request.method === "GET") {
+      const originKey = decodeURIComponent(parts[2]);
+      const data = this.workspaceManifest(originKey);
+      if (!data) return json(404, { error: "No warm workspace for this origin" });
+      return json(200, { originKey, ...data });
+    }
     if (parts[1] === "maintenance" && parts[2] === "sweep" && request.method === "POST") {
       const body = await readJson(request);
       const report = await collectGarbage(this.store.baseDir, { nodes: this.store.nodes, threads: this.store.threads }, { dryRun: body.dryRun !== false });
@@ -505,24 +520,76 @@ export class RemoteService {
     json(404, { error: "Not found" });
   }
 
-  private async exportBundle(threadId: string): Promise<{ name: string; bundle: string }> {
+  private hashFile(path: string): string {
+    const info = statSync(path);
+    const cached = this.fileHashes.get(path);
+    if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) return cached.hash;
+    const hash = createHash("sha1").update(readFileSync(path)).digest("hex");
+    this.fileHashes.set(path, { mtimeMs: info.mtimeMs, size: info.size, hash });
+    return hash;
+  }
+
+  private async targetWorkspaceManifest(target: RemoteTarget, originKey: string): Promise<Map<string, string> | null> {
+    try {
+      const response = await fetch(`${target.url}/api/workspace/${encodeURIComponent(originKey)}/manifest`, {
+        headers: { authorization: `Bearer ${this.targetToken(target.id)}` },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { files?: Record<string, { hash?: string }> };
+      const map = new Map<string, string>();
+      for (const [path, meta] of Object.entries(body.files ?? {})) if (meta?.hash) map.set(path, meta.hash);
+      return map;
+    } catch {
+      return null;
+    }
+  }
+
+  private workspaceRoot(thread: Thread, node: TreeNode): string {
+    const worktree = thread.worktreePath;
+    if (worktree && existsSync(worktree)) {
+      try {
+        if (readdirSync(worktree).some((name) => name !== ".git")) return worktree;
+      } catch {
+        /* fall through */
+      }
+    }
+    return node.repoPath || node.path;
+  }
+
+  private async exportBundle(threadId: string, warmTarget?: { target: RemoteTarget; token: string }): Promise<{
+    name: string;
+    bundle: string;
+    warm: boolean;
+    filesWritten: number;
+    filesUnchanged: number;
+    filesDeleted: number;
+    bytesSent: number;
+  }> {
     const thread = this.store.getThread(threadId);
     if (!thread) throw new Error("Thread not found");
     const node = this.store.getNode(thread.nodeId);
     if (!node) throw new Error("Node not found");
     const zip = new JSZip();
-    const cwd = thread.worktreePath || node.repoPath || node.path;
+    const cwd = this.workspaceRoot(thread, node);
     const chat = this.store.getChat(threadId);
-    const manifest = {
+    const originKey = node.id;
+    const baseManifest = warmTarget ? await this.targetWorkspaceManifest(warmTarget.target, originKey) : null;
+    const filesMeta: Record<string, { hash: string; size: number; mtimeMs: number }> = {};
+    const seen = new Set<string>();
+    let filesWritten = 0;
+    let filesUnchanged = 0;
+    let bytesSent = 0;
+    const manifest: Record<string, unknown> = {
       format: "omp-session-v1",
       createdAt: Date.now(),
+      originKey,
       node: { name: node.name, type: node.type, path: node.path, repoPath: node.repoPath, description: node.description, approvalMode: node.approvalMode, gitMode: node.gitMode },
       thread: { title: thread.title, kind: thread.kind, model: thread.model, effort: thread.effort, sessionFile: thread.sessionFile, todoPhases: thread.todoPhases, lastMessage: thread.lastMessage },
       chat,
     };
-    zip.file("manifest.json", JSON.stringify(manifest));
     let total = 0;
-    const addTree = (root: string, prefix: string) => {
+    const addWorkspace = (root: string) => {
       const walk = (directory: string) => {
         let entries;
         try {
@@ -533,15 +600,26 @@ export class RemoteService {
         for (const entry of entries) {
           if (total > 200 * 1024 * 1024) return;
           if (entry.name === "node_modules" || entry.name === ".venv" || entry.name === "__pycache__") continue;
+          if (entry.name === ".omp-origin.json" || entry.name === ".omp-manifest.json") continue;
           const full = join(directory, entry.name);
           if (entry.isDirectory()) {
             walk(full);
           } else if (entry.isFile()) {
             try {
               const size = statSync(full).size;
+              const rel = relative(root, full).replace(/\\/g, "/");
+              seen.add(rel);
               if (size > 20 * 1024 * 1024) continue;
+              const hash = this.hashFile(full);
+              filesMeta[rel] = { hash, size, mtimeMs: statSync(full).mtimeMs };
+              if (baseManifest && baseManifest.get(rel) === hash) {
+                filesUnchanged += 1;
+                continue;
+              }
               total += size;
-              zip.file(`${prefix}/${relative(root, full).replace(/\\/g, "/")}`, readFileSync(full));
+              bytesSent += size;
+              filesWritten += 1;
+              zip.file(`workspace/${rel}`, readFileSync(full));
             } catch {
               /* skip unreadable */
             }
@@ -550,13 +628,84 @@ export class RemoteService {
       };
       walk(root);
     };
-    if (existsSync(cwd)) addTree(cwd, "workspace");
-    if (existsSync(thread.sessionDir)) addTree(thread.sessionDir, "session");
+    const addSession = (root: string) => {
+      const walk = (directory: string) => {
+        let entries;
+        try {
+          entries = readdirSync(directory, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const entry of entries) {
+          const full = join(directory, entry.name);
+          if (entry.isDirectory()) walk(full);
+          else if (entry.isFile()) {
+            try {
+              const rel = relative(root, full).replace(/\\/g, "/");
+              filesWritten += 1;
+              bytesSent += statSync(full).size;
+              zip.file(`session/${rel}`, readFileSync(full));
+            } catch {
+              /* skip unreadable */
+            }
+          }
+        }
+      };
+      walk(root);
+    };
+    let filesDeleted = 0;
+    if (cwd && existsSync(cwd)) {
+      addWorkspace(cwd);
+      const deletions = baseManifest ? [...baseManifest.keys()].filter((path) => !seen.has(path)) : [];
+      filesDeleted = deletions.length;
+      (manifest as any).delta = baseManifest
+        ? { originKey, base: true, deleted: deletions, changed: filesWritten, unchanged: filesUnchanged, bytes: bytesSent }
+        : { originKey, base: false, changed: filesWritten, unchanged: 0, bytes: bytesSent };
+      (manifest as any).filesMeta = filesMeta;
+    }
+    if (existsSync(thread.sessionDir)) addSession(thread.sessionDir);
+    zip.file("manifest.json", JSON.stringify(manifest));
     const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    return { name: `${thread.title} (${node.name})`, bundle: buffer.toString("base64") };
+    return {
+      name: `${thread.title} (${node.name})`,
+      bundle: buffer.toString("base64"),
+      warm: !!baseManifest,
+      filesWritten,
+      filesUnchanged,
+      filesDeleted,
+      bytesSent,
+    };
   }
 
-  private async importBundle(base64: string): Promise<{ threadId: string; nodeId: string }> {
+  private findNodeByOrigin(originKey: string): TreeNode | null {
+    for (const node of this.store.nodes) {
+      if (!node.path) continue;
+      const marker = join(node.path, ".omp-origin.json");
+      if (!existsSync(marker)) continue;
+      try {
+        const data = JSON.parse(readFileSync(marker, "utf8")) as { originKey?: string };
+        if (data.originKey === originKey) return node;
+      } catch {
+        /* ignore unreadable marker */
+      }
+    }
+    return null;
+  }
+
+  private workspaceManifest(originKey: string): { nodeId: string; files: Record<string, { hash?: string; size?: number }> } | null {
+    const node = this.findNodeByOrigin(originKey);
+    if (!node?.path) return null;
+    const file = join(node.path, ".omp-manifest.json");
+    if (!existsSync(file)) return null;
+    try {
+      const data = JSON.parse(readFileSync(file, "utf8")) as { files?: Record<string, { hash?: string; size?: number }> };
+      return { nodeId: node.id, files: data.files ?? {} };
+    } catch {
+      return null;
+    }
+  }
+
+  private async importBundle(base64: string): Promise<MoveResult> {
     if (!base64) throw new Error("Bundle is required");
     const buffer = Buffer.from(base64, "base64");
     if (!buffer.length || buffer.length > 200 * 1024 * 1024) throw new Error("Invalid or oversized bundle");
@@ -567,66 +716,103 @@ export class RemoteService {
     if (manifest.format !== "omp-session-v1") throw new Error("Unsupported bundle format");
     const quota = await collectGarbage(this.store.baseDir, { nodes: this.store.nodes, threads: this.store.threads }, { dryRun: true });
     if (quota.quotaUsedPct >= 100) throw new Error("Runner disk quota is full; clean up before importing");
+
+    const originKey = typeof manifest.originKey === "string" ? manifest.originKey : "";
+    const existing = originKey ? this.findNodeByOrigin(originKey) : null;
+    const warm = !!existing && !!manifest.delta;
     const root = this.store.nodes.find((node) => node.type === "root");
     if (!root) throw new Error("Root node not found");
-    const nodeId = newId("prj");
-    const targetDir = join(this.store.baseDir, "workspaces", `imported-${nodeId}`);
-    mkdirSync(targetDir, { recursive: true });
     const now = Date.now();
+    const nodeId = existing?.id ?? newId("prj");
+    const targetDir = existing?.path ?? join(this.store.baseDir, "workspaces", `imported-${nodeId}`);
+    mkdirSync(targetDir, { recursive: true });
+
+    let filesWritten = 0;
+    let bytesWritten = 0;
     for (const [name, entry] of Object.entries(zip.files)) {
       if (entry.dir) continue;
-      if (name.startsWith("workspace/")) {
-        const rel = name.slice("workspace/".length);
-        if (!rel || rel.split("/").includes("..")) continue;
-        const full = join(targetDir, rel);
-        mkdirSync(resolve(full, ".."), { recursive: true });
-        writeFileSync(full, await entry.async("nodebuffer"));
+      if (!name.startsWith("workspace/")) continue;
+      const rel = name.slice("workspace/".length);
+      if (!rel || rel.split("/").includes("..")) continue;
+      const full = join(targetDir, rel);
+      if (!normalize(full).startsWith(normalize(targetDir))) continue;
+      mkdirSync(resolve(full, ".."), { recursive: true });
+      const data = await entry.async("nodebuffer");
+      writeFileSync(full, data);
+      filesWritten += 1;
+      bytesWritten += data.length;
+    }
+    const deletions: string[] = Array.isArray(manifest.delta?.deleted) ? manifest.delta.deleted : [];
+    let filesDeleted = 0;
+    for (const rel of deletions) {
+      if (!rel || rel.split("/").includes("..")) continue;
+      const full = join(targetDir, rel);
+      if (!normalize(full).startsWith(normalize(targetDir))) continue;
+      try {
+        rmSync(full, { force: true });
+        filesDeleted += 1;
+      } catch {
+        /* best effort */
       }
     }
-    const node: TreeNode = {
-      id: nodeId,
-      type: "project",
-      name: `${String(manifest.node?.name ?? "Imported project")} (moved)`,
-      parentId: root.id,
-      path: targetDir,
-      repoPath: existsSync(join(targetDir, ".git")) ? targetDir : undefined,
-      description: manifest.node?.description,
-      orchestratorThreadId: newId("thr"),
-      model: this.store.settings.models.project || "",
-      effort: this.store.settings.models.projectEffort || "high",
-      gitMode: "shared",
-      approvalMode: manifest.node?.approvalMode ?? this.store.settings.defaultApprovalMode ?? "yolo",
-      collapsed: false,
-      muted: false,
-      autoName: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.store.addNode(node);
-    const orchestrator: Thread = {
-      id: node.orchestratorThreadId,
-      nodeId,
-      parentThreadId: null,
-      kind: "orchestrator",
-      title: node.name,
-      titleAuto: false,
-      status: "idle",
-      model: { provider: "", id: "", selector: node.model, name: node.model },
-      effort: node.effort,
-      sessionDir: join(this.store.sessionsDir, node.orchestratorThreadId),
-      createdAt: now,
-      updatedAt: now,
-      lastActivityAt: now,
-      unread: 0,
-      pinned: false,
-      archived: false,
-      muted: false,
-      cost: 0,
-      tokens: 0,
-      todoPhases: [],
-      source: "app",
-    };
-    this.store.addThread(orchestrator);
+    if (originKey) {
+      writeFileSync(join(targetDir, ".omp-origin.json"), JSON.stringify({ originKey, updatedAt: now }));
+      if (manifest.filesMeta) {
+        writeFileSync(join(targetDir, ".omp-manifest.json"), JSON.stringify({ originKey, updatedAt: now, files: manifest.filesMeta }));
+      }
+    }
+
+    let node: TreeNode;
+    let orchestrator: Thread | null = null;
+    if (existing) {
+      node = this.store.updateNode(existing.id, { updatedAt: now });
+    } else {
+      node = {
+        id: nodeId,
+        type: "project",
+        name: `${String(manifest.node?.name ?? "Imported project")} (moved)`,
+        parentId: root.id,
+        path: targetDir,
+        repoPath: existsSync(join(targetDir, ".git")) ? targetDir : undefined,
+        description: manifest.node?.description,
+        orchestratorThreadId: newId("thr"),
+        model: this.store.settings.models.project || "",
+        effort: this.store.settings.models.projectEffort || "high",
+        gitMode: "shared",
+        approvalMode: manifest.node?.approvalMode ?? this.store.settings.defaultApprovalMode ?? "yolo",
+        collapsed: false,
+        muted: false,
+        autoName: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.store.addNode(node);
+      orchestrator = {
+        id: node.orchestratorThreadId,
+        nodeId,
+        parentThreadId: null,
+        kind: "orchestrator",
+        title: node.name,
+        titleAuto: false,
+        status: "idle",
+        model: { provider: "", id: "", selector: node.model, name: node.model },
+        effort: node.effort,
+        sessionDir: join(this.store.sessionsDir, node.orchestratorThreadId),
+        createdAt: now,
+        updatedAt: now,
+        lastActivityAt: now,
+        unread: 0,
+        pinned: false,
+        archived: false,
+        muted: false,
+        cost: 0,
+        tokens: 0,
+        todoPhases: [],
+        source: "app",
+      };
+      this.store.addThread(orchestrator);
+    }
+
     const threadId = newId("thr");
     const sessionDir = join(this.store.sessionsDir, threadId);
     mkdirSync(sessionDir, { recursive: true });
@@ -672,9 +858,17 @@ export class RemoteService {
       Array.isArray(manifest.chat) ? (manifest.chat as ChatMessage[]).map((message) => ({ ...message, threadId })) : [],
     );
     this.orchestrator.notify({ type: "node:updated", payload: node });
-    this.orchestrator.notify({ type: "thread:updated", payload: orchestrator });
+    if (orchestrator) this.orchestrator.notify({ type: "thread:updated", payload: orchestrator });
     this.orchestrator.notify({ type: "thread:updated", payload: imported });
-    return { threadId, nodeId };
+    return {
+      threadId,
+      nodeId,
+      warm,
+      filesWritten,
+      filesDeleted,
+      filesUnchanged: Number(manifest.delta?.unchanged ?? 0),
+      bytesSent: buffer.length,
+    };
   }
 
   private serveStatic(pathname: string, response: ServerResponse): void {
@@ -757,6 +951,9 @@ function normalizeUrl(value: string): string {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   return new URL(withScheme).toString().replace(/\/+$/, "");
 }
+
+
+
 
 
 

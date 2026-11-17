@@ -17,6 +17,7 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 | iOS | Capacitor project in `ios/`; ATS and local-network entries added; build/sign requires macOS (see CI workflow). |
 | Desktop UI | Settings → Remote: enable, bind host/port, keep-running toggles, URLs, token show/copy/rotate, QR, Tailscale steps, cleanup report, targets and cold move. |
 | Cold move | Export zip (manifest + workspace + OMP session + chat) and import on the same or another runner. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
+| Warm move | Targets keep the workspace in place under an origin key (`.omp-origin.json` + `.omp-manifest.json`). Before export the source reads the target manifest, hashes the workspace, sends only changed files, and lists deletions. The target applies the delta to the existing workspace and creates only a new session thread. Reuses the target node and orchestrator. |
 | Automatic placement | `remotePlacement` policy: enabled + explicit consent + selected target + idle threshold. A scheduler checks every 20 seconds, picks idle worker sessions with history, cold-moves at most two per pass, never interrupts a running turn, releases the local OMP session, and records `targetId`, `remoteThreadId`, `remoteNodeId`, `movedAt`. Settings shows policy, "Place idle sessions now", and the last automatic placement. `placeIdleSessions(force, threadId)` is also available over IPC for scoped placement. |
 | Remote control | Prompts, stop, continue and compact on a placed session are proxied to its target over the target API; the desktop mirrors target status and new messages every 8 seconds and keeps local chat in sync. |
 | Docker/VPS runner | `runner/Dockerfile`, `runner/docker-compose.yml`, `runner/entrypoint.sh`, `runner/README.md`. Headless Electron (`OMP_HEADLESS=1`) under Xvfb, data on a labeled volume, loopback port by default, healthcheck, no public exposure. |
@@ -102,6 +103,23 @@ messages 15, threadIds thr_e9c0dfdb80294a9e
 cleanup 200, target threads 1 nodes 1
 ```
 
+Warm move against the Docker runner, same source workspace (74.3 MB, 441
+workspace files):
+
+```
+COLD  ms=7104    warm=false  filesWritten=443  filesUnchanged=0    bytesSent=74305489
+WARM  ms=206.6   warm=true   filesWritten=1    filesUnchanged=441  filesDeleted=1  bytesSent=50930
+target nodes=2 threads=4 (root, target orchestrator, cold worker, warm worker)
+target workspace: warm-test.txt = "version-two-with-more-content"
+                  delete-me.txt = DELETED
+manifest endpoint: origin prj_b6d4109d55ab45f9 -> target node prj_a0b45093ac8d4a49, 442 files
+warm session: 15 messages
+```
+
+That is **34× faster** and **~1,458× less data sent** than the cold move for the
+same workspace. The first move still uses the cold path when the target has no
+matching origin workspace.
+
 GC CLI on the real data directory (216 MB):
 
 ```
@@ -143,10 +161,11 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   `omp-remote-ios-simulator.zip` 1.5 MB). A signed installable device build
   still needs an Apple account, a signing certificate and a provisioning
   profile.
-- **Warm and live moves**: v1 only does cold move at turn boundaries. Paused
-  microVM (E2B Embed) and memory snapshot migration are not implemented.
+- **Live migration**: moves are cold or warm at turn boundaries. Memory/device
+  snapshot migration and paused-microVM (E2B Embed) resume are not implemented.
 - **Push notifications and cost meter**: not implemented.
 - **Relay**: Tailscale (or another user-owned reverse proxy) is the supported
   access path. No self-hosted encrypted relay service is included.
 - **Docker image size**: includes Electron and build tooling; the OMP binary is
   downloaded on first use.
+
