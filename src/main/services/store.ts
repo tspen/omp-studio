@@ -77,7 +77,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sandbox: { enabled: false, allowedPaths: [], deniedCommands: [], allowNetwork: true },
   permissions: { rules: [] },
   autoCheckpoints: true,
-  remote: { enabled: true, port: 43120, host: "127.0.0.1", keepRunning: false },
+  remote: { enabled: true, port: 43120, host: "0.0.0.0", keepRunning: false },
   remoteTargets: [],
   remotePlacement: { enabled: false, targetId: "", idleSeconds: 60, consent: false },
   remoteRelay: { enabled: false, url: "", room: "" },

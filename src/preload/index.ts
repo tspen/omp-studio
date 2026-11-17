@@ -145,9 +145,10 @@ const api: OmpStudioApi = {
   maintenanceSweep: (dryRun?: boolean) => invoke("maintenance:sweep", dryRun) as Promise<any>,
   listRemoteTargets: () => invoke("remote:targets") as Promise<any>,
   addRemoteTarget: (input: unknown) => invoke("remote:target:add", input) as Promise<any>,
+  pairRemoteTarget: (input: string) => invoke("remote:target:pair", input) as Promise<any>,
   removeRemoteTarget: (id: string) => invoke("remote:target:remove", id) as Promise<any>,
   testRemoteTarget: (id: string) => invoke("remote:target:test", id) as Promise<any>,
-  moveThreadToTarget: (threadId: string, targetId: string) => invoke("remote:move", threadId, targetId) as Promise<any>,
+  moveThreadToTarget: (threadId: string, targetId: string, mode?: "wait" | "stop") => invoke("remote:move", threadId, targetId, mode) as Promise<any>,
   placeIdleSessions: (force?: boolean, threadId?: string) => invoke("remote:place", force, threadId) as Promise<any>,
   lastPlacement: () => invoke("remote:last-placement") as Promise<any>,
   targetUsage: (id: string) => invoke("remote:target-usage", id) as Promise<any>,
@@ -218,6 +219,7 @@ const api: OmpStudioApi = {
 };
 
 contextBridge.exposeInMainWorld("omp", api);
+
 
 
 

@@ -464,9 +464,10 @@ export function registerIpc(context: IpcContext): void {
   );
   ipcMain.handle("remote:targets", () => remote.listTargets());
   ipcMain.handle("remote:target:add", (_event, input) => remote.addTarget(input));
+  ipcMain.handle("remote:target:pair", (_event, input: string) => remote.pairTarget(input));
   ipcMain.handle("remote:target:remove", (_event, id: string) => remote.removeTarget(id));
   ipcMain.handle("remote:target:test", (_event, id: string) => remote.testTarget(id));
-  ipcMain.handle("remote:move", (_event, threadId: string, targetId: string) => remote.moveThread(threadId, targetId));
+  ipcMain.handle("remote:move", (_event, threadId: string, targetId: string, mode?: "wait" | "stop") => remote.moveThread(threadId, targetId, mode));
   ipcMain.handle("remote:place", (_event, force?: boolean, threadId?: string) => remote.placeIdleSessions(!!force, threadId));
   ipcMain.handle("remote:last-placement", () => remote.lastPlacement());
   ipcMain.handle("remote:target-usage", (_event, id: string) => remote.targetUsage(id));
@@ -555,6 +556,7 @@ export function registerIpc(context: IpcContext): void {
     });
   });
 }
+
 
 
 

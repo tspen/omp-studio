@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
+  Cloud,
   Folder,
   FolderGit2,
   GitBranch,
@@ -51,7 +52,8 @@ export function Sidebar() {
   const unread = state.notifications.filter((item) => !item.read).length;
   const inbox = state.inbox.length;
 
-  const pinned = useMemo(() => nodes.filter((item) => item.parentId === root?.id).slice(0, 8), [nodes, root?.id]);
+  const pinned = useMemo(() => threads.filter((item) => item.pinned).sort((a, b) => b.lastActivityAt - a.lastActivityAt).slice(0, 8), [threads]);
+  const nodeName = (id: string) => nodes.find((item) => item.id === id)?.name ?? "";
   const filteredNodes = useMemo(() => {
     if (!query.trim()) return nodes;
     const lower = query.toLowerCase();
@@ -77,27 +79,28 @@ export function Sidebar() {
         <NavItem icon={<Smartphone size={16} />} label="Devices" onClick={() => state.setOverlay("devices")} />
       </nav>
 
-      <div className="sidebar-section">
-        <div className="sidebar-label">
-          <span>Pinned</span>
-          <ChevronDown size={13} />
+      {pinned.length ? (
+        <div className="sidebar-section">
+          <div className="sidebar-label">
+            <span>Pinned</span>
+            <ChevronDown size={13} />
+          </div>
+          <div className="pinned-list">
+            {pinned.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={cx("pinned-row", state.selectedThreadId === item.id && "active")}
+                onClick={() => void state.selectThread(item.id, item.nodeId)}
+              >
+                <StatusDot status={item.status} pulse={item.status === "running"} />
+                <span>{item.title}</span>
+                <span className="pinned-project">{nodeName(item.nodeId)}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="pinned-list">
-          {pinned.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cx("pinned-row", state.selectedNodeId === item.id && "active")}
-              onClick={() => void state.selectNode(item.id)}
-            >
-              <NodeIcon type={item.type} />
-              <span>{item.name}</span>
-              <StatusDot status={aggregateStatus(threads, item.id)} />
-            </button>
-          ))}
-          {!pinned.length ? <p className="sidebar-empty">Create a group or project to begin.</p> : null}
-        </div>
-      </div>
+      ) : null}
 
       <div className="sidebar-section grow">
         <div className="sidebar-label">
@@ -161,6 +164,20 @@ export function Sidebar() {
         return (
           <div className="thread-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" onClick={() => { setMenu(null); void state.selectThread(target.id, target.nodeId); }}>Open thread</button>
+            <button
+              type="button"
+              onClick={async () => {
+                setMenu(null);
+                try {
+                  await window.omp.updateThread(target.id, { pinned: !target.pinned });
+                  await state.refresh();
+                } catch (error) {
+                  state.pushToast({ kind: "error", title: "Could not update pin", body: String(error) });
+                }
+              }}
+            >
+              {target.pinned ? "Unpin" : "Pin to top"}
+            </button>
             {target.archived ? (
               <button
                 type="button"
@@ -307,6 +324,7 @@ function TreeRow({
         >
           <StatusDot status={thread.status} pulse={thread.status === "running" || thread.status === "starting"} />
           <span className="tree-thread-name">{thread.title}</span>
+          {thread.targetId ? <Cloud size={10} className="tree-thread-remote" aria-label="Runs on another machine" /> : null}
           {thread.git?.branch ? <GitBranch size={10} className="tree-thread-branch" /> : null}
           {thread.tokens ? <span className="tree-thread-tokens">{formatNumber(thread.tokens)}</span> : null}
         </button>

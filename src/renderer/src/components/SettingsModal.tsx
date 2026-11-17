@@ -3,7 +3,9 @@ import {
   Activity,
   Bell,
   Check,
+  CircleStop,
   Cloud,
+  ChevronDown,
   ChevronRight,
   Clock,
   Cpu,
@@ -142,7 +144,7 @@ function settingsBlurb(tab: string): string {
     case "plugins":
       return "Install Claude Code-style plugin folders from Git or disk. Skills and MCP servers are installed; hooks are not executed.";
     case "remote":
-      return "Control this machine from your phone or another PC over Tailscale or your own network. Token-protected, no public exposure.";
+      return "Control this machine from your phone or another PC over your Wi-Fi or your own relay. Token-protected, no public exposure.";
     case "notifications":
       return "Windows toasts, tray badge, and which events are worth interrupting you.";
     case "engine":
@@ -165,6 +167,22 @@ function Section({ title, subtitle, children, right }: { title: string; subtitle
         {right}
       </div>
       <div className="setting-section-body">{children}</div>
+    </section>
+  );
+}
+
+function Disclosure({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className={cx("setting-section", "setting-disclosure", open && "open")}>
+      <button type="button" className="setting-section-head disclosure-head" onClick={() => setOpen((value) => !value)}>
+        <div>
+          <h3>{title}</h3>
+          {subtitle ? <p>{subtitle}</p> : null}
+        </div>
+        {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+      </button>
+      {open ? <div className="setting-section-body">{children}</div> : null}
     </section>
   );
 }
@@ -1273,85 +1291,101 @@ function RemoteTab() {
   const link = info?.urls[0] ? `${info.urls[0]}/#t=${encodeURIComponent(info.token)}` : "";
   return (
     <>
-      <Section title="Remote access" subtitle="No public ports. Use Tailscale, your LAN, or a reverse proxy you control." right={<Badge tone={info?.running ? "green" : "neutral"}>{info?.running ? "running" : "stopped"}</Badge>}>
-        <Row label="Enable remote server" hint="Token-protected HTTP + WebSocket on this machine. The mobile PWA is served from it.">
+      <Section
+        title="Remote access"
+        subtitle="Use this machine from your phone or another device. Private by default: no open ports."
+        right={<Badge tone={info?.running ? "green" : "neutral"}>{info?.running ? "On" : "Off"}</Badge>}
+      >
+        <Row label="Server" hint={info?.running ? `Serving at ${info.urls[0] ?? `${remote.host}:${remote.port}`}.` : "Turn on to pair a phone or another device."}>
           <Toggle checked={remote.enabled} onChange={(value) => void (value ? window.omp.startRemote().then(setInfo) : window.omp.stopRemote().then(setInfo)).catch((error) => state.pushToast({ kind: "error", title: "Remote toggle failed", body: String(error) }))} />
         </Row>
-        <Row label="Bind address" hint="127.0.0.1 is correct for Tailscale Serve. Use 0.0.0.0 only on a trusted LAN.">
-          <div className="inline-actions">
-            <input value={remote.host} onChange={(event) => state.updateSettings({ settings: { remote: { ...remote, host: event.target.value } } })} />
-            <input className="num-input" type="number" min={1024} max={65535} value={remote.port} onChange={(event) => state.updateSettings({ settings: { remote: { ...remote, port: Number(event.target.value) } } })} />
-            <Button size="sm" variant="soft" disabled={busy !== null} onClick={() => void apply({})}>{busy === "apply" ? <Spinner /> : <RefreshCw size={12} />} Apply</Button>
+        {info?.running ? (
+          <div className="remote-pair">
+            {info.qr ? <img src={info.qr} alt="Remote pairing QR" /> : null}
+            <div className="remote-pair-text">
+              <strong>Scan with your phone</strong>
+              <span>Scan on the same Wi-Fi, or connect a relay below to use it anywhere. The code carries the pairing token.</span>
+              <div className="inline-actions">
+                <Button size="sm" variant="soft" disabled={!link} onClick={() => { void navigator.clipboard.writeText(link); state.pushToast({ kind: "info", title: "Link copied", body: "Open it on your phone with Tailscale connected." }); }}><Copy size={12} /> Copy link</Button>
+                <Button size="sm" variant="ghost" disabled={!info.urls[0]} onClick={() => void window.omp.openExternal(link)}><ExternalLink size={12} /> Open here</Button>
+              </div>
+              {info.urls[0]?.includes("127.0.0.1") ? (
+                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void apply({ host: "0.0.0.0" })}><Wifi size={12} /> Allow phone on Wi-Fi</Button>
+              ) : null}
+            </div>
           </div>
-        </Row>
-        <Row label="Keep running when the window closes" hint="Hide to the tray instead of quitting, so the phone can keep using this machine. Quit from the tray menu when done.">
-          <Toggle checked={!!remote.keepRunning} onChange={(value) => state.updateSettings({ settings: { remote: { ...remote, keepRunning: value } } })} />
-        </Row>
-        {info?.error ? <Row label="Last error"><span className="connector-result">{info.error}</span></Row> : null}
-        {info?.urls.length ? (
-          <Row label="Runner URLs" hint="Open one on your phone (Tailscale IP recommended).">
-            <div className="remote-urls">
-              {info.urls.map((url) => <button key={url} type="button" className="remote-url" onClick={() => void window.omp.openExternal(url)}>{url}</button>)}
-            </div>
-          </Row>
         ) : null}
-        {info ? (
-          <Row label="Pairing token" hint="Stored locally and required by every device. Rotate to revoke all phones.">
-            <div className="inline-actions">
-              <input type={showToken ? "text" : "password"} readOnly value={info.token} />
-              <Button size="sm" variant="ghost" onClick={() => setShowToken((value) => !value)}>{showToken ? "Hide" : "Show"}</Button>
-              <Button size="sm" variant="soft" disabled={!link} onClick={() => { void navigator.clipboard.writeText(link); state.pushToast({ kind: "info", title: "Mobile link copied", body: "Open it on your phone with Tailscale connected." }); }}><Copy size={12} /> Copy link</Button>
-              <Button size="sm" variant="outline" disabled={busy !== null} onClick={async () => {
-                if (!confirm("Rotate the token? Every paired phone will be disconnected.")) return;
-                setBusy("rotate");
-                try { setInfo(await window.omp.rotateRemoteToken()); state.pushToast({ kind: "success", title: "Token rotated" }); } finally { setBusy(null); }
-              }}>Rotate</Button>
-            </div>
-          </Row>
-        ) : null}
+        {info?.error ? <p className="connector-result">{info.error}</p> : null}
       </Section>
-      {info?.qr ? (
-        <Section title="Pair a phone" subtitle="Tailscale connected? Scan this code. It contains the runner URL and token in the URL fragment, which is never sent to the server.">
-          <div className="remote-qr"><img src={info.qr} alt="Remote pairing QR" /><div><strong>OMP Remote</strong><span>Scan with the camera, or open the copied link.</span><small>If you rotate the token, rescan.</small></div></div>
-        </Section>
-      ) : null}
-      <Section title="Tailscale (recommended)" subtitle="Private access from anywhere without opening a port.">
-        <ol className="remote-steps">
-          <li>Install Tailscale on this PC and on your phone, signed into the same tailnet.</li>
-          <li>Run <code>tailscale serve --bg 43120</code> on this PC. It gives you an HTTPS URL on your tailnet.</li>
-          <li>Open that HTTPS URL on your phone and add <code>#t=&lt;token&gt;</code>, or scan the QR after Tailscale is connected.</li>
-          <li>On iPhone, use Share ? Add to Home Screen. On Android, Install app.</li>
-        </ol>
-        <p className="muted">No public exposure, no firewall changes, no dynamic DNS. A self-hosted relay or Cloudflare Tunnel + Access works the same way if you prefer.</p>
-      </Section>
-      <Section title="Mobile app" subtitle="The PWA is the mobile app: installable, offline shell, same token.">
-        <div className="inline-actions">
-          <Button size="sm" variant="soft" disabled={!info?.urls[0]} onClick={() => void window.omp.openExternal(link)}><ExternalLink size={12} /> Open on this device</Button>
-          <Button size="sm" variant="ghost" onClick={() => void load()}><RefreshCw size={12} /> Refresh</Button>
-        </div>
-      </Section>
-      <Section title="Cleanup" subtitle="Label-scoped garbage collection for sessions, imported workspaces, worktrees, expired share bundles, artifacts and logs. It never touches files outside the OMP data directory.">
-        <div className="inline-actions">
-          <Button size="sm" variant="soft" disabled={busy !== null} onClick={async () => {
-            setBusy("sweep");
-            try { setReport(await window.omp.maintenanceSweep(false)); } catch (error) { state.pushToast({ kind: "error", title: "Cleanup failed", body: String(error) }); } finally { setBusy(null); }
-          }}>{busy === "sweep" ? <Spinner /> : <Trash2 size={12} />} Clean up now</Button>
-          <Button size="sm" variant="ghost" disabled={busy !== null} onClick={async () => {
-            setBusy("preview");
-            try { setReport(await window.omp.maintenanceSweep(true)); } finally { setBusy(null); }
-          }}>Preview</Button>
-        </div>
-        {report ? (
-          <p className="muted">
-            {report.dryRun ? "Would reclaim " : "Reclaimed "}{formatBytes(report.bytesReclaimed)} across {report.actions.length} item{report.actions.length === 1 ? "" : "s"} in {report.durationMs} ms. Data directory is {formatBytes(report.runnerBytes)} ({report.quotaUsedPct}% of quota).
-            {report.warnings.length ? ` ${report.warnings.join("; ")}` : ""}
-          </p>
-        ) : <p className="muted">Runs automatically at startup and every five minutes. Quota: 20 GB per runner, 5 GB per session.</p>}
-      </Section>
-      <RemoteTargets />
+
       <RelaySettings />
-      <E2BSettings />
-      <CheckpointSettings />
+
+      <Disclosure title="Advanced settings" subtitle="Network, pairing token, other machines, sandbox and cleanup.">
+        <Section title="Network and token" subtitle="Defaults work with Tailscale Serve. Change these only if you need to.">
+          <Row label="Bind address" hint="0.0.0.0 lets phones on the same Wi-Fi connect. Use 127.0.0.1 to keep it local-only.">
+            <div className="inline-actions">
+              <input value={remote.host} onChange={(event) => state.updateSettings({ settings: { remote: { ...remote, host: event.target.value } } })} />
+              <input className="num-input" type="number" min={1024} max={65535} value={remote.port} onChange={(event) => state.updateSettings({ settings: { remote: { ...remote, port: Number(event.target.value) } } })} />
+              <Button size="sm" variant="soft" disabled={busy !== null} onClick={() => void apply({})}>{busy === "apply" ? <Spinner /> : <RefreshCw size={12} />} Apply</Button>
+            </div>
+          </Row>
+          <Row label="Keep running when the window closes" hint="Hide to the tray instead of quitting, so your phone can keep using this machine.">
+            <Toggle checked={!!remote.keepRunning} onChange={(value) => state.updateSettings({ settings: { remote: { ...remote, keepRunning: value } } })} />
+          </Row>
+          {info?.urls.length ? (
+            <Row label="Runner URLs" hint="Open one on your phone on the same network.">
+              <div className="remote-urls">
+                {info.urls.map((url) => <button key={url} type="button" className="remote-url" onClick={() => void window.omp.openExternal(url)}>{url}</button>)}
+              </div>
+            </Row>
+          ) : null}
+          {info ? (
+            <Row label="Pairing token" hint="Required by every device. Rotate to revoke all phones.">
+              <div className="inline-actions">
+                <input type={showToken ? "text" : "password"} readOnly value={info.token} />
+                <Button size="sm" variant="ghost" onClick={() => setShowToken((value) => !value)}>{showToken ? "Hide" : "Show"}</Button>
+                <Button size="sm" variant="soft" disabled={!link} onClick={() => { void navigator.clipboard.writeText(link); state.pushToast({ kind: "info", title: "Mobile link copied", body: "Open it on your phone with Tailscale connected." }); }}><Copy size={12} /> Copy link</Button>
+                <Button size="sm" variant="outline" disabled={busy !== null} onClick={async () => {
+                  if (!confirm("Rotate the token? Every paired phone will be disconnected.")) return;
+                  setBusy("rotate");
+                  try { setInfo(await window.omp.rotateRemoteToken()); state.pushToast({ kind: "success", title: "Token rotated" }); } finally { setBusy(null); }
+                }}>Rotate</Button>
+              </div>
+            </Row>
+          ) : null}
+        </Section>
+
+        <Section title="Phone setup" subtitle="Scan the QR on the phone; it installs as an app. No Tailscale or firewall changes.">
+          <ol className="remote-steps">
+            <li>Turn on remote access and scan the QR from the phone camera.</li>
+            <li>On iPhone, use Share → Add to Home Screen. On Android, choose Install app.</li>
+            <li>On the same Wi-Fi it works directly. Away from home, connect the relay above and scan its QR once.</li>
+          </ol>
+        </Section>
+
+        <RemoteTargets />
+        <E2BSettings />
+        <CheckpointSettings />
+
+        <Section title="Cleanup" subtitle="Prunes sessions, imported workspaces, worktrees, expired share bundles, artifacts and logs inside the OMP data directory.">
+          <div className="inline-actions">
+            <Button size="sm" variant="soft" disabled={busy !== null} onClick={async () => {
+              setBusy("sweep");
+              try { setReport(await window.omp.maintenanceSweep(false)); } catch (error) { state.pushToast({ kind: "error", title: "Cleanup failed", body: String(error) }); } finally { setBusy(null); }
+            }}>{busy === "sweep" ? <Spinner /> : <Trash2 size={12} />} Clean up now</Button>
+            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={async () => {
+              setBusy("preview");
+              try { setReport(await window.omp.maintenanceSweep(true)); } finally { setBusy(null); }
+            }}>Preview</Button>
+          </div>
+          {report ? (
+            <p className="muted">
+              {report.dryRun ? "Would reclaim " : "Reclaimed "}{formatBytes(report.bytesReclaimed)} across {report.actions.length} item{report.actions.length === 1 ? "" : "s"} in {report.durationMs} ms. Data directory is {formatBytes(report.runnerBytes)} ({report.quotaUsedPct}% of quota).
+              {report.warnings.length ? ` ${report.warnings.join("; ")}` : ""}
+            </p>
+          ) : <p className="muted">Runs automatically at startup and every five minutes. Quota: 20 GB per runner, 5 GB per session.</p>}
+        </Section>
+      </Disclosure>
     </>
   );
 }
@@ -1475,7 +1509,8 @@ function CheckpointSettings() {
           setName("");
           return next;
         })}>{busy ? <Spinner /> : <Pause size={12} />} Checkpoint now</Button>
-      </div>\n      <div className="remote-target-form">
+      </div>
+      <div className="remote-target-form">
         <input placeholder="/backups/handoff.tar.gz" value={bundlePath} onChange={(event) => setBundlePath(event.target.value)} />
         <Button size="sm" variant="soft" disabled={busy || !info?.running} onClick={async () => {
           setBusy(true);
@@ -1501,7 +1536,8 @@ function CheckpointSettings() {
         }}>Import bundle</Button>
       </div>
       {bundleMessage ? <p className="muted">{bundleMessage}</p> : null}
-      {info?.error ? <p className="muted">{info.error}</p> : null}\n      {info?.checkpoints.length ? (
+      {info?.error ? <p className="muted">{info.error}</p> : null}
+      {info?.checkpoints.length ? (
         <div className="remote-targets">
           {info.checkpoints.map((checkpoint) => (
             <div key={checkpoint} className="remote-target">
@@ -1541,29 +1577,37 @@ function RelaySettings() {
       setBusy(false);
     }
   };
+  const relayCommand = "docker run -d --restart unless-stopped --name omp-relay -p 43150:43150 ghcr.io/tspen/omp-relay:latest";
   return (
     <Section
-      title="Self-hosted relay"
-      subtitle="Runner and phone connect outbound to a relay you own. The relay forwards AES-256-GCM frames and never sees prompts or session data."
-      right={<Badge tone={info?.connected ? "green" : info?.running ? "amber" : "neutral"}>{info?.connected ? "connected" : info?.running ? "connecting" : "off"}</Badge>}
+      title="Use from anywhere"
+      subtitle="Run the relay on any VPS you own, paste its address once, then scan. Encrypted end to end; no Tailscale."
+      right={<Badge tone={info?.connected ? "green" : info?.running ? "amber" : "neutral"}>{info?.connected ? "Connected" : info?.running ? "Connecting" : "Off"}</Badge>}
     >
-      <div className="remote-target-form">
-        <input placeholder="https://relay.tailnet-name.ts.net" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
-        <input placeholder="Room (auto)" value={form.room} onChange={(event) => setForm({ ...form, room: event.target.value })} />
+      <div className="remote-command">
+        <code>{relayCommand}</code>
+        <Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard.writeText(relayCommand); state.pushToast({ kind: "info", title: "Command copied" }); }}><Copy size={12} /> Copy</Button>
       </div>
+      <p className="muted">Give the VPS an HTTPS address (Caddy, nginx or a Cloudflare Tunnel). The relay stores nothing and only forwards encrypted frames.</p>
       <div className="remote-target-form">
-        <input type="password" placeholder={info?.hasToken ? "Room token (leave blank to keep)" : "Room token (auto)"} value={form.token} onChange={(event) => setForm({ ...form, token: event.target.value })} />
-        <input type="password" placeholder={info?.hasSecret ? "E2E secret (leave blank to keep)" : "E2E secret (auto)"} value={form.secret} onChange={(event) => setForm({ ...form, secret: event.target.value })} />
-      </div>
-      <div className="inline-actions">
-        <Button size="sm" variant="soft" disabled={busy || !form.url.trim()} onClick={() => void save(true)}>{busy ? <Spinner /> : <Cloud size={12} />} Save and connect</Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => void save(false)}>Disconnect</Button>
-        {info?.link ? <Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard.writeText(info.link!); state.pushToast({ kind: "info", title: "Relay link copied" }); }}><Copy size={12} /> Copy link</Button> : null}
-        <Button size="sm" variant="ghost" disabled={!info?.link} onClick={() => void window.omp.openExternal(info!.link!)}><ExternalLink size={12} /> Open relay</Button>
+        <input placeholder="https://relay.example.com" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
+        <Button size="sm" variant="soft" disabled={busy || !form.url.trim()} onClick={() => void save(true)}>{busy ? <Spinner /> : <Cloud size={12} />} Connect</Button>
+        {info?.running ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void save(false)}>Disconnect</Button> : null}
       </div>
       {info?.error ? <p className="muted">{info.error}</p> : null}
-      {info?.connected ? <p className="muted">Room {info.room} · {info.clients} client(s). The relay only sees ciphertext.</p> : null}
-      {info?.qr ? <div className="remote-qr"><img src={info.qr} alt="Relay pairing QR" /><div><strong>Relay pairing</strong><span>Scan on the phone. The token and E2E key are in the URL fragment.</span><small>Put the relay behind Tailscale or TLS; it should not be public.</small></div></div> : null}
+      {info?.connected ? (
+        <div className="remote-qr">
+          {info.qr ? <img src={info.qr} alt="Relay pairing QR" /> : null}
+          <div>
+            <strong>Scan once to use OMP anywhere</strong>
+            <span>Room {info.room} · {info.clients} client(s). Prompts and files stay encrypted; the relay sees ciphertext only.</span>
+            <div className="inline-actions">
+              {info.link ? <Button size="sm" variant="soft" onClick={() => { void navigator.clipboard.writeText(info.link!); state.pushToast({ kind: "info", title: "Relay link copied" }); }}><Copy size={12} /> Copy link</Button> : null}
+              {info.link ? <Button size="sm" variant="ghost" onClick={() => void window.omp.openExternal(info!.link!)}><ExternalLink size={12} /> Open</Button> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Section>
   );
 }
@@ -1573,7 +1617,8 @@ function RemoteTargets() {
   const settings = state.snapshot?.settings;
   const policy = settings?.remotePlacement ?? { enabled: false, targetId: "", idleSeconds: 60, consent: false };
   const [targets, setTargets] = useState<RemoteTarget[]>([]);
-  const [form, setForm] = useState({ name: "", url: "", token: "" });
+  const [pairLink, setPairLink] = useState("");
+  const runnerCommand = "docker run -d --restart unless-stopped -p 43120:43120 -v omp-data:/data ghcr.io/tspen/omp-runner:latest";
   const [busy, setBusy] = useState<string | null>(null);
   const [threadId, setThreadId] = useState("");
   const [targetId, setTargetId] = useState("");
@@ -1589,9 +1634,30 @@ function RemoteTargets() {
     return () => window.clearInterval(timer);
   }, []);
   const threads = useMemo(() => [...(state.snapshot?.threads ?? [])].sort((a, b) => b.updatedAt - a.updatedAt), [state.snapshot?.threads]);
+  const selectedThread = threads.find((thread) => thread.id === threadId);
+  const selectedRunning = !!selectedThread && ["running", "starting", "waiting", "queued"].includes(selectedThread.status);
   const updatePolicy = (patch: Partial<typeof policy>) => state.updateSettings({ settings: { remotePlacement: { ...policy, ...patch } } });
+  const move = async (mode: "wait" | "stop") => {
+    const target = targets.find((item) => item.id === targetId) ?? targets[0];
+    if (!target) return;
+    setBusy("move");
+    setResult("");
+    try {
+      const moved = await window.omp.moveThreadToTarget(threadId, target.id, mode);
+      if ("queued" in moved) {
+        setResult(moved.message);
+      } else {
+        setResult(`Moved to ${target.name} as ${moved.threadId} (${moved.warm ? "warm" : "cold"}, ${moved.filesWritten} file(s) written, ${moved.filesUnchanged} unchanged, ${(moved.bytesSent / 1024).toFixed(0)} KB). Continue it there from the PWA or that runner.`);
+      }
+    } catch (error) {
+      setResult(String(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
-    <Section title="Targets and cold move" subtitle="Register another user-owned runner (a VPS, a spare PC, or the Docker runner). Moving exports the workspace, OMP session and chat, then imports them on the target. The source stays for rollback.">
+    <Section title="Move to another machine" subtitle="Run this on a VPS or spare PC, then paste the pairing link from its logs (swap 127.0.0.1 for the machine's address). Sessions move at a turn boundary; the source stays for rollback.">
       {targets.length ? (
         <div className="remote-targets">
           {targets.map((target) => (
@@ -1629,19 +1695,24 @@ function RemoteTargets() {
         <span>Placed sessions: ${threads.filter((thread) => thread.targetId).reduce((sum, thread) => sum + (thread.cost ?? 0), 0).toFixed(4)} · {threads.filter((thread) => thread.targetId).reduce((sum, thread) => sum + (thread.tokens ?? 0), 0).toLocaleString()} tok</span>
         <span>{usage ? `${usage.target.name}: $${usage.totalCost.toFixed(4)} · ${usage.totalTokens.toLocaleString()} tok · ${usage.threads.length} session(s) · ${new Date(usage.generatedAt).toLocaleTimeString()}` : "Use Costs on a target to refresh its usage."}</span>
       </div>
+      <div className="remote-command">
+        <code>docker run -d --restart unless-stopped -p 43120:43120 -v omp-data:/data ghcr.io/tspen/omp-runner:latest</code>
+        <Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard.writeText(runnerCommand); state.pushToast({ kind: "info", title: "Command copied" }); }}><Copy size={12} /> Copy</Button>
+      </div>
       <div className="remote-target-form">
-        <input placeholder="Name (VPS)" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-        <input placeholder="https://vps.tailnet-name.ts.net" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
-        <input placeholder="Pairing token" value={form.token} onChange={(event) => setForm({ ...form, token: event.target.value })} />
-        <Button size="sm" variant="soft" disabled={busy !== null || !form.url.trim() || !form.token.trim()} onClick={async () => {
-          setBusy("add");
+        <input placeholder="Paste a pairing link: http://host:43120/#t=..." value={pairLink} onChange={(event) => setPairLink(event.target.value)} />
+        <Button size="sm" variant="soft" disabled={busy !== null || !pairLink.trim()} onClick={async () => {
+          setBusy("pair");
           try {
-            setTargets(await window.omp.addRemoteTarget({ ...form, kind: "paired" }));
-            setForm({ name: "", url: "", token: "" });
+            const paired = await window.omp.pairRemoteTarget(pairLink);
+            setTargets(paired.targets);
+            setPairLink("");
+            setTargetId(paired.target.id);
+            state.pushToast({ kind: "success", title: "Machine paired", body: paired.target.name });
           } catch (error) {
-            state.pushToast({ kind: "error", title: "Could not add target", body: String(error) });
+            state.pushToast({ kind: "error", title: "Could not pair machine", body: String(error) });
           } finally { setBusy(null); }
-        }}>{busy === "add" ? <Spinner /> : <Plus size={12} />} Add target</Button>
+        }}>{busy === "pair" ? <Spinner /> : <Plus size={12} />} Pair machine</Button>
       </div>
 
       <div className="remote-policy">
@@ -1652,6 +1723,7 @@ function RemoteTargets() {
           </div>
           <Toggle checked={policy.enabled} onChange={(value) => updatePolicy({ enabled: value })} />
         </div>
+        {policy.enabled ? (<>
         <div className="remote-target-form">
           <select value={policy.targetId} onChange={(event) => updatePolicy({ targetId: event.target.value })}>
             <option value="">Choose a runner…</option>
@@ -1682,6 +1754,7 @@ function RemoteTargets() {
         {placement ? <p className="muted">{placement}</p> : null}
         {lastPlacement?.placed.length ? <p className="muted">Last automatic placement: {lastPlacement.placed.length} session(s) at {new Date(lastPlacement.at).toLocaleTimeString()} ({lastPlacement.placed.map((item) => `${item.warm ? "warm" : "cold"} ${item.ms} ms`).join(", ")}).</p> : null}
         <p className="muted">Checks every 20 seconds when enabled and consented. Only idle worker sessions with history are moved; running turns are never interrupted.</p>
+        </>) : <p className="muted">Off. Sessions stay on this machine.</p>}
       </div>
 
       <div className="remote-target-form">
@@ -1693,17 +1766,15 @@ function RemoteTargets() {
           <option value="">Choose a target…</option>
           {targets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
         </select>
-        <Button size="sm" variant="soft" disabled={busy !== null || !threadId || !targets.length} onClick={async () => {
-          const target = targets.find((item) => item.id === targetId) ?? targets[0];
-          setBusy("move");
-          setResult("");
-          try {
-            const moved = await window.omp.moveThreadToTarget(threadId, target.id);
-            setResult(`Moved to ${target.name} as ${moved.threadId} (${moved.warm ? "warm" : "cold"}, ${moved.filesWritten} file(s) written, ${moved.filesUnchanged} unchanged, ${(moved.bytesSent / 1024).toFixed(0)} KB). Continue it there from the PWA or that runner.`);
-          } catch (error) {
-            setResult(String(error));
-          } finally { setBusy(null); }
-        }}>{busy === "move" ? <Spinner /> : <Play size={12} />} Move session</Button>
+        <Button size="sm" variant="soft" disabled={busy !== null || !threadId || !targets.length} onClick={() => void move("wait")}>
+          {busy === "move" ? <Spinner /> : <Clock size={12} />} {selectedRunning ? "Move after turn" : "Move session"}
+        </Button>
+        {selectedRunning ? (
+          <Button size="sm" variant="danger" disabled={busy !== null || !threadId || !targets.length} onClick={() => void move("stop")}>
+            <CircleStop size={12} /> Stop & move
+          </Button>
+        ) : null}
+
       </div>
       {result ? <p className="muted">{result}</p> : null}
     </Section>
@@ -1716,6 +1787,7 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
 
 
 

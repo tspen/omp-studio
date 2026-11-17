@@ -8,7 +8,7 @@ import JSZip from "jszip";
 import { WebSocketServer, type WebSocket } from "ws";
 import webpush from "web-push";
 import { app } from "electron";
-import type { AppEvent, ChatMessage, MoveResult, PlacementPolicy, PlacementResult, RemoteInfo, RemoteUsage, TargetUsage, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
+import type { AppEvent, ChatMessage, MoveMode, MoveOutcome, MoveResult, PlacementPolicy, PlacementResult, RemoteInfo, RemoteUsage, TargetUsage, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
 import type { Orchestrator } from "../orchestrator/orchestrator";
 import { collectGarbage } from "./maintenance";
 import { newId, type Store } from "./store";
@@ -36,6 +36,8 @@ export class RemoteService {
   private lastError: string | undefined;
   private placementReport: PlacementResult | null = null;
   private fileHashes = new Map<string, { mtimeMs: number; size: number; hash: string }>();
+  private pendingMoves = new Map<string, string>();
+  private moving = new Set<string>();
   private pushSubscriptions: Array<{ endpoint: string; expirationTime?: number | null; keys: { p256dh: string; auth: string } }> | null = null;
 
   constructor(store: Store, orchestrator: Orchestrator) {
@@ -87,6 +89,34 @@ export class RemoteService {
     return Date.now() - started;
   }
 
+  /** Accept a pairing link/code printed by another runner and register it. */
+  async pairTarget(input: string): Promise<{ targets: RemoteTarget[]; target: RemoteTarget }> {
+    const text = input.trim();
+    if (!text) throw new Error("Paste a pairing link or code");
+    let url = "";
+    let token = "";
+    let name = "";
+    if (text.startsWith("{")) {
+      const data = JSON.parse(text) as { url?: string; token?: string; name?: string };
+      url = data.url?.trim() ?? "";
+      token = data.token?.trim() ?? "";
+      name = data.name?.trim() ?? "";
+    } else {
+      const parsed = new URL(/^[a-z]+:\/\//i.test(text) ? text : `http://${text}`);
+      const hash = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+      token = hash.get("t") ?? hash.get("token") ?? parsed.searchParams.get("t") ?? parsed.searchParams.get("token") ?? "";
+      name = parsed.hostname;
+      parsed.hash = "";
+      parsed.search = "";
+      url = parsed.toString();
+    }
+    if (!url || !token) throw new Error("That code is missing a URL or token");
+    const targets = await this.addTarget({ name, url, token, kind: "paired" });
+    const target = targets.find((item) => item.url === normalizeUrl(url));
+    if (!target) throw new Error("Could not register that machine");
+    return { targets, target };
+  }
+
   async addTarget(input: RemoteTargetInput): Promise<RemoteTarget[]> {
     const url = normalizeUrl(input.url);
     const name = input.name.trim() || new URL(url).host;
@@ -130,10 +160,59 @@ export class RemoteService {
   }
 
   /** Cold or warm move: export this thread and import it into a registered target. */
-  async moveThread(threadId: string, targetId: string): Promise<MoveResult> {
+  async moveThread(threadId: string, targetId: string, mode: MoveMode = "stop"): Promise<MoveOutcome> {
     const thread = this.store.getThread(threadId);
     if (!thread) throw new Error("Thread not found");
-    if (["running", "starting", "waiting", "queued"].includes(thread.status)) throw new Error("Wait for the current turn to finish before moving this session");
+    const target = this.listTargets().find((item) => item.id === targetId);
+    if (!target) throw new Error("Target not found");
+    if (["running", "starting", "waiting", "queued"].includes(thread.status)) {
+      if (mode === "wait") {
+        this.pendingMoves.set(threadId, targetId);
+        return { queued: true, threadId, targetId, message: `Move to ${target.name} queued for the end of this turn` };
+      }
+      await this.orchestrator.stopThread(threadId);
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const current = this.store.getThread(threadId);
+        if (!current || !["running", "starting", "waiting", "queued"].includes(current.status)) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const current = this.store.getThread(threadId);
+      if (current && ["running", "starting", "waiting", "queued"].includes(current.status)) throw new Error("The session did not stop; try again when the turn ends");
+    }
+    return this.moveThreadNow(threadId, targetId);
+  }
+
+  /** Process moves queued while a turn was running. */
+  async processPendingMoves(): Promise<void> {
+    for (const [threadId, targetId] of [...this.pendingMoves.entries()]) {
+      if (this.moving.has(threadId)) continue;
+      const thread = this.store.getThread(threadId);
+      if (!thread) {
+        this.pendingMoves.delete(threadId);
+        continue;
+      }
+      if (["running", "starting", "waiting", "queued"].includes(thread.status)) continue;
+      this.pendingMoves.delete(threadId);
+      this.moving.add(threadId);
+      try {
+        const moved = await this.moveThreadNow(threadId, targetId);
+        const target = this.listTargets().find((item) => item.id === targetId);
+        this.orchestrator.notify({
+          type: "toast",
+          payload: { kind: "success", title: "Session moved", body: `${thread.title} moved to ${target?.name ?? "target"} as ${moved.threadId}` },
+        });
+      } catch (error) {
+        this.orchestrator.notify({
+          type: "toast",
+          payload: { kind: "error", title: "Queued move failed", body: error instanceof Error ? error.message : String(error) },
+        });
+      } finally {
+        this.moving.delete(threadId);
+      }
+    }
+  }
+
+  private async moveThreadNow(threadId: string, targetId: string): Promise<MoveResult> {
     const target = this.listTargets().find((item) => item.id === targetId);
     if (!target) throw new Error("Target not found");
     const token = this.targetToken(targetId);
@@ -229,6 +308,7 @@ export class RemoteService {
       const started = Date.now();
       try {
         const moved = await this.moveThread(thread.id, target.id);
+        if ("queued" in moved) continue;
         const updated = this.store.updateThread(thread.id, {
           targetId: target.id,
           remoteThreadId: moved.threadId,
@@ -888,7 +968,7 @@ export class RemoteService {
     if (quota.quotaUsedPct >= 100) throw new Error("Runner disk quota is full; clean up before importing");
 
     const originKey = typeof manifest.originKey === "string" ? manifest.originKey : "";
-    const existing = originKey ? this.findNodeByOrigin(originKey) : null;
+    const existing = originKey ? this.store.getNode(originKey) ?? this.findNodeByOrigin(originKey) : null;
     const warm = !!existing && !!manifest.delta;
     const root = this.store.nodes.find((node) => node.type === "root");
     if (!root) throw new Error("Root node not found");
@@ -1068,16 +1148,27 @@ export class RemoteService {
   }
 
   private urls(): string[] {
+    const publicUrl = (process.env.OMP_PUBLIC_URL ?? "").trim();
+    if (publicUrl) return [publicUrl.replace(/\/+$/, "")];
     const port = this.port || this.store.settings.remote.port || 43120;
     const host = this.host || this.store.settings.remote.host || "127.0.0.1";
     const result = new Set<string>();
     if (host === "0.0.0.0" || host === "::") {
-      result.add(`http://127.0.0.1:${port}`);
+      const lan: string[] = [];
       for (const entries of Object.values(networkInterfaces())) {
         for (const entry of entries ?? []) {
-          if (entry.family === "IPv4" && !entry.internal) result.add(`http://${entry.address}:${port}`);
+          if (entry.family === "IPv4" && !entry.internal) lan.push(entry.address);
         }
       }
+      const score = (address: string) => {
+        if (/^192\.168\./.test(address)) return 0;
+        if (/^10\./.test(address)) return 1;
+        if (/^172\.(1[6-9]|2\d|3[01])\./.test(address)) return 2;
+        if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(address)) return 3;
+        return 4;
+      };
+      for (const address of lan.sort((a, b) => score(a) - score(b) || a.localeCompare(b))) result.add(`http://${address}:${port}`);
+      result.add(`http://127.0.0.1:${port}`);
     } else {
       result.add(`http://${host === "::1" ? "127.0.0.1" : host}:${port}`);
     }
@@ -1121,6 +1212,8 @@ function normalizeUrl(value: string): string {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   return new URL(withScheme).toString().replace(/\/+$/, "");
 }
+
+
 
 
 

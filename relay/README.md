@@ -7,35 +7,29 @@ connects to the relay; the relay forwards **AES-256-GCM ciphertext** only.
 ## Quick start
 
 ```bash
+docker run -d --restart unless-stopped --name omp-relay -p 43150:43150 ghcr.io/tspen/omp-relay:latest
+```
+
+Give the relay an HTTPS address (Caddy, nginx or a Cloudflare Tunnel), then paste
+that address in OMP Studio → Settings → Remote → **Use from anywhere** and press
+Connect. The app generates a room, token and E2E secret, connects outbound, and
+shows a QR/link. Scan it once on the phone; the PWA stores the room, token and
+E2E key in the URL fragment and talks only through encrypted frames.
+
+Build from source instead:
+
+```bash
 npm run build:mobile
 docker build -f relay/Dockerfile -t omp-relay .
-docker run --rm --name omp-relay -p 127.0.0.1:43150:43150 omp-relay
+docker run --rm --name omp-relay -p 43150:43150 omp-relay
 ```
 
-or:
+## TLS
 
-```bash
-docker compose -f relay/docker-compose.yml up -d --build
-```
-
-Open the relay PWA at `http://127.0.0.1:43150`. In OMP Studio → Settings → Remote
-→ **Self-hosted relay**, set the relay URL and save. The app generates a room,
-room token and E2E secret, connects outbound, and prints a QR/link.
-
-On the phone, scan the QR or open the link. The PWA stores the room, token and
-E2E key in the URL fragment, then talks only through encrypted frames.
-
-## Tailscale / TLS
-
-The relay binds loopback by default. Keep it private:
-
-```bash
-tailscale serve --bg 43150
-```
-
-or put it behind a TLS reverse proxy you control. Never expose it directly to
-the public internet. Web Push requires HTTPS in production; use the relay's
-Tailscale/HTTPS URL for notifications.
+The published image binds all interfaces so the VPS can reach it. Put it behind
+a TLS reverse proxy or tunnel you control (Caddy, nginx, Cloudflare Tunnel).
+Web Push and PWA install require HTTPS. The relay only carries ciphertext, but
+serve the PWA over HTTPS so the app itself cannot be tampered with in transit.
 
 ## Security model
 

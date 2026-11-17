@@ -520,6 +520,17 @@ export interface PlacementPolicy {
   consent: boolean;
 }
 
+export type MoveMode = "wait" | "stop";
+
+export interface MoveQueued {
+  queued: true;
+  threadId: string;
+  targetId: string;
+  message: string;
+}
+
+export type MoveOutcome = MoveResult | MoveQueued;
+
 export interface MoveResult {
   threadId: string;
   nodeId: string;
@@ -1178,9 +1189,10 @@ export interface OmpStudioApi {
   maintenanceSweep(dryRun?: boolean): Promise<MaintenanceReport>;
   listRemoteTargets(): Promise<RemoteTarget[]>;
   addRemoteTarget(input: RemoteTargetInput): Promise<RemoteTarget[]>;
+  pairRemoteTarget(input: string): Promise<{ targets: RemoteTarget[]; target: RemoteTarget }>;
   removeRemoteTarget(id: string): Promise<RemoteTarget[]>;
   testRemoteTarget(id: string): Promise<RemoteTarget[]>;
-  moveThreadToTarget(threadId: string, targetId: string): Promise<MoveResult>;
+  moveThreadToTarget(threadId: string, targetId: string, mode?: MoveMode): Promise<MoveOutcome>;
   placeIdleSessions(force?: boolean, threadId?: string): Promise<PlacementResult>;
   targetUsage(targetId: string): Promise<TargetUsage>;
   relayInfo(): Promise<RelayInfo>;
@@ -1270,6 +1282,7 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
 
 
 

@@ -686,6 +686,7 @@ async function bootstrap(): Promise<void> {
   placementTimer.unref();
   const syncTimer = setInterval(() => {
     void remoteService.syncRemoteThreads().catch(() => undefined);
+    void remoteService.processPendingMoves().catch(() => undefined);
   }, 8_000);
   syncTimer.unref();
   app.on("before-quit", () => {
@@ -828,6 +829,7 @@ app.on("before-quit", () => {
   notifications?.destroy();
   store?.flush();
 });
+
 
 
 

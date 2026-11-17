@@ -88,20 +88,27 @@ The NSIS installer is written to `dist/`. The OMP engine is bundled as an extra 
 
 ## Remote, mobile and cloud
 
-The desktop app can act as a runner for the phone and for other machines. Enable
-**Settings → Remote**, then open the printed URL (or scan the QR) on a device
-that can reach this machine over Tailscale or the LAN. The same screen shows the
-token, the PWA install link, targets, cold move and a cleanup report.
+The desktop app can act as a runner for the phone and for other machines.
+
+**Same Wi-Fi:** enable **Settings → Remote** and scan the QR on your phone. No
+Tailscale, no firewall changes.
+
+**Anywhere:** run the relay on a VPS you own and paste its HTTPS address in
+**Settings → Remote → Use from anywhere**:
+
+```bash
+docker run -d --restart unless-stopped --name omp-relay -p 43150:43150 ghcr.io/tspen/omp-relay:latest
+```
+
+Scan the relay QR once. The runner dials out; the relay only forwards AES-256-GCM
+frames and never sees prompts or files. No inbound runner port, no managed relay.
 
 - Phone app: installable PWA, or build the Capacitor Android/iOS projects in
   `android/` and `ios/`. `npm run mobile:android` builds a debug APK.
-- Self-hosted runner: `docker compose -f runner/docker-compose.yml up -d --build`
-  then read the pairing link from the logs. Loopback by default; front it with
-  Tailscale. See [`runner/README.md`](runner/README.md).
-- Self-hosted encrypted relay: `docker compose -f relay/docker-compose.yml up -d
-  --build`, open the relay URL, and enable Settings → Remote → Self-hosted
-  relay. The runner dials out; the relay forwards AES-256-GCM frames only. See
-  [`relay/README.md`](relay/README.md).
+- Other machines: run `docker run -d --restart unless-stopped -p 43120:43120 -v
+  omp-data:/data ghcr.io/tspen/omp-runner:latest` and paste the pairing link from
+  its logs under **Advanced settings**. See [`runner/README.md`](runner/README.md).
+- Self-hosted encrypted relay source and security model: [`relay/README.md`](relay/README.md).
 - E2B Embed target adapter: create a Firecracker sandbox from an `omp-runner`
   template on a self-hosted KVM host. Template build and host requirements are
   in [`e2b/README.md`](e2b/README.md). Live sandbox verification needs a Linux
@@ -186,6 +193,7 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 ## License
 
 MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 
 
 

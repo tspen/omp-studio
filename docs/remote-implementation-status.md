@@ -30,7 +30,7 @@ migration or E2B pause/resume rather than Docker checkpoints.
 | Android | Capacitor project in `android/`; cleartext allowed for LAN/Tailscale dev; `app-debug.apk` builds and runs. |
 | iOS | Capacitor project in `ios/`; ATS and local-network entries added; build/sign requires macOS (see CI workflow). |
 | Desktop UI | Settings → Remote: enable, bind host/port, keep-running toggles, URLs, token show/copy/rotate, QR, Tailscale steps, cleanup report, targets and cold move. |
-| Cold move | Export zip (manifest + workspace + OMP session + chat) and import on the same or another runner. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
+| Cold move | Export zip (manifest + workspace + OMP session + chat) and import on the same or another runner. A running session offers **Move after turn** (queued automatically at the next boundary) or **Stop & move**. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
 | Warm move | Targets keep the workspace in place under an origin key (`.omp-origin.json` + `.omp-manifest.json`). Before export the source reads the target manifest, hashes the workspace, sends only changed files, and lists deletions. The target applies the delta to the existing workspace and creates only a new session thread. Reuses the target node and orchestrator. |
 | Automatic placement | `remotePlacement` policy: enabled + explicit consent + selected target + idle threshold. A scheduler checks every 20 seconds, picks idle worker sessions with history, cold-moves at most two per pass, never interrupts a running turn, releases the local OMP session, and records `targetId`, `remoteThreadId`, `remoteNodeId`, `movedAt`. Settings shows policy, "Place idle sessions now", and the last automatic placement. `placeIdleSessions(force, threadId)` is also available over IPC for scoped placement. |
 | Remote control | Prompts, stop, continue and compact on a placed session are proxied to its target over the target API; the desktop mirrors target status, new messages, cost, tokens and model every 8 seconds and keeps local chat in sync. |
@@ -313,6 +313,7 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   phase.
 - **E2B Embed live sessions** on a supported KVM host (adapter and template ship,
   preflight requires kernel 6.8+/cgroup v2; optional target, not required for v1).
+
 
 
 
