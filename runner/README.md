@@ -86,9 +86,10 @@ it again from that image, continuing the same process tree and in-flight turn.
 **Export bundle** writes checkpoint images, container metadata and the `/data`
 archive to `runner/backups/`; copy that `.tar.gz` to the second host's backup
 directory and use **Import bundle**. Both hosts must use the same image digest,
-architecture, Docker data-root/volume names and CRIU/Docker versions. Docker
-checkpoints are path-sensitive; a stateless handoff was verified, but runner
-handoff needs matching hosts.
+architecture, Docker data-root/volume names and CRIU/Docker versions. A
+stateless handoff was verified. A live runner restore across hosts still fails
+because Docker does not reconnect the checkpointed Electron/OMP pipes; use
+same-host restore or CRIU-native migration for a live runner.
 
 **Security:** the agent mounts the Docker socket, which is root-equivalent on
 the host. Keep it bound to loopback, use a strong token, and do not expose it
@@ -130,4 +131,5 @@ are touched. No global `docker system prune`.
   unavailable, the rest of the runner still starts and reports terminals as
   unavailable instead of crashing.
 - The container is stateless except for the `omp-data` volume.
+
 

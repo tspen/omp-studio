@@ -232,12 +232,20 @@ import on second daemon: ok, container created + restored
 after: 2, then 3          (memory preserved across daemons)
 ```
 
-Runner cross-host restore is **not yet verified**: the local second daemon used
-a different Docker data root/volume path, so CRIU restore failed with
-`OCI runtime restore failed: criu failed: type RESTORE errno 0`. A real second
-host with the same `/var/lib/docker` layout and volume names is required to
-validate runner handoff; the export/import bundle carries the metadata and
-`/data` archive for that move.
+Runner cross-host restore was attempted on a **real second Ubuntu 22.04 WSL
+host** with a matching Docker 29.9.3/runc 1.5.3, CRIU 4.3, `/var/lib/docker`,
+volume name, image digest and architecture. The checkpoint bundle and `/data`
+archive imported, but start failed:
+
+```
+OCI runtime restore failed: criu failed: type RESTORE errno 0
+checkpoint descriptors.json: ["/dev/null","pipe:[834954]","pipe:[834955]"]
+```
+
+The live runner checkpoint contains pipe inodes from Electron/OMP stdio. Docker
+does not remap those pipes on another host, so the memory image cannot be
+restored there. Stateless cross-daemon handoff works; runner handoff needs
+CRIU-native migration with pipe reconnection or E2B pause/resume.
 
 GC CLI on the real data directory (216 MB):
 
@@ -280,16 +288,17 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   `omp-remote-ios-simulator.zip` 1.5 MB). A signed installable device build
   still needs an Apple account, a signing certificate and a provisioning
   profile.
-- **Cross-host runner memory migration**: export/import bundles are implemented
-  and a stateless process moved successfully between two Docker daemons. Runner
-  restore across hosts is not verified and is path-sensitive (same Docker data
-  root, volume names, image digest and architecture are required); a real second
-  Linux host is needed to validate it.
+- **Cross-host runner memory migration**: export/import works for stateless
+  processes. A live runner restore failed on a real second host because Docker
+  CRIU checkpoints contain live pipe inodes from Electron/OMP and Docker does
+  not reconnect them. CRIU-native migration or E2B pause/resume is required.
 - **E2B live verification**: the adapter and template instructions ship, but the
   available WSL2 host fails E2B preflight (kernel 5.15, no cgroup v2). Verification
   requires a Linux/KVM host with kernel 6.8+ and cgroup v2.
 - **Docker image size**: includes Electron and build tooling; the OMP binary is
   downloaded on first use.
+
+
 
 
 

@@ -120,9 +120,10 @@ token, the PWA install link, targets, cold move and a cleanup report.
   turn; exposed in desktop and PWA, proxied for placed sessions.
 - Memory checkpoint: Docker/CRIU checkpoint of the Linux runner container
   (process tree + memory), restore on the same host, and export/import bundles
-  for another agent. Stateless cross-daemon handoff is verified; runner
-  cross-host restore is path-sensitive and needs a matching second host.
-  Optional checkpoint agent and compose overlay in `runner/`.
+  for another agent. Stateless cross-daemon handoff is verified; a live runner
+  restore on a real second host fails because Docker does not reconnect the
+  checkpointed Electron/OMP pipes. Optional checkpoint agent and overlay in
+  `runner/`.
 - Everything the runner creates is garbage-collected: startup plus every five
   minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
   `npm run runner:quota` and `POST /api/maintenance/sweep`.
@@ -186,6 +187,7 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 ## License
 
 MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 
 
 
