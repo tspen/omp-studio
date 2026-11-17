@@ -11,12 +11,23 @@ import { Onboarding } from "./components/Onboarding";
 import { Badge, IconButton, Logo, Toasts, cx, formatCost, formatNumber } from "./components/Common";
 import { selectedNode, selectedThread, useApp } from "./store";
 import type { PaneKind } from "../../shared/types";
+import { unlockSounds } from "./sounds";
 
 export function App() {
   const state = useApp();
 
   useEffect(() => {
     void state.init();
+  }, []);
+
+  useEffect(() => {
+    const unlock = () => unlockSounds();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
   }, []);
 
   useEffect(() => {

@@ -423,7 +423,7 @@ export interface AppSettings {
   git: GitSettings;
   usage: UsageSettings;
   share: { enabled: boolean; port: number };
-  ui: { sidebarWidth: number; rightWidth: number; showThinking: boolean; dense: boolean };
+  ui: { sidebarWidth: number; rightWidth: number; showThinking: boolean; dense: boolean; sounds: boolean; soundVolume: number };
 }
 
 export interface MemoryEntry {

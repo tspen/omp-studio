@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { playSound } from "./sounds";
 import type {
   AppEvent,
   AppNotification,
@@ -302,12 +303,23 @@ export const useApp = create<AppState>((set, get) => ({
         break;
       case "thread:status": {
         if (!state.snapshot) return;
+        const previous = state.snapshot.threads.find((thread) => thread.id === event.payload.threadId)?.status;
         const threads = state.snapshot.threads.map((thread) =>
           thread.id === event.payload.threadId
             ? { ...thread, status: event.payload.status, statusMessage: event.payload.message ?? thread.statusMessage }
             : thread,
         );
         set({ snapshot: { ...state.snapshot, threads } });
+        if (previous && previous !== event.payload.status) {
+          const thread = state.snapshot.threads.find((item) => item.id === event.payload.threadId);
+          const node = state.snapshot.nodes.find((item) => item.id === thread?.nodeId);
+          if (!node?.muted) {
+            const options = soundOptions(state);
+            if (event.payload.status === "waiting") playSound("attention", options);
+            else if (event.payload.status === "completed") playSound("complete", options);
+            else if (event.payload.status === "error") playSound("error", options);
+          }
+        }
         break;
       }
       case "envelope:new":
@@ -325,9 +337,13 @@ export const useApp = create<AppState>((set, get) => ({
       case "notification:new":
         set({ notifications: [event.payload, ...state.notifications].slice(0, 200) });
         break;
-      case "approval:request":
+      case "approval:request": {
         set({ approvals: [...state.approvals.filter((item) => item.id !== event.payload.id), event.payload] });
+        const thread = state.snapshot?.threads.find((item) => item.id === event.payload.threadId);
+        const node = state.snapshot?.nodes.find((item) => item.id === thread?.nodeId);
+        if (!node?.muted) playSound("attention", soundOptions(state));
         break;
+      }
       case "approval:resolved":
         set({ approvals: state.approvals.filter((item) => item.id !== event.payload.id) });
         break;
@@ -518,6 +534,7 @@ export const useApp = create<AppState>((set, get) => ({
     set({ sending: true });
     try {
       await api().send({ threadId, text, mode });
+      playSound("send", soundOptions(get()));
     } catch (error) {
       get().pushToast({ kind: "error", title: "Message failed", body: String(error) });
     } finally {
@@ -831,8 +848,12 @@ function messageSignature(message: ChatMessage): string {
   return `${message.timestamp}|${message.stopReason ?? ""}|${message.usage?.totalTokens ?? ""}|${message.blocks.length}|${chars}`;
 }
 
-function mergeEnvelopes(a: Envelope[], b: Envelope[]): Envelope[] {
-  const map = new Map<string, Envelope>();
+function soundOptions(state: AppState): { enabled: boolean; volume: number } {
+  const ui = state.snapshot?.settings.ui;
+  return { enabled: ui?.sounds !== false, volume: Number(ui?.soundVolume ?? 0.25) };
+}
+
+function mergeEnvelopes(a: Envelope[], b: Envelope[]): Envelope[] {  const map = new Map<string, Envelope>();
   for (const envelope of [...a, ...b]) map.set(envelope.id, envelope);
   return [...map.values()].sort((x, y) => x.createdAt - y.createdAt).slice(-500);
 }

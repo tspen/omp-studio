@@ -31,6 +31,7 @@ import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, McpServ
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
+import { playSound } from "../sounds";
 
 const TABS = [
   { id: "general", label: "General", icon: <Settings2 size={15} /> },
@@ -244,6 +245,22 @@ function GeneralTab() {
         </Row>
         <Row label="Show thinking blocks" hint="Display model reasoning inline.">
           <Toggle checked={settings.ui.showThinking} onChange={(value) => update({ ui: { ...settings.ui, showThinking: value } })} />
+        </Row>
+        <Row label="Interface sounds" hint="Quiet chimes when you send, when a thread completes or asks for input, and when a turn fails.">
+          <div className="inline-actions">
+            <Toggle checked={settings.ui.sounds !== false} onChange={(value) => update({ ui: { ...settings.ui, sounds: value } })} />
+            <input
+              className="sound-volume"
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              disabled={settings.ui.sounds === false}
+              value={settings.ui.soundVolume ?? 0.25}
+              onChange={(event) => update({ ui: { ...settings.ui, soundVolume: Number(event.target.value) } })}
+            />
+            <Button size="sm" variant="ghost" disabled={settings.ui.sounds === false} onClick={() => playSound("complete", { enabled: true, volume: settings.ui.soundVolume ?? 0.25 })}><Play size={12} /> Test</Button>
+          </div>
         </Row>
         <Row label="Setup wizard" hint="Re-run provider connection and model selection.">
           <Button size="sm" variant="soft" onClick={() => void state.updateSettings({ settings: { onboardingCompleted: false } })}>Run setup again</Button>

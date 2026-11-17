@@ -114,7 +114,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoContinueOnReset: false,
   },
   share: { enabled: true, port: 4337 },
-  ui: { sidebarWidth: 280, rightWidth: 320, showThinking: true, dense: false },
+  ui: { sidebarWidth: 280, rightWidth: 320, showThinking: true, dense: false, sounds: true, soundVolume: 0.25 },
 };
 
 const EMPTY_CONFIG: OmpConfigSnapshot = {

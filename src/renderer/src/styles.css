@@ -706,6 +706,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .skill-form textarea { min-height: 90px; font-size: 11px; }
 .skill-form .mono { font-size: 9px; color: var(--muted); }
 .skill-editor { min-height: 160px !important; font-family: var(--mono); }
+.sound-volume { width: 110px; accent-color: var(--accent); }
 .device-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; min-height: 480px; }
 .device-side { border-right: 1px solid var(--line); padding-right: 8px; display: flex; flex-direction: column; gap: 3px; max-height: 560px; overflow: auto; }
 .device-side-head { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 2px 3px; }
