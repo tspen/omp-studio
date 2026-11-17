@@ -4,13 +4,17 @@ import {
   Bell,
   Check,
   ChevronRight,
+  Clock,
   Cpu,
   Download,
+  ExternalLink,
   Folder,
   FolderGit2,
   Gauge,
   KeyRound,
   MemoryStick,
+  Play,
+  Plug,
   Plus,
   RefreshCw,
   Save,
@@ -23,9 +27,9 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, Environment, EnvVar, McpServerInfo, ModelInfo, OmpConfigEntry, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, McpServerInfo, ModelInfo, OmpConfigEntry, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
-import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, statusLabel, truncate } from "./Common";
+import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
 
 const TABS = [
@@ -36,6 +40,9 @@ const TABS = [
   { id: "memory", label: "Memory", icon: <MemoryStick size={15} /> },
   { id: "environments", label: "Environment", icon: <Terminal size={15} /> },
   { id: "git", label: "Git", icon: <FolderGit2 size={15} /> },
+  { id: "connectors", label: "Connectors", icon: <Plug size={15} /> },
+  { id: "automations", label: "Automations", icon: <Clock size={15} /> },
+  { id: "sandbox", label: "Sandbox", icon: <Shield size={15} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={15} /> },
   { id: "engine", label: "Engine", icon: <Cpu size={15} /> },
   { id: "advanced", label: "Advanced", icon: <SlidersHorizontal size={15} /> },
@@ -86,6 +93,9 @@ export function SettingsModal() {
             {tab === "memory" ? <MemoryTab /> : null}
             {tab === "environments" ? <EnvironmentsTab /> : null}
             {tab === "git" ? <GitTab /> : null}
+            {tab === "connectors" ? <ConnectorsTab /> : null}
+            {tab === "automations" ? <AutomationsTab /> : null}
+            {tab === "sandbox" ? <SandboxTab /> : null}
             {tab === "notifications" ? <NotificationsTab /> : null}
             {tab === "engine" ? <EngineTab /> : null}
             {tab === "advanced" ? <AdvancedTab /> : null}
@@ -112,6 +122,12 @@ function settingsBlurb(tab: string): string {
       return "Local execution profiles: env vars, setup scripts, shell, git policy and approval mode.";
     case "git":
       return "Default isolation and integration policy for project threads.";
+    case "connectors":
+      return "Tokens for GitHub, Cloudflare, Slack, Linear and Figma, plus one-click Cloudflare MCP.";
+    case "automations":
+      return "Scheduled instructions that spawn a fresh worker thread and report into your queue.";
+    case "sandbox":
+      return "Command denylist, path scope, network policy and the audit trail.";
     case "notifications":
       return "Windows toasts, tray badge, and which events are worth interrupting you.";
     case "engine":
@@ -217,6 +233,12 @@ function GeneralTab() {
         <Row label="Idle compaction threshold" hint="Percent of the context window that triggers background compaction.">
           <input className="num-input" type="number" min={30} max={95} step={5} disabled={settings.idleCompaction === false} value={settings.idleCompactionThreshold ?? 60} onChange={(event) => update({ idleCompactionThreshold: Number(event.target.value) })} />
         </Row>
+        <Row label="Terminal shell" hint="Shell used by the persistent Terminal. Blank uses PowerShell on Windows and $SHELL elsewhere.">
+          <input value={settings.terminalShell ?? ""} onChange={(event) => update({ terminalShell: event.target.value })} placeholder="powershell.exe" />
+        </Row>
+        <Row label="Auto-open preview URLs" hint="When a terminal prints a localhost URL, open it in the in-app Browser automatically.">
+          <Toggle checked={settings.previewAutoOpen !== false} onChange={(value) => update({ previewAutoOpen: value })} />
+        </Row>
         <Row label="Advisor runtime" hint="Passively reviews each turn and injects notes. More tokens, more scrutiny.">
           <Toggle checked={settings.advisor} onChange={(value) => update({ advisor: value })} />
         </Row>
@@ -266,6 +288,9 @@ function GeneralTab() {
             <option value="write">Auto-approve writes</option>
             <option value="yolo">Yolo</option>
           </Select>
+        </Row>
+        <Row label="Node budget (USD)" hint="Overrides the app budget for this subtree. 0 uses the app budget.">
+          <input className="num-input" type="number" min={0} step={1} value={node.budgetUsd ?? ""} onChange={(event) => void window.omp.updateNode(node.id, { budgetUsd: event.target.value ? Number(event.target.value) : undefined }).then(() => state.refresh())} />
         </Row>
         <Row label="Mute this node" hint="Suppresses toasts, not the in-app inbox.">
           <Toggle checked={node.muted} onChange={(value) => void window.omp.updateNode(node.id, { muted: value }).then(() => state.refresh())} />
@@ -382,8 +407,14 @@ function UsageTab() {
         <Row label="Tokens"><strong>{formatNumber(usage.totalTokens)}</strong></Row>
         <Row label="Metered spend"><strong>{formatCost(usage.meteredCost ?? usage.totalCost)}</strong></Row>
         <Row label="Included reference value" hint="Token value at reference prices; not billed on subscription plans."><strong>{formatCost(usage.referenceCost ?? 0)}</strong></Row>
-        <Row label="Budget" hint="Optional soft budget in USD. Used for visibility and warnings.">
+        <Row label="Budget" hint="Optional budget in USD for the whole app.">
           <input className="num-input" type="number" min={0} step={1} value={settings.usage.budgetUsd ?? ""} onChange={(event) => state.updateSettings({ settings: { usage: { ...settings.usage, budgetUsd: event.target.value ? Number(event.target.value) : undefined } } })} />
+        </Row>
+        <Row label="At budget" hint="Warn once per hour, or block new prompts and threads until the budget is raised.">
+          <Select value={settings.usage.budgetAction ?? "warn"} onChange={(value) => state.updateSettings({ settings: { usage: { ...settings.usage, budgetAction: value as "warn" | "pause" } } })}>
+            <option value="warn">Warn only</option>
+            <option value="pause">Pause new work</option>
+          </Select>
         </Row>
         <Row label="Auto-continue on usage reset" hint="If a thread fails on a usage limit, retry after the reset window with a continuation instruction.">
           <Toggle checked={settings.usage.autoContinueOnReset} onChange={(value) => state.updateSettings({ settings: { usage: { ...settings.usage, autoContinueOnReset: value } } })} />
@@ -427,6 +458,9 @@ function ToolsTab() {
   const [mcps, setMcps] = useState<McpServerInfo[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [skillForm, setSkillForm] = useState<{ name: string; description: string; body: string } | null>(null);
+  const [skillEdit, setSkillEdit] = useState<{ path: string; content: string } | null>(null);
+  const refreshSkills = async () => setSkills(await window.omp.listSkills());
   useEffect(() => {
     void Promise.all([window.omp.listTools(), window.omp.listSkills(), window.omp.listMcpServers()])
       .then(([toolList, skillList, mcpList]) => { setTools(toolList); setSkills(skillList); setMcps(mcpList); })
@@ -471,11 +505,53 @@ function ToolsTab() {
           </div>
         ))}
       </Section>
-      <Section title="Skills" subtitle="Discovered from OMP and Claude skill directories.">
+      <Section title="Skills" subtitle="Discovered from OMP and Claude skill directories. OMP skills are editable here." right={<Button size="sm" variant="soft" onClick={() => setSkillForm({ name: "", description: "", body: "" })}><Plus size={12} /> New skill</Button>}>
+        {skillForm ? (
+          <div className="skill-form">
+            <input value={skillForm.name} onChange={(event) => setSkillForm({ ...skillForm, name: event.target.value })} placeholder="Skill name" />
+            <input value={skillForm.description} onChange={(event) => setSkillForm({ ...skillForm, description: event.target.value })} placeholder="Short description" />
+            <textarea value={skillForm.body} onChange={(event) => setSkillForm({ ...skillForm, body: event.target.value })} placeholder="Instructions the agent should follow when this skill applies." />
+            <div className="inline-actions">
+              <Button size="sm" variant="primary" disabled={!skillForm.name.trim()} onClick={async () => {
+                await window.omp.createSkill(skillForm);
+                setSkillForm(null);
+                await refreshSkills();
+                state.pushToast({ kind: "success", title: "Skill created" });
+              }}><Save size={12} /> Create</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSkillForm(null)}>Cancel</Button>
+            </div>
+          </div>
+        ) : null}
+        {skillEdit ? (
+          <div className="skill-form">
+            <span className="mono">{skillEdit.path}</span>
+            <textarea className="skill-editor" value={skillEdit.content} onChange={(event) => setSkillEdit({ ...skillEdit, content: event.target.value })} />
+            <div className="inline-actions">
+              <Button size="sm" variant="primary" onClick={async () => {
+                await window.omp.saveSkill(skillEdit.path, skillEdit.content);
+                setSkillEdit(null);
+                await refreshSkills();
+                state.pushToast({ kind: "success", title: "Skill saved" });
+              }}><Save size={12} /> Save</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSkillEdit(null)}>Cancel</Button>
+            </div>
+          </div>
+        ) : null}
         {skills.length ? skills.map((skill) => (
           <div key={`${skill.source}-${skill.path}`} className="simple-row">
             <div><strong>{skill.name}</strong><span>{skill.description || skill.path}</span></div>
-            <Badge tone="blue">{skill.source}</Badge>
+            <div className="inline-actions">
+              <Badge tone="blue">{skill.source}</Badge>
+              <Button size="sm" variant="ghost" onClick={async () => {
+                const skillFile = await window.omp.readSkill(skill.path);
+                setSkillEdit({ path: skill.path, content: skillFile.content });
+              }}>Edit</Button>
+              <IconButton icon={<Trash2 size={12} />} label="Delete skill" onClick={async () => {
+                if (!confirm(`Delete skill ${skill.name}?`)) return;
+                await window.omp.deleteSkill(skill.path);
+                await refreshSkills();
+              }} />
+            </div>
           </div>
         )) : <p className="muted">No skills discovered.</p>}
       </Section>
@@ -780,4 +856,208 @@ function replaceAt<T extends keyof Environment>(draft: Environment, setDraft: (v
   const list = [...(draft[key] as any[])];
   list[index] = value;
   setDraft({ ...draft, [key]: list });
+}
+
+function ConnectorsTab() {
+  const state = useApp();
+  const settings = state.snapshot?.settings;
+  const [secrets, setSecrets] = useState<Record<string, boolean>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<Record<string, string>>({});
+  const [mcps, setMcps] = useState<McpServerInfo[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    void window.omp.connectorSecrets().then(setSecrets);
+    void window.omp.listMcpServers().then(setMcps);
+  }, []);
+  if (!settings) return null;
+  const cf = settings.connectors?.cloudflare ?? { mcp: false };
+  const update = (patch: any) => state.updateSettings({ settings: { connectors: { ...settings.connectors, ...patch } } });
+  const save = async (key: string) => {
+    const value = drafts[key] ?? "";
+    const next = await window.omp.setConnectorSecret(key, value);
+    setSecrets(next);
+    setDrafts((items) => ({ ...items, [key]: "" }));
+    state.pushToast({ kind: "success", title: "Credential saved", body: key });
+  };
+  const test = async (provider: string) => {
+    setBusy(provider);
+    try {
+      const result = await window.omp.testConnector(provider);
+      setResults((items) => ({ ...items, [provider]: `${result.ok ? "OK" : "Failed"}: ${result.output}` }));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const credential = (provider: string, key: string, label: string, placeholder: string, hint: string) => (
+    <Row label={label} hint={hint}>
+      <div className="inline-actions">
+        <input type="password" value={drafts[key] ?? ""} placeholder={secrets[key] ? "Saved (enter to replace)" : placeholder} onChange={(event) => setDrafts((items) => ({ ...items, [key]: event.target.value }))} />
+        <Button size="sm" variant="soft" disabled={!drafts[key]} onClick={() => void save(key)}><Save size={12} /> Save</Button>
+        <Button size="sm" variant="outline" disabled={busy === provider} onClick={() => void test(provider)}>{busy === provider ? <Spinner /> : <Check size={12} />} Test</Button>
+      </div>
+      {results[provider] ? <small className="connector-result">{results[provider]}</small> : null}
+    </Row>
+  );
+  return (
+    <>
+      <Section title="Cloudflare" subtitle="Use the Cloudflare API MCP for account-wide work, and a token for Pages deployments from Sites." right={<Badge tone={cf.mcp ? "green" : "neutral"}>{cf.mcp ? "MCP added" : "MCP not added"}</Badge>}>
+        <Row label="Cloudflare MCP" hint="Adds https://mcp.cloudflare.com/mcp to ~/.omp/agent/mcp.json. OMP prompts for Cloudflare OAuth on first use.">
+          <div className="inline-actions">
+            <Button size="sm" variant="primary" onClick={async () => {
+              const result = await window.omp.addCloudflareMcp();
+              setMcps(result.servers);
+              state.pushToast({ kind: "success", title: "Cloudflare MCP added", body: result.path });
+              await state.refresh();
+            }}><Plus size={12} /> Add Cloudflare MCP</Button>
+            <Button size="sm" variant="soft" onClick={async () => { setMcps(await window.omp.listMcpServers()); }}><RefreshCw size={12} /> Refresh</Button>
+          </div>
+        </Row>
+        {mcps.filter((mcp) => /cloudflare/i.test(mcp.name)).map((mcp) => (
+          <div key={mcp.name} className="simple-row"><div><strong>{mcp.name}</strong><span>{mcp.url || mcp.command}</span></div><Badge tone={mcp.enabled ? "green" : "neutral"}>{mcp.enabled ? "enabled" : "disabled"}</Badge></div>
+        ))}
+        {credential("cloudflare", "cloudflare.token", "API token", "Cloudflare API token", "Needs Pages:Edit and Account:Read. Used only for Sites deploys and the MCP fallback.")}
+        <Row label="Account ID" hint="Cloudflare dashboard ? Workers & Pages ? Account ID.">
+          <input value={cf.accountId ?? ""} onChange={(event) => update({ cloudflare: { ...cf, accountId: event.target.value } })} placeholder="023e105f..." />
+        </Row>
+        <Row label="Pages project" hint="Blank derives a project name from the site name.">
+          <input value={cf.projectName ?? ""} onChange={(event) => update({ cloudflare: { ...cf, projectName: event.target.value } })} placeholder="my-site" />
+        </Row>
+        <Row label="Production branch" hint="Cloudflare Pages production branch used for deployments.">
+          <input value={cf.branch ?? "main"} onChange={(event) => update({ cloudflare: { ...cf, branch: event.target.value } })} placeholder="main" />
+        </Row>
+      </Section>
+      <Section title="GitHub" subtitle="Optional personal token. Without it, the app uses the GitHub CLI (gh) session.">
+        {credential("github", "github.token", "Personal access token", "ghp_...", "Repo scope is enough for PRs, Pages and CI logs.")}
+      </Section>
+      <Section title="Slack" subtitle="Incoming webhook for automation and CI summaries.">
+        {credential("slack", "slack.webhook", "Webhook URL", "https://hooks.slack.com/...", "Messages are posted as OMP Studio.")}
+      </Section>
+      <Section title="Linear" subtitle="API key for issue creation and project context.">
+        {credential("linear", "linear.token", "API key", "lin_api_...", "Read access is enough to start.")}
+      </Section>
+      <Section title="Figma" subtitle="Personal access token for design context.">
+        {credential("figma", "figma.token", "Personal access token", "figd_...", "Used by agents through the browser and connectors.")}
+      </Section>
+      <Section title="MCP servers" subtitle="Remote and local MCP servers discovered from ~/.omp/agent/mcp.json." right={<Button size="sm" variant="soft" onClick={async () => {
+        const result = await window.omp.importAgentConfigs();
+        setMcps(await window.omp.listMcpServers());
+        state.pushToast({ kind: "success", title: "Imported agent configs", body: result.imported.length ? result.imported.join(", ") : "No MCP servers found to import." });
+      }}><Download size={12} /> Import from Claude/Codex</Button>}>
+        {mcps.length ? mcps.map((mcp) => (
+          <div key={mcp.name} className="simple-row">
+            <div><strong>{mcp.name}</strong><span>{mcp.url || mcp.command || mcp.source}</span></div>
+            <div className="inline-actions">
+              <Badge tone={mcp.enabled ? "green" : "neutral"}>{mcp.enabled ? "enabled" : "disabled"}</Badge>
+              <IconButton icon={<Trash2 size={12} />} label="Remove MCP server" onClick={async () => { setMcps(await window.omp.removeMcpServer(mcp.name)); }} />
+            </div>
+          </div>
+        )) : <p className="muted">No MCP servers configured.</p>}
+      </Section>
+    </>
+  );
+}
+
+function AutomationsTab() {
+  const state = useApp();
+  const [items, setItems] = useState<Automation[]>([]);
+  const [name, setName] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [intervalMin, setIntervalMin] = useState(60);
+  const [nodeId, setNodeId] = useState("");
+  const projects = (state.snapshot?.nodes ?? []).filter((node) => node.type === "project");
+  const load = async () => setItems(await window.omp.listAutomations());
+  useEffect(() => {
+    void load();
+    if (!nodeId && projects[0]) setNodeId(projects[0].id);
+  }, [projects.length]);
+  const save = async () => {
+    if (!name.trim() || !prompt.trim() || !nodeId) return;
+    await window.omp.saveAutomation({ name, prompt, intervalMin, nodeId });
+    setName("");
+    setPrompt("");
+    await load();
+    state.pushToast({ kind: "success", title: "Automation saved" });
+  };
+  return (
+    <>
+      <Section title="New automation" subtitle="Each run creates a fresh worker thread under the selected project. It never reuses idle threads.">
+        <Row label="Name"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nightly dependency audit" /></Row>
+        <Row label="Project">
+          <Select value={nodeId} onChange={setNodeId}>
+            {projects.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}
+          </Select>
+        </Row>
+        <Row label="Interval (minutes)" hint="Minimum 5 minutes."><input className="num-input" type="number" min={5} value={intervalMin} onChange={(event) => setIntervalMin(Number(event.target.value))} /></Row>
+        <Row label="Instructions"><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Check dependencies for security updates, run tests, and report anything that needs a human." /></Row>
+        <Button size="sm" variant="primary" disabled={!name.trim() || !prompt.trim() || !nodeId} onClick={() => void save()}><Plus size={13} /> Save automation</Button>
+      </Section>
+      <Section title="Scheduled jobs" subtitle="Results appear as threads under their project.">
+        {items.map((item) => (
+          <div key={item.id} className="automation-row">
+            <div className="automation-main">
+              <strong>{item.name}</strong>
+              <span>every {item.intervalMin} min � {state.snapshot?.nodes.find((node) => node.id === item.nodeId)?.name ?? item.nodeId}{item.lastRunAt ? ` � last ${relativeTime(item.lastRunAt)}` : ""}</span>
+              {item.lastStatus ? <small>{item.lastStatus}</small> : null}
+            </div>
+            <div className="inline-actions">
+              {item.lastThreadId ? <Button size="sm" variant="ghost" onClick={() => void state.selectThread(item.lastThreadId!, item.nodeId)}>Open thread</Button> : null}
+              <Button size="sm" variant="soft" onClick={async () => { await window.omp.runAutomation(item.id); await load(); }}><Play size={12} /> Run now</Button>
+              <Toggle checked={item.enabled} onChange={async (value) => { await window.omp.saveAutomation({ ...item, enabled: value }); await load(); }} />
+              <IconButton icon={<Trash2 size={13} />} label="Delete automation" onClick={async () => { await window.omp.deleteAutomation(item.id); await load(); }} />
+            </div>
+          </div>
+        ))}
+        {!items.length ? <p className="muted">No automations yet.</p> : null}
+      </Section>
+      <Section title="Results queue" subtitle="Latest runs and their outcome. Click a thread to inspect it; resolve it from the tree when done.">
+        {items.filter((item) => item.lastThreadId).map((item) => {
+          const thread = state.snapshot?.threads.find((entry) => entry.id === item.lastThreadId);
+          return (
+            <div key={`${item.id}-result`} className="simple-row">
+              <div><strong>{item.name}</strong><span>{thread ? `${thread.title} � ${thread.status}` : item.lastThreadId}</span></div>
+              {thread ? <Badge tone={thread.status === "error" ? "red" : thread.status === "running" ? "blue" : "neutral"}>{thread.status}</Badge> : null}
+              <Button size="sm" variant="ghost" onClick={() => item.lastThreadId && void state.selectThread(item.lastThreadId, item.nodeId)}>Open</Button>
+            </div>
+          );
+        })}
+        {!items.some((item) => item.lastThreadId) ? <p className="muted">No runs yet.</p> : null}
+      </Section>
+    </>
+  );
+}
+
+function SandboxTab() {
+  const state = useApp();
+  const settings = state.snapshot?.settings;
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const load = async () => setEntries(await window.omp.listAudit(200));
+  useEffect(() => { void load(); }, []);
+  if (!settings) return null;
+  const sandbox = settings.sandbox ?? { enabled: false, allowedPaths: [], deniedCommands: [], allowNetwork: true };
+  const update = (patch: any) => state.updateSettings({ settings: { sandbox: { ...sandbox, ...patch } } });
+  return (
+    <>
+      <Section title="Policy" subtitle="Applies to app terminals, dev servers and the agent's environment prompt. Not a kernel sandbox.">
+        <Row label="Enable policy" hint="Blocks matching commands in the app terminal and dev-server runner."><Toggle checked={sandbox.enabled} onChange={(value) => update({ enabled: value })} /></Row>
+        <Row label="Allowed paths" hint="One per line. Injected into agent guidance; empty means the project plus app data."><textarea value={(sandbox.allowedPaths ?? []).join("\n")} onChange={(event) => update({ allowedPaths: event.target.value.split(/\r?\n/).filter(Boolean) })} placeholder="C:\\Users\\you\\code" /></Row>
+        <Row label="Denied command fragments" hint="One per line. Case-insensitive substring match, e.g. rm -rf /, format C:, del /s."><textarea value={(sandbox.deniedCommands ?? []).join("\n")} onChange={(event) => update({ deniedCommands: event.target.value.split(/\r?\n/).filter(Boolean) })} placeholder="git push --force" /></Row>
+        <Row label="Allow network" hint="When off, agent guidance forbids network commands and browser use is still explicit."><Toggle checked={sandbox.allowNetwork !== false} onChange={(value) => update({ allowNetwork: value })} /></Row>
+        <Row label="Windows computer use" hint="Allows desktop screenshots and mouse/keyboard tools. Off by default."><Toggle checked={settings.computerUse} onChange={(value) => state.updateSettings({ settings: { computerUse: value } })} /></Row>
+        <Row label="Auto-fix CI" hint="Lets the CI panel send failing logs to the thread automatically."><Toggle checked={settings.autoFixCi} onChange={(value) => state.updateSettings({ settings: { autoFixCi: value } })} /></Row>
+      </Section>
+      <Section title="Audit trail" subtitle="Prompts, host tools, approvals, terminals and deploys, newest first." right={<Button size="sm" variant="soft" onClick={() => void load()}><RefreshCw size={12} /> Refresh</Button>}>
+        <div className="audit-list">
+          {entries.map((entry, index) => (
+            <div key={`${entry.at}-${index}`} className="audit-row">
+              <span className="mono">{new Date(entry.at).toLocaleTimeString()}</span>
+              <Badge tone={entry.tag.includes("block") ? "red" : entry.tag.includes("deploy") ? "green" : "neutral"}>{entry.tag}</Badge>
+              <span>{truncate(typeof entry.detail === "string" ? entry.detail : JSON.stringify(entry.detail), 160)}</span>
+            </div>
+          ))}
+          {!entries.length ? <p className="muted">No audit entries yet.</p> : null}
+        </div>
+      </Section>
+    </>
+  );
 }

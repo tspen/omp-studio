@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, safeStorage } from "electron";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync, statSync, readdirSync } from "node:fs";
 import { trace } from "../diagnostics";
 import { dirname, join, resolve } from "node:path";
@@ -7,6 +7,7 @@ import type {
   AppNotification,
   AppSettings,
   Artifact,
+  Automation,
   ChatMessage,
   EngineStatus,
   Envelope,
@@ -39,6 +40,8 @@ interface PersistedState {
   usage: UsageSnapshot;
   engine: EngineStatus;
   sites: Site[];
+  secrets: Record<string, string>;
+  automations: Automation[];
   updatedAt: number;
 }
 
@@ -58,6 +61,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
   contextCompaction: true,
   idleCompaction: true,
   idleCompactionThreshold: 60,
+  terminalShell: "",
+  previewAutoOpen: true,
+  connectors: {
+    cloudflare: { accountId: "", projectName: "", branch: "main", mcp: false },
+    github: { enabled: true },
+    slack: { enabled: false },
+    linear: { enabled: false },
+    figma: { enabled: false },
+  },
+  sandbox: { enabled: false, allowedPaths: [], deniedCommands: [], allowNetwork: true },
+  computerUse: false,
+  autoFixCi: false,
   advisor: false,
   notifications: {
     enabled: true,
@@ -99,7 +114,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoContinueOnReset: false,
   },
   share: { enabled: true, port: 4337 },
-  ui: { sidebarWidth: 296, rightWidth: 340, showThinking: true, dense: false },
+  ui: { sidebarWidth: 280, rightWidth: 320, showThinking: true, dense: false },
 };
 
 const EMPTY_CONFIG: OmpConfigSnapshot = {
@@ -215,6 +230,8 @@ export class Store {
         usage: { ...EMPTY_USAGE },
         engine: { ...EMPTY_ENGINE },
         sites: [],
+        secrets: {},
+        automations: [],
         updatedAt: Date.now(),
       };
     }
@@ -253,6 +270,8 @@ export class Store {
         usage: parsed.usage ?? { ...EMPTY_USAGE },
         engine: parsed.engine ?? { ...EMPTY_ENGINE },
         sites: parsed.sites ?? [],
+        secrets: parsed.secrets ?? {},
+        automations: parsed.automations ?? [],
       };
     } catch (error) {
       const backup = `${this.statePath}.corrupt-${Date.now()}`;
@@ -277,6 +296,8 @@ export class Store {
         usage: { ...EMPTY_USAGE },
         engine: { ...EMPTY_ENGINE },
         sites: [],
+        secrets: {},
+        automations: [],
         updatedAt: Date.now(),
       };
     }
@@ -494,6 +515,29 @@ export class Store {
     return this.state.sites;
   }
 
+  get automations(): Automation[] {
+    return this.state.automations;
+  }
+
+  addAutomation(automation: Automation): Automation {
+    this.state.automations.unshift(automation);
+    this.markDirty();
+    return automation;
+  }
+
+  updateAutomation(id: string, patch: Partial<Automation>): Automation {
+    const automation = this.state.automations.find((item) => item.id === id);
+    if (!automation) throw new Error(`Automation not found: ${id}`);
+    Object.assign(automation, patch);
+    this.markDirty();
+    return automation;
+  }
+
+  removeAutomation(id: string): void {
+    this.state.automations = this.state.automations.filter((item) => item.id !== id);
+    this.markDirty();
+  }
+
   addSite(site: Site): Site {
     this.state.sites.unshift(site);
     this.markDirty();
@@ -510,6 +554,46 @@ export class Store {
 
   removeSite(id: string): void {
     this.state.sites = this.state.sites.filter((item) => item.id !== id);
+    this.markDirty();
+  }
+
+  // ---- encrypted secrets ----
+  setSecret(name: string, value: string): void {
+    if (!value) {
+      delete this.state.secrets[name];
+      this.markDirty();
+      return;
+    }
+    try {
+      if (safeStorage.isEncryptionAvailable()) {
+        this.state.secrets[name] = `enc:${safeStorage.encryptString(value).toString("base64")}`;
+      } else {
+        this.state.secrets[name] = `plain:${Buffer.from(value, "utf8").toString("base64")}`;
+      }
+    } catch {
+      this.state.secrets[name] = `plain:${Buffer.from(value, "utf8").toString("base64")}`;
+    }
+    this.markDirty();
+  }
+
+  getSecret(name: string): string | undefined {
+    const stored = this.state.secrets[name];
+    if (!stored) return undefined;
+    try {
+      if (stored.startsWith("enc:")) return safeStorage.decryptString(Buffer.from(stored.slice(4), "base64"));
+      if (stored.startsWith("plain:")) return Buffer.from(stored.slice(6), "base64").toString("utf8");
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+
+  hasSecret(name: string): boolean {
+    return !!this.getSecret(name);
+  }
+
+  deleteSecret(name: string): void {
+    delete this.state.secrets[name];
     this.markDirty();
   }
 
@@ -904,3 +988,6 @@ function compactValue(value: unknown, depth = 0): unknown {
 export function newId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
+
+
+

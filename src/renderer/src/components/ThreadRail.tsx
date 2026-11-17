@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Activity,
   Check,
   ChevronDown,
   ChevronRight,
   CircleDot,
+  ExternalLink,
   FileDiff,
   GitBranch,
   GitCommitHorizontal,
@@ -13,6 +15,7 @@ import {
   GitPullRequest,
   Inbox,
   MessageSquare,
+  Play,
   Plus,
   RefreshCw,
   Search,
@@ -21,9 +24,9 @@ import {
   Split,
   Waypoints,
 } from "lucide-react";
-import type { Envelope, GitFileStatus, GitStatus, Thread } from "../../../shared/types";
+import type { CiRun, Envelope, GitFileStatus, GitStatus, PrStatus, Thread } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
-import { Badge, Button, Empty, IconButton, Markdown, Segmented, StatusDot, cx, formatCost, formatNumber, relativeTime, statusColor, statusLabel, truncate } from "./Common";
+import { Badge, Button, Empty, IconButton, Markdown, Segmented, Spinner, StatusDot, cx, formatCost, formatNumber, relativeTime, statusColor, statusLabel, truncate } from "./Common";
 
 export function ThreadRail() {
   const state = useApp();
@@ -40,12 +43,13 @@ export function ThreadRail() {
             { value: "threads", label: `Threads ${nodeThreads(state, node.id).length}` },
             { value: "bus", label: "Message bus" },
             { value: "git", label: "Git" },
+            { value: "ci", label: "CI" },
           ]}
           onChange={(value) => state.setRightTab(value)}
         />
       </div>
       <div className="rail-body">
-        {tab === "threads" ? <ThreadsTab /> : tab === "bus" ? <BusTab /> : <GitTab />}
+        {tab === "threads" ? <ThreadsTab /> : tab === "bus" ? <BusTab /> : tab === "git" ? <GitTab /> : <CiTab />}
       </div>
     </aside>
   );
@@ -353,6 +357,171 @@ function ManualMessage({ thread }: { thread: Thread }) {
   );
 }
 
+function CiTab() {
+  const state = useApp();
+  const node = selectedNode(state);
+  const thread = selectedThread(state);
+  const [pr, setPr] = useState<PrStatus | null>(null);
+  const [runs, setRuns] = useState<CiRun[]>([]);
+  const [logs, setLogs] = useState<{ runId: string; text: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [comment, setComment] = useState("");
+
+  const load = async () => {
+    if (!node) return;
+    setLoading(true);
+    try {
+      const [status, runList] = await Promise.all([
+        window.omp.getPrStatus(node.id, thread?.id).catch((error: unknown) => ({ ok: false, error: String(error) }) as PrStatus),
+        window.omp.listCiRuns(node.id, thread?.id).catch(() => [] as CiRun[]),
+      ]);
+      setPr(status);
+      setRuns(runList);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, [node?.id, thread?.id]);
+
+  const failing = (pr?.checks ?? []).filter((check) => /failure|timed_out|cancelled|error/i.test(check.conclusion));
+
+  const fix = async () => {
+    if (!node || !thread) return;
+    setBusy("fix");
+    try {
+      const failedRun = runs.find((run) => /failure|timed_out|startup_failure/i.test(run.conclusion));
+      let logText = "";
+      if (failedRun) {
+        const result = await window.omp.getCiLogs(node.id, thread.id, failedRun.id);
+        logText = result.output.slice(-20_000);
+      }
+      const body = [
+        "CI is failing. Investigate and fix the failures, run the relevant checks locally, and report the outcome.",
+        pr?.number ? `PR #${pr.number}: ${pr.url ?? ""}` : "",
+        failing.length ? `Failing checks:\n${failing.map((check) => `- ${check.name}: ${check.conclusion}`).join("\n")}` : "",
+        logText ? `Recent failed logs:\n\n${logText}` : "",
+      ].filter(Boolean).join("\n\n");
+      await window.omp.send({ threadId: thread.id, text: body });
+      state.pushToast({ kind: "success", title: "CI failure sent to agent", body: "The thread will investigate and fix it." });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Could not start CI fix", body: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const autoKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state.snapshot?.settings.autoFixCi || !thread || !runs.length) return;
+    const failedRun = runs.find((run) => /failure|timed_out|startup_failure/i.test(run.conclusion));
+    if (!failedRun || autoKey.current === failedRun.id) return;
+    autoKey.current = failedRun.id;
+    void fix();
+  }, [runs, thread?.id]);
+
+  return (
+    <div className="ci-tab">
+      <div className="git-card">
+        <div className="git-card-head">
+          <div>
+            <span>Pull request</span>
+            <strong>{pr?.ok ? `#${pr.number} ${pr.title ?? ""}` : pr?.branch ? `Branch ${pr.branch}` : "No pull request"}</strong>
+          </div>
+          <IconButton icon={<RefreshCw size={14} />} label="Refresh" onClick={() => void load()} />
+        </div>
+        {loading ? <div className="settings-loading"><Spinner /> Checking GitHub</div> : null}
+        {pr?.ok ? (
+          <>
+            <div className="git-stats">
+              <div><span>State</span><strong>{pr.state}{pr.draft ? " (draft)" : ""}</strong></div>
+              <div><span>Mergeable</span><strong>{pr.mergeable ?? "?"}</strong></div>
+              <div><span>Review</span><strong>{pr.reviewDecision ?? "none"}</strong></div>
+            </div>
+            <div className="inline-actions">
+              {pr.url ? <Button size="sm" variant="soft" onClick={() => void window.omp.openExternal(pr.url!)}><ExternalLink size={12} /> Open PR</Button> : null}
+              <Button size="sm" variant="primary" disabled={busy !== null || pr.mergeable === "CONFLICTING"} onClick={async () => {
+                if (!pr.number) return;
+                setBusy("merge");
+                try {
+                  const result = await window.omp.mergePr(node!.id, thread?.id, pr.number);
+                  state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "PR merged" : "Merge failed", body: result.output.slice(0, 300) });
+                  await load();
+                } finally {
+                  setBusy(null);
+                }
+              }}><GitMerge size={12} /> Merge</Button>
+              <Button size="sm" variant="outline" disabled={busy !== null || !failing.length} onClick={() => void fix()}>
+                {busy === "fix" ? <Spinner /> : <ShieldAlert size={12} />} Fix failures
+              </Button>
+            </div>
+            <div className="ci-comment">
+              <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Review comment for the PR" />
+              <Button size="sm" variant="soft" disabled={!comment.trim() || !pr.number} onClick={async () => {
+                if (!pr.number) return;
+                const result = await window.omp.commentPr(node!.id, thread?.id, pr.number, comment);
+                state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Comment posted" : "Comment failed", body: result.output.slice(0, 200) });
+                if (result.ok) setComment("");
+              }}>Comment</Button>
+            </div>
+          </>
+        ) : (
+          <p className="rail-empty">{pr?.error || "Create a PR from the Git tab, or install and sign in with GitHub CLI."}</p>
+        )}
+        {(pr?.checks ?? []).length ? (
+          <div className="ci-checks">
+            {(pr?.checks ?? []).map((check, index) => (
+              <div key={`${check.name}-${index}`} className="ci-check">
+                <StatusDot status={/success/i.test(check.conclusion) ? "completed" : /failure|timed_out|error/i.test(check.conclusion) ? "error" : "running"} />
+                <span className="ci-check-name">{check.name}</span>
+                <Badge tone={/success/i.test(check.conclusion) ? "green" : /failure|timed_out|error/i.test(check.conclusion) ? "red" : "amber"}>{check.conclusion || check.status}</Badge>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="git-card">
+        <div className="git-card-head"><div><span>Workflow runs</span><strong>{runs.length ? `${runs.length} recent` : "No runs"}</strong></div></div>
+        {runs.map((run) => (
+          <div key={run.id} className="ci-run">
+            <StatusDot status={/success/i.test(run.conclusion) ? "completed" : /failure|timed_out|startup_failure/i.test(run.conclusion) ? "error" : "running"} />
+            <div className="ci-run-main">
+              <strong>{run.workflow ?? run.title}</strong>
+              <span>{run.branch} · {relativeTime(run.createdAt ?? Date.now())}</span>
+            </div>
+            <div className="ci-run-actions">
+              <IconButton icon={<FileDiff size={12} />} label="Failed logs" onClick={async () => {
+                setBusy(`logs-${run.id}`);
+                try {
+                  const result = await window.omp.getCiLogs(node!.id, thread?.id, run.id);
+                  setLogs({ runId: run.id, text: result.output || result.output || "No logs." });
+                } finally {
+                  setBusy(null);
+                }
+              }} />
+              <IconButton icon={<RefreshCw size={12} />} label="Re-run failed jobs" onClick={async () => {
+                const result = await window.omp.rerunCi(node!.id, thread?.id, run.id);
+                state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Re-run requested" : "Re-run failed", body: result.output.slice(0, 200) });
+              }} />
+              {run.url ? <IconButton icon={<ExternalLink size={12} />} label="Open run" onClick={() => void window.omp.openExternal(run.url!)} /> : null}
+            </div>
+          </div>
+        ))}
+        {!runs.length ? <p className="rail-empty">No workflow runs found. Push a branch or open a PR to start CI.</p> : null}
+        {busy?.startsWith("logs-") ? <div className="settings-loading"><Spinner /> Loading logs</div> : null}
+        {logs ? (
+          <div className="ci-logs">
+            <div className="ci-logs-head"><span className="mono">run {logs.runId}</span><IconButton icon={<FileDiff size={12} />} label="Close logs" onClick={() => setLogs(null)} /></div>
+            <pre>{logs.text}</pre>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function GitTab() {
   const state = useApp();
   const node = selectedNode(state);
@@ -395,7 +564,7 @@ function GitTab() {
             <div className="git-files">
               {files.map((file) => <GitFileRow key={file.path} file={file} onClick={async () => {
                 const value = await window.omp.getGitDiff(node.id, thread?.id, file.path);
-                state.openPreview({ title: file.path, kind: "diff", content: value || "No diff (untracked or binary file).", path: file.path });
+                state.openPreview({ title: file.path, kind: "diff", content: value || "No diff (untracked or binary file).", path: file.path, review: { nodeId: node.id, threadId: thread?.id, path: file.path } });
               }} />)}
               {!files.length ? <p className="rail-empty">Working tree clean.</p> : null}
             </div>

@@ -13,6 +13,7 @@ import type {
   MemoryEntry,
   ModelInfo,
   OmpConfigSnapshot,
+  PtySession,
   ShareInfo,
   Site,
   Snapshot,
@@ -21,9 +22,9 @@ import type {
   TreeNode,
 } from "../../shared/types";
 
-export type RightTab = "threads" | "bus" | "git";
-export type SettingsTab = "general" | "models" | "tools" | "memory" | "environments" | "git" | "notifications" | "engine" | "advanced" | "usage";
-export type Overlay = "none" | "inbox" | "artifacts" | "terminal" | "search" | "memory" | "settings" | "new-node" | "new-thread" | "share" | "preview" | "history" | "goal" | "sites";
+export type RightTab = "threads" | "bus" | "git" | "ci";
+export type SettingsTab = "general" | "models" | "tools" | "memory" | "environments" | "git" | "notifications" | "engine" | "advanced" | "usage" | "connectors" | "automations" | "sandbox";
+export type Overlay = "none" | "inbox" | "artifacts" | "terminal" | "search" | "memory" | "settings" | "new-node" | "new-thread" | "share" | "preview" | "history" | "goal" | "sites" | "context";
 
 interface Toast {
   id: string;
@@ -37,6 +38,7 @@ interface PreviewState {
   kind: "file" | "diff" | "artifact" | "text" | "image";
   content: string;
   path?: string;
+  review?: { nodeId: string; threadId?: string; path: string };
 }
 
 interface AppState {
@@ -49,6 +51,7 @@ interface AppState {
   approvals: ApprovalRequest[];
   toasts: Toast[];
   terminalRuns: TerminalRun[];
+  ptySessions: PtySession[];
   artifacts: Artifact[];
   memory: MemoryEntry[];
   ompConfig: OmpConfigSnapshot | null;
@@ -62,6 +65,7 @@ interface AppState {
   browserUrl: string;
   browserConsole: BrowserConsoleEntry[];
   browserNetwork: BrowserNetworkEntry[];
+  paneWidths: { sidebar: number; right: number; browser: number };
   composerInsert: { token: number; text: string } | null;
   rightTab: RightTab;
   railOpen: boolean;
@@ -87,6 +91,7 @@ interface AppState {
   insertComposer(text: string): void;
   clearComposerInsert(): void;
   toggleRail(): void;
+  setPaneWidth(pane: "sidebar" | "right" | "browser", width: number): void;
   setOverlay(overlay: Overlay): void;
   setSettingsTab(tab: SettingsTab): void;
   openPreview(preview: PreviewState): void;
@@ -110,6 +115,9 @@ interface AppState {
   deleteMemory(id: string): Promise<void>;
   loadArtifacts(filter?: { nodeId?: string; threadId?: string }): Promise<void>;
   loadTerminals(): Promise<void>;
+  loadPtySessions(): Promise<void>;
+  startPty(input?: { nodeId?: string; threadId?: string; title?: string }): Promise<PtySession | null>;
+  killPty(id: string): Promise<void>;
   loadSites(): Promise<void>;
   createSite(input: { name: string; nodeId: string; path: string }): Promise<void>;
   publishSite(id: string): Promise<void>;
@@ -141,6 +149,7 @@ export const useApp = create<AppState>((set, get) => ({
   approvals: [],
   toasts: [],
   terminalRuns: [],
+  ptySessions: [],
   artifacts: [],
   memory: [],
   ompConfig: null,
@@ -154,6 +163,7 @@ export const useApp = create<AppState>((set, get) => ({
   browserUrl: "https://example.com",
   browserConsole: [],
   browserNetwork: [],
+  paneWidths: { sidebar: 280, right: 320, browser: 440 },
   composerInsert: null,
   rightTab: "threads",
   railOpen: true,
@@ -182,6 +192,11 @@ export const useApp = create<AppState>((set, get) => ({
         engine: snapshot.engine,
         share: snapshot.share ?? null,
         sites: snapshot.sites ?? [],
+        paneWidths: {
+          sidebar: Number(snapshot.settings.ui?.sidebarWidth) || 280,
+          right: Number(snapshot.settings.ui?.rightWidth) || 320,
+          browser: get().paneWidths.browser,
+        },
         selectedNodeId: root?.id ?? null,
         selectedThreadId: threadId,
         initialized: true,
@@ -343,6 +358,27 @@ export const useApp = create<AppState>((set, get) => ({
         set({ browserNetwork: next.length > 400 ? next.slice(-400) : next });
         break;
       }
+      case "pty:data":
+        window.dispatchEvent(new CustomEvent("omp:pty", { detail: event.payload }));
+        break;
+      case "pty:updated": {
+        const exists = state.ptySessions.some((item) => item.id === event.payload.id);
+        set({
+          ptySessions: exists
+            ? state.ptySessions.map((item) => (item.id === event.payload.id ? event.payload : item))
+            : [...state.ptySessions, event.payload],
+        });
+        break;
+      }
+      case "pty:port":
+        set({
+          ptySessions: state.ptySessions.map((item) =>
+            item.id === event.payload.sessionId && !item.urls.includes(event.payload.url)
+              ? { ...item, urls: [...item.urls, event.payload.url] }
+              : item,
+          ),
+        });
+        break;
       case "sites:updated":
         set({ sites: event.payload, ...(state.snapshot ? { snapshot: { ...state.snapshot, sites: event.payload } } : {}) });
         break;
@@ -432,6 +468,13 @@ export const useApp = create<AppState>((set, get) => ({
   },
   toggleRail() {
     set({ railOpen: !get().railOpen });
+  },
+  setPaneWidth(pane, width) {
+    const next = { ...get().paneWidths };
+    if (pane === "sidebar") next.sidebar = Math.min(520, Math.max(220, width));
+    if (pane === "right") next.right = Math.min(620, Math.max(260, width));
+    if (pane === "browser") next.browser = Math.min(1100, Math.max(340, width));
+    set({ paneWidths: next });
   },
   setOverlay(overlay) {
     set({ overlay, preview: overlay === "preview" ? get().preview : null });
@@ -656,6 +699,31 @@ export const useApp = create<AppState>((set, get) => ({
   async loadTerminals() {
     const terminalRuns = await api().listTerminals();
     set({ terminalRuns });
+  },
+
+  async loadPtySessions() {
+    const ptySessions = await api().listPtySessions();
+    set({ ptySessions });
+  },
+
+  async startPty(input) {
+    try {
+      const session = await api().startPty({
+        nodeId: input?.nodeId ?? get().selectedNodeId ?? undefined,
+        threadId: input?.threadId ?? get().selectedThreadId ?? undefined,
+        title: input?.title,
+      });
+      set({ ptySessions: [...get().ptySessions.filter((item) => item.id !== session.id), session] });
+      return session;
+    } catch (error) {
+      get().pushToast({ kind: "error", title: "Could not start terminal", body: String(error) });
+      return null;
+    }
+  },
+
+  async killPty(id) {
+    await api().killPty(id);
+    set({ ptySessions: get().ptySessions.map((item) => (item.id === id ? { ...item, status: "exited" } : item)) });
   },
 
   async runTerminal(command) {

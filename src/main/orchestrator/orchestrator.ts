@@ -7,6 +7,7 @@ import type {
   ApprovalMode,
   ApprovalRequest,
   Artifact,
+  Automation,
   ChatMessage,
   Envelope,
   EnvelopeKind,
@@ -40,9 +41,14 @@ import type { NotificationService } from "../services/notifications";
 import type { ShareService } from "../services/share";
 import type { SettingsService } from "../services/settings";
 import type { SiteService } from "../services/sites";
+import type { PtyService } from "../services/pty";
+import type { WorkspaceService } from "../services/workspace";
+import type { DeployService } from "../services/deploy";
+import type { ComputerService } from "../services/computer";
 import type { Store } from "../services/store";
 import { newId } from "../services/store";
 import { trace } from "../diagnostics";
+import { audit } from "../audit";
 
 const WORKER_RESUME_PROMPT =
   "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace and branch first, finish the unfinished work, verify it, then call tree_report with the outcome. Do not redo steps that already completed.";
@@ -57,6 +63,10 @@ export interface OrchestratorDeps {
   git: GitService;
   artifacts: ArtifactService;
   browser: BrowserController;
+  pty: PtyService;
+  workspace: WorkspaceService;
+  deploy: DeployService;
+  computer: ComputerService;
   notifications: NotificationService;
   settings: SettingsService;
   share: ShareService;
@@ -77,8 +87,10 @@ export class Orchestrator extends EventEmitter {
   private digestTimer: NodeJS.Timeout | null = null;
   private statusTimer: NodeJS.Timeout | null = null;
   private parkingTimer: NodeJS.Timeout | null = null;
+  private automationTimer: NodeJS.Timeout | null = null;
   private compactingIdle = new Set<string>();
   private lastIdleCompaction = new Map<string, number>();
+  private budgetWarned = new Map<string, number>();
   private bus: MessageBus;
   private closed = false;
 
@@ -112,6 +124,70 @@ export class Orchestrator extends EventEmitter {
     this.startDigestTimer();
     this.startStatusTimer();
     this.parkingTimer = setInterval(() => void this.runMaintenance(), 60_000);
+    this.automationTimer = setInterval(() => void this.runDueAutomations(), 60_000);
+  }
+
+  listAutomations(): Automation[] {
+    return this.store.automations;
+  }
+
+  saveAutomation(input: Partial<Automation> & { name: string; nodeId: string; prompt: string; intervalMin: number }): Automation {
+    if (!this.store.getNode(input.nodeId)) throw new Error("Node not found");
+    if (input.id) {
+      return this.store.updateAutomation(input.id, {
+        name: input.name,
+        nodeId: input.nodeId,
+        prompt: input.prompt,
+        intervalMin: Math.max(5, Number(input.intervalMin) || 30),
+        enabled: input.enabled !== false,
+      });
+    }
+    return this.store.addAutomation({
+      id: newId("aut"),
+      name: input.name.trim() || "Automation",
+      nodeId: input.nodeId,
+      prompt: input.prompt,
+      intervalMin: Math.max(5, Number(input.intervalMin) || 30),
+      enabled: input.enabled !== false,
+      createdAt: Date.now(),
+    });
+  }
+
+  deleteAutomation(id: string): void {
+    this.store.removeAutomation(id);
+  }
+
+  async runAutomation(id: string): Promise<Thread> {
+    const automation = this.store.automations.find((item) => item.id === id);
+    if (!automation) throw new Error("Automation not found");
+    const node = this.store.getNode(automation.nodeId);
+    if (!node) throw new Error("Automation node not found");
+    const thread = await this.createThread({
+      nodeId: automation.nodeId,
+      title: `Automation · ${automation.name}`.slice(0, 60),
+      brief: [
+        `Scheduled automation: ${automation.name}`,
+        "",
+        automation.prompt,
+        "",
+        "Work in your own thread, verify the result and report the outcome. Ask a question instead of guessing when blocked.",
+      ].join("\n"),
+    });
+    this.store.updateAutomation(id, { lastRunAt: Date.now(), lastThreadId: thread.id, lastStatus: "running" });
+    return thread;
+  }
+
+  private async runDueAutomations(): Promise<void> {
+    const now = Date.now();
+    for (const automation of this.store.automations) {
+      if (!automation.enabled) continue;
+      if (now - (automation.lastRunAt ?? 0) < Math.max(5, automation.intervalMin) * 60_000) continue;
+      this.store.updateAutomation(automation.id, { lastRunAt: now, lastStatus: "running" });
+      void this.runAutomation(automation.id)
+        .then((thread) => this.store.updateAutomation(automation.id, { lastThreadId: thread.id, lastStatus: "started" }))
+        .catch((error) => this.store.updateAutomation(automation.id, { lastStatus: `error: ${String(error).slice(0, 120)}` }));
+      break;
+    }
   }
 
   private async runMaintenance(): Promise<void> {
@@ -433,6 +509,7 @@ export class Orchestrator extends EventEmitter {
   async createThread(input: NewThreadRequest): Promise<Thread> {
     const node = this.store.getNode(input.nodeId);
     if (!node) throw new Error(`Node not found: ${input.nodeId}`);
+    this.assertBudget(node.id);
     const parent = input.parentThreadId ? this.store.getThread(input.parentThreadId) : this.store.getThread(node.orchestratorThreadId);
     if (!parent) throw new Error("Parent thread not found");
     const title = input.title?.trim() || this.deps.naming.suggestTitle(input.brief, "New thread");
@@ -640,6 +717,8 @@ export class Orchestrator extends EventEmitter {
     }
     const text = request.text.trim();
     if (!text) return;
+    this.assertBudget(thread.nodeId);
+    audit("user-prompt", { threadId: thread.id, nodeId: thread.nodeId, model: thread.model.selector, chars: text.length, text: text.slice(0, 2_000) });
     let traceId = request.traceId;
     if (!traceId) {
       const trace = this.bus.createTrace({
@@ -1001,6 +1080,15 @@ export class Orchestrator extends EventEmitter {
     return { ok: result.code === 0, output: `${result.stdout}\n${result.stderr}`.trim() };
   }
 
+  async gitRejectHunk(nodeId: string, threadId: string, path: string, patch: string): Promise<{ ok: boolean; output: string }> {
+    const thread = this.store.getThread(threadId);
+    if (!thread?.worktreePath) return { ok: false, output: "Thread is not isolated" };
+    if (!patch.includes("@@")) return { ok: false, output: "No hunk patch provided" };
+    const result = await this.deps.git.applyReversePatch(thread.worktreePath, patch);
+    await this.gitStatus(nodeId, threadId);
+    return { ok: result.code === 0, output: `${result.stdout}\n${result.stderr}`.trim() || (result.code === 0 ? `Reverted hunk in ${path}` : "Patch failed") };
+  }
+
   async deleteNode(id: string): Promise<void> {
     if (id === "root") throw new Error("Cannot delete the root node");
     const node = this.store.getNode(id);
@@ -1167,6 +1255,7 @@ export class Orchestrator extends EventEmitter {
     this.closed = true;
     if (this.digestTimer) clearInterval(this.digestTimer);
     if (this.parkingTimer) clearInterval(this.parkingTimer);
+    if (this.automationTimer) clearInterval(this.automationTimer);
     for (const timer of this.gitTimers.values()) clearTimeout(timer);
     for (const timer of this.autoContinueTimers.values()) clearTimeout(timer);
     await Promise.all([...this.sessions.values()].map((session) => session.dispose().catch(() => undefined)));
@@ -1321,8 +1410,37 @@ export class Orchestrator extends EventEmitter {
     this.updateStatus(threadId, "parked", "Parked");
   }
 
-  private updateStatus(threadId: string, status: ThreadStatus, message?: string): void {
-    const thread = this.store.getThread(threadId);
+  private assertComputerUse(): void {
+    if (!this.store.settings.computerUse) {
+      throw new Error("Computer use is disabled. Enable it in Settings → Sandbox to allow desktop screenshots and input.");
+    }
+  }
+
+  private assertBudget(nodeId: string): void {
+    const node = this.store.getNode(nodeId);
+    if (!node) return;
+    const budget = Number(node.budgetUsd ?? this.store.settings.usage.budgetUsd ?? 0);
+    if (!budget || budget <= 0) return;
+    const ids = new Set([node.id, ...this.descendantNodes(node.id).map((item) => item.id)]);
+    const cost = this.store.threads.filter((thread) => ids.has(thread.nodeId)).reduce((sum, thread) => sum + thread.cost, 0);
+    if (cost < budget) return;
+    const action = this.store.settings.usage.budgetAction ?? "warn";
+    const key = `${node.id}`;
+    audit("budget-hit", { nodeId: node.id, cost, budget, action });
+    if (action === "pause") {
+      throw new Error(`Budget reached for ${node.name}: $${cost.toFixed(2)} of $${budget.toFixed(2)}. Raise the budget in Settings → Usage or This node.`);
+    }
+    if (Date.now() - (this.budgetWarned.get(key) ?? 0) > 60 * 60_000) {
+      this.budgetWarned.set(key, Date.now());
+      this.deps.notifications.notify({
+        kind: "usage_limit",
+        title: `Budget reached for ${node.name}`,
+        body: `$${cost.toFixed(2)} of $${budget.toFixed(2)} spent. Work continues in warn mode.`,
+      });
+    }
+  }
+
+  private updateStatus(threadId: string, status: ThreadStatus, message?: string): void {    const thread = this.store.getThread(threadId);
     if (!thread) return;
     const updated = this.store.updateThread(threadId, {
       status,
@@ -1741,6 +1859,7 @@ export class Orchestrator extends EventEmitter {
   private async handleHostTool(context: HostToolContext): Promise<HostToolResult> {
     const debug = process.argv.includes("--integration-test");
     if (debug) console.log("HOST_TOOL_START", context.thread.id, context.toolName, JSON.stringify(context.args).slice(0, 200));
+    audit("host-tool", { threadId: context.thread.id, nodeId: context.node.id, tool: context.toolName, args: JSON.stringify(context.args).slice(0, 2_000) });
     try {
       const result = await this.executeHostTool(context);
       if (debug) console.log("HOST_TOOL_END", context.thread.id, context.toolName, result.isError ? "ERROR" : "OK");
@@ -1879,6 +1998,56 @@ export class Orchestrator extends EventEmitter {
           const resolved = await this.resolveThread(threadId, context.args.note ? String(context.args.note) : undefined);
           return textResult(`Resolved and archived "${resolved.title}".`);
         }
+        case "computer_screenshot": {
+          this.assertComputerUse();
+          const path = await this.deps.computer.screenshot();
+          this.deps.artifacts.recordFile(context.thread, path, this.store.baseDir);
+          try {
+            const data = readFileSync(path).toString("base64");
+            if (data.length < 8_000_000) {
+              this.handleChat({
+                id: newId("msg"),
+                threadId: context.thread.id,
+                role: "assistant",
+                blocks: [{ type: "image", mimeType: "image/png", data, path }],
+                timestamp: Date.now(),
+                model: context.thread.model.name,
+              });
+            }
+          } catch {
+            /* artifact still exists */
+          }
+          return textResult(`Desktop screenshot saved to ${path} and shown in this thread.`);
+        }
+        case "computer_click":
+          this.assertComputerUse();
+          return textResult(await this.deps.computer.click(Number(context.args.x), Number(context.args.y), context.args.button === "right" ? "right" : "left"));
+        case "computer_type":
+          this.assertComputerUse();
+          return textResult(await this.deps.computer.type(String(context.args.text ?? "")));
+        case "computer_keys":
+          this.assertComputerUse();
+          return textResult(await this.deps.computer.keys(String(context.args.keys ?? "")));
+        case "workspace_search": {
+          const matches = this.deps.workspace.searchContent({
+            nodeId: context.node.id,
+            threadId: context.thread.id,
+            query: String(context.args.query ?? ""),
+            limit: Number(context.args.limit) || 60,
+          });
+          if (!matches.length) return textResult("No matches.");
+          return textResult(matches.map((match) => `${match.path}:${match.line}: ${match.preview}`).join("\n"));
+        }
+        case "workspace_map": {
+          const symbols = this.deps.workspace.map({ nodeId: context.node.id, threadId: context.thread.id, limit: Number(context.args.limit) || 250 });
+          if (!symbols.length) return textResult("No symbols found.");
+          return textResult(symbols.map((symbol) => `${symbol.path}:${symbol.line} ${symbol.kind} ${symbol.name}`).join("\n"));
+        }
+        case "site_deploy": {
+          const deployment = await this.deps.deploy.deploy(String(context.args.siteId ?? ""), context.args.provider === "github-pages" ? "github-pages" : "cloudflare");
+          this.deps.emit({ type: "sites:updated", payload: this.deps.sites.list() });
+          return textResult(`Deployed with ${deployment.provider}${deployment.url ? ` at ${deployment.url}` : ""}. ${deployment.detail ?? ""}`);
+        }
         case "site_list": {
           const list = this.deps.sites.list();
           if (!list.length) return textResult("No sites yet. Create one with site_create.");
@@ -1910,8 +2079,44 @@ export class Orchestrator extends EventEmitter {
           this.deps.emit({ type: "sites:updated", payload: this.deps.sites.list() });
           return textResult(`Published "${site.name}" version ${site.currentVersion} at ${site.url}`);
         }
-        case "app_browser_console": {
-          const limit = Math.min(300, Math.max(1, Number(context.args.limit) || 80));
+        case "dev_server_start": {
+          const command = String(context.args.command ?? "");
+          if (!command.trim()) throw new Error("command is required");
+          const result = await this.deps.pty.startDevServer({
+            command,
+            nodeId: context.args.nodeId ? String(context.args.nodeId) : context.node.id,
+            threadId: context.thread.id,
+          });
+          if (!result.url) {
+            return textResult(
+              `Started dev server in terminal ${result.session.id} (cwd ${result.session.cwd}), but no localhost URL was detected within 30s. Check app_preview_logs or the Terminal panel, or open the URL manually with app_browser_navigate.`,
+            );
+          }
+          return textResult(
+            `Dev server running in terminal ${result.session.id}. Preview URL: ${result.url}. Open it with app_browser_navigate and verify console/network with app_browser_console and app_browser_network.`,
+          );
+        }
+        case "dev_server_stop": {
+          const sessionId = String(context.args.sessionId ?? "");
+          if (!sessionId) throw new Error("sessionId is required");
+          this.deps.pty.kill(sessionId);
+          return textResult(`Stopped terminal ${sessionId}.`);
+        }
+        case "dev_server_list": {
+          const sessions = this.deps.pty.list().filter((session) => session.status === "running");
+          if (!sessions.length) return textResult("No running terminals or dev servers.");
+          return textResult(
+            sessions
+              .map((session) => `${session.id} | ${session.title} | ${session.cwd}${session.urls.length ? ` | ${session.urls.join(", ")}` : ""}`)
+              .join("\n"),
+          );
+        }
+        case "app_browser_visual_diff": {
+          const result = await this.deps.browser.compare(String(context.args.before ?? ""), String(context.args.after ?? ""));
+          this.deps.artifacts.recordFile(context.thread, result.path, this.store.baseDir);
+          return textResult(`Visual diff: ${result.percent}% changed (${result.diffPixels}/${result.totalPixels} pixels). Diff image: ${result.path}`);
+        }
+        case "app_browser_console": {          const limit = Math.min(300, Math.max(1, Number(context.args.limit) || 80));
           const level = context.args.level ? String(context.args.level) : "";
           let entries = this.deps.browser.history().console;
           if (level) entries = entries.filter((entry) => entry.level === level);

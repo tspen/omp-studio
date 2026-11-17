@@ -8,6 +8,7 @@ export default defineConfig({
       outDir: "out/main",
       rollupOptions: {
         input: resolve(__dirname, "src/main/index.ts"),
+        external: ["node-pty"],
       },
     },
   },

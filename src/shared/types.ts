@@ -120,6 +120,7 @@ export interface TreeNode {
   color?: string;
   icon?: string;
   autoName: boolean;
+  budgetUsd?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -154,6 +155,46 @@ export interface GitStatus {
   lastCommit?: { hash: string; subject: string; author: string; date: string };
   error?: string;
   updatedAt: number;
+}
+
+export interface PrCheck {
+  name: string;
+  workflow?: string;
+  status: string;
+  conclusion: string;
+  url?: string;
+}
+
+export interface PrStatus {
+  ok: boolean;
+  number?: number;
+  title?: string;
+  url?: string;
+  state?: string;
+  draft?: boolean;
+  mergeable?: string;
+  mergeStateStatus?: string;
+  reviewDecision?: string;
+  branch?: string;
+  checks?: PrCheck[];
+  error?: string;
+}
+
+export interface AuditEntry {
+  at: number;
+  tag: string;
+  detail: unknown;
+}
+
+export interface CiRun {
+  id: string;
+  title: string;
+  workflow?: string;
+  status: string;
+  conclusion: string;
+  branch?: string;
+  createdAt?: number;
+  url?: string;
 }
 
 export interface ThreadGitInfo extends GitStatus {
@@ -315,7 +356,21 @@ export interface GitSettings {
 
 export interface UsageSettings {
   budgetUsd?: number;
+  budgetAction?: "warn" | "pause";
   autoContinueOnReset: boolean;
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  nodeId: string;
+  intervalMin: number;
+  prompt: string;
+  enabled: boolean;
+  lastRunAt?: number;
+  lastThreadId?: string;
+  lastStatus?: string;
+  createdAt: number;
 }
 
 export interface AppSettings {
@@ -334,6 +389,18 @@ export interface AppSettings {
   contextCompaction: boolean;
   idleCompaction: boolean;
   idleCompactionThreshold: number;
+  terminalShell: string;
+  previewAutoOpen: boolean;
+  connectors: {
+    cloudflare: { accountId?: string; projectName?: string; branch?: string; mcp: boolean };
+    github: { enabled: boolean };
+    slack: { enabled: boolean };
+    linear: { enabled: boolean };
+    figma: { enabled: boolean };
+  };
+  sandbox: { enabled: boolean; allowedPaths: string[]; deniedCommands: string[]; allowNetwork: boolean };
+  computerUse: boolean;
+  autoFixCi: boolean;
   advisor: boolean;
   notifications: NotificationSettings;
   models: ModelSettings;
@@ -491,6 +558,17 @@ export interface ApprovalRequest {
   createdAt: number;
 }
 
+export interface SiteDeployment {
+  id: string;
+  provider: "cloudflare" | "github-pages";
+  url?: string;
+  project?: string;
+  branch?: string;
+  status: "success" | "error";
+  detail?: string;
+  createdAt: number;
+}
+
 export interface SiteVersion {
   id: string;
   createdAt: number;
@@ -506,8 +584,47 @@ export interface Site {
   url: string;
   currentVersion?: string;
   versions: SiteVersion[];
+  deployments?: SiteDeployment[];
+  accessToken?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PtySession {
+  id: string;
+  nodeId: string;
+  threadId?: string;
+  title: string;
+  cwd: string;
+  shell: string;
+  status: "running" | "exited";
+  pid?: number;
+  exitCode?: number;
+  createdAt: number;
+  updatedAt: number;
+  urls: string[];
+}
+
+export interface WorkspaceFile {
+  path: string;
+  name: string;
+  dir: string;
+  size: number;
+  modifiedAt: number;
+}
+
+export interface WorkspaceSymbol {
+  name: string;
+  kind: string;
+  path: string;
+  line: number;
+  preview: string;
+}
+
+export interface WorkspaceMatch {
+  path: string;
+  line: number;
+  preview: string;
 }
 
 export interface BrowserConsoleEntry {
@@ -642,6 +759,9 @@ export type AppEvent =
   | { type: "browser:show"; payload: { url?: string } }
   | { type: "browser:console"; payload: BrowserConsoleEntry }
   | { type: "browser:network"; payload: BrowserNetworkEntry }
+  | { type: "pty:data"; payload: { sessionId: string; chunk: string } }
+  | { type: "pty:updated"; payload: PtySession }
+  | { type: "pty:port"; payload: { sessionId: string; url: string } }
   | { type: "focus"; payload: { threadId?: string; nodeId?: string } }
   | { type: "toast"; payload: { kind: "info" | "success" | "error" | "warning"; title: string; body?: string } };
 
@@ -752,6 +872,8 @@ export interface OmpStudioApi {
   getThreadEntries(id: string): Promise<ThreadEntry[]>;
   goalThread(id: string, op: "get" | "create" | "resume" | "pause" | "drop", objective?: string, tokenBudget?: number): Promise<any>;
   exportThread(id: string): Promise<{ path: string }>;
+  exportThreadPdf(id: string): Promise<{ path: string }>;
+  exportThreadDocx(id: string): Promise<{ path: string }>;
 
   sendEnvelope(req: ManualEnvelopeRequest): Promise<Envelope>;
   answerEnvelope(id: string, body: string): Promise<void>;
@@ -774,6 +896,13 @@ export interface OmpStudioApi {
   gitMerge(nodeId: string, threadId: string): Promise<{ ok: boolean; output: string; conflicts: string[] }>;
   gitCreatePr(nodeId: string, threadId: string, title: string, body: string): Promise<{ ok: boolean; output: string; url?: string }>;
   gitDiscard(nodeId: string, threadId: string): Promise<{ ok: boolean; output: string }>;
+  gitRejectHunk(nodeId: string, threadId: string, path: string, patch: string): Promise<{ ok: boolean; output: string }>;
+  getPrStatus(nodeId: string, threadId?: string): Promise<PrStatus>;
+  listCiRuns(nodeId: string, threadId?: string): Promise<CiRun[]>;
+  getCiLogs(nodeId: string, threadId: string | undefined, runId: string): Promise<{ ok: boolean; output: string }>;
+  rerunCi(nodeId: string, threadId: string | undefined, runId: string): Promise<{ ok: boolean; output: string }>;
+  mergePr(nodeId: string, threadId: string | undefined, number: number): Promise<{ ok: boolean; output: string }>;
+  commentPr(nodeId: string, threadId: string | undefined, number: number, body: string): Promise<{ ok: boolean; output: string }>;
 
   updateSettings(patch: SettingsPatch): Promise<AppSettings>;
   completeOnboarding(payload: OnboardingPayload): Promise<{ snapshot: Snapshot; node?: TreeNode }>;
@@ -816,6 +945,27 @@ export interface OmpStudioApi {
   createSite(input: { name: string; nodeId: string; path: string }): Promise<Site>;
   publishSite(id: string): Promise<Site>;
   deleteSite(id: string): Promise<void>;
+  deploySite(id: string, provider: "cloudflare" | "github-pages"): Promise<SiteDeployment>;
+  setSiteAccess(id: string, enabled: boolean): Promise<Site>;
+
+  setConnectorSecret(key: string, value: string): Promise<Record<string, boolean>>;
+  connectorSecrets(): Promise<Record<string, boolean>>;
+  testConnector(provider: string): Promise<{ ok: boolean; output: string }>;
+  addMcpServer(name: string, config: Record<string, unknown>): Promise<McpServerInfo[]>;
+  removeMcpServer(name: string): Promise<McpServerInfo[]>;
+  addCloudflareMcp(): Promise<{ path: string; servers: McpServerInfo[] }>;
+  importAgentConfigs(): Promise<{ imported: string[]; path: string }>;
+
+  createSkill(input: { name: string; description: string; body: string }): Promise<SkillInfo>;
+  readSkill(path: string): Promise<{ content: string; path: string }>;
+  saveSkill(path: string, content: string): Promise<void>;
+  deleteSkill(path: string): Promise<void>;
+
+  listAutomations(): Promise<Automation[]>;
+  saveAutomation(input: Partial<Automation> & { name: string; nodeId: string; prompt: string; intervalMin: number }): Promise<Automation>;
+  deleteAutomation(id: string): Promise<void>;
+  runAutomation(id: string): Promise<void>;
+  listAudit(limit?: number): Promise<AuditEntry[]>;
 
   pickDirectory(): Promise<string | null>;
   setWindowTheme(theme: "light" | "dark"): Promise<void>;
@@ -823,6 +973,23 @@ export interface OmpStudioApi {
   openBrowser(url: string): Promise<void>;
   getBrowserDevtools(): Promise<{ console: BrowserConsoleEntry[]; network: BrowserNetworkEntry[] }>;
   pickBrowserElement(): Promise<{ selector: string; text: string; tag: string } | null>;
+  popOutBrowser(url: string): Promise<void>;
+  captureBrowser(): Promise<string>;
+  compareBrowserScreenshots(before: string, after: string): Promise<{ path: string; diffPixels: number; totalPixels: number; percent: number }>;
+
+  listPtySessions(): Promise<PtySession[]>;
+  startPty(input?: { nodeId?: string; threadId?: string; cols?: number; rows?: number; title?: string }): Promise<PtySession>;
+  writePty(id: string, data: string): Promise<void>;
+  resizePty(id: string, cols: number, rows: number): Promise<void>;
+  readPty(id: string): Promise<string>;
+  killPty(id: string): Promise<void>;
+  startDevServer(input: { nodeId?: string; threadId?: string; command: string }): Promise<{ session: PtySession; url?: string }>;
+
+  listWorkspaceFiles(input?: { nodeId?: string; threadId?: string; query?: string; limit?: number }): Promise<WorkspaceFile[]>;
+  searchWorkspaceSymbols(input?: { nodeId?: string; threadId?: string; query?: string; limit?: number }): Promise<WorkspaceSymbol[]>;
+  searchWorkspaceContent(input: { nodeId?: string; threadId?: string; query: string; limit?: number }): Promise<WorkspaceMatch[]>;
+  workspaceMap(input?: { nodeId?: string; threadId?: string; limit?: number }): Promise<WorkspaceSymbol[]>;
+  attachImage(input: { nodeId?: string; threadId?: string; name: string; dataUrl: string }): Promise<{ path: string }>;
   openPath(path: string): Promise<void>;
   downloadEngine(): Promise<EngineStatus>;
   restartApp(): Promise<void>;

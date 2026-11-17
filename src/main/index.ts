@@ -16,11 +16,18 @@ import { NotificationService } from "./services/notifications";
 import { SettingsService } from "./services/settings";
 import { ShareService } from "./services/share";
 import { SiteService } from "./services/sites";
+import { PtyService } from "./services/pty";
+import { WorkspaceService } from "./services/workspace";
+import { PrService } from "./services/pr";
+import { DeployService } from "./services/deploy";
+import { ComputerService } from "./services/computer";
+import { ExportService } from "./services/exporter";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
 import { UsageService } from "./services/usage";
 import { ProviderService } from "./services/providers";
 import { initDiagnostics, trace } from "./diagnostics";
+import { initAudit } from "./audit";
 import type { AppEvent } from "../shared/types";
 
 let mainWindow: BrowserWindow | null = null;
@@ -31,6 +38,7 @@ let notifications: NotificationService | null = null;
 let share: ShareService | null = null;
 let sites: SiteService | null = null;
 let store: Store | null = null;
+let terminals: PtyService | null = null;
 
 const smokeTest = process.argv.includes("--smoke-test");
 const integrationTest = process.argv.includes("--integration-test");
@@ -465,6 +473,7 @@ async function bootstrap(): Promise<void> {
   const dataStore = new Store();
   dataStore.init();
   initDiagnostics(dataStore.baseDir);
+  initAudit(dataStore.baseDir);
   trace("app-start", { pid: process.pid, version: app.getVersion() });
   store = dataStore;
   let memoryEmergencyTripped = false;
@@ -532,6 +541,20 @@ async function bootstrap(): Promise<void> {
     if (node) broadcast({ type: "node:updated", payload: node });
   });
   const terminal = new TerminalService(dataStore, environments, broadcast);
+  const pty = new PtyService(dataStore, environments, broadcast, (url) => {
+    broadcast({ type: "browser:show", payload: { url } });
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+  terminals = pty;
+  const workspace = new WorkspaceService(dataStore);
+  const pr = new PrService();
+  const deploy = new DeployService(dataStore);
+  const computer = new ComputerService(dataStore.artifactsDir);
+  const exporter = new ExportService(dataStore, artifacts);
 
   if (dataStore.data.models.length) {
     models.ensureDefaults();
@@ -560,6 +583,10 @@ async function bootstrap(): Promise<void> {
     git,
     artifacts,
     browser: browserController,
+    pty,
+    workspace,
+    deploy,
+    computer,
     notifications: notificationService,
     settings,
     share: shareService,
@@ -580,6 +607,11 @@ async function bootstrap(): Promise<void> {
     artifacts,
     notifications: notificationService,
     terminal,
+    pty,
+    workspace,
+    pr,
+    deploy,
+    exporter,
     share: shareService,
     sites: siteService,
     browser: browserController!,
@@ -590,6 +622,7 @@ async function bootstrap(): Promise<void> {
       mainWindow?.show();
       mainWindow?.focus();
     },
+    popOutBrowser: (url: string) => openBrowserWindow(url),
   };
   registerIpc(context);
 
@@ -673,6 +706,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   void share?.stop().catch(() => undefined);
   void sites?.stop().catch(() => undefined);
+  terminals?.disposeAll();
   void orchestrator?.shutdown().catch(() => undefined);
   notifications?.destroy();
   store?.flush();

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleAlert,
+  Cloud,
   Copy,
   Download,
   ExternalLink,
@@ -16,6 +17,7 @@ import {
   Globe,
   Image as ImageIcon,
   Inbox,
+  Lock,
   MessageSquare,
   Play,
   Plus,
@@ -26,11 +28,14 @@ import {
   Square,
   Terminal,
   Trash2,
+  Unlock,
+  Upload,
   X,
 } from "lucide-react";
-import type { ApprovalRequest, Artifact, ChatBlock, Environment, ModelInfo, Thread, TreeNode } from "../../../shared/types";
+import type { ApprovalRequest, Artifact, ChatBlock, Environment, ModelInfo, Thread, TreeNode, WorkspaceFile, WorkspaceMatch, WorkspaceSymbol } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
 import { ModelPicker } from "./ModelPicker";
+import { ShellsTab } from "./TerminalPane";
 import { Badge, Button, Empty, Field, IconButton, Modal, Select, Spinner, StatusDot, cx, defaultNodePath, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 
 export function Modals() {
@@ -46,6 +51,8 @@ export function Modals() {
       return <ArtifactsModal />;
     case "sites":
       return <SitesModal />;
+    case "context":
+      return <ContextModal />;
     case "terminal":
       return <TerminalModal />;
     case "search":
@@ -444,6 +451,24 @@ function SitesModal() {
     }
   };
 
+  const deploy = async (id: string, provider: "cloudflare" | "github-pages") => {
+    setBusy(`${id}-${provider}`);
+    try {
+      const deployment = await window.omp.deploySite(id, provider);
+      state.pushToast({
+        kind: "success",
+        title: provider === "cloudflare" ? "Deployed to Cloudflare Pages" : "Deployed to GitHub Pages",
+        body: deployment.url ?? deployment.detail,
+      });
+      if (deployment.url) state.openBrowser(deployment.url);
+      await state.loadSites();
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Deploy failed", body: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <Modal title="Sites" subtitle="Publish a folder from a project to a local URL and open it in the in-app browser." onClose={() => state.setOverlay("none")} width={900}>
       <div className="site-create">
@@ -493,10 +518,26 @@ function SitesModal() {
                 <span>{relativeTime(site.updatedAt)}</span>
               </div>
               <div className="site-path" title={site.sourcePath}>{truncate(site.sourcePath, 58)}</div>
+              {(site.deployments ?? []).length ? (
+                <div className="site-deployments">
+                  {(site.deployments ?? []).slice(0, 2).map((deployment) => (
+                    <button key={deployment.id} type="button" className="site-deployment" onClick={() => deployment.url && state.openBrowser(deployment.url)}>
+                      <Cloud size={11} /> {deployment.provider === "cloudflare" ? "Cloudflare" : "GitHub Pages"} · {deployment.url?.replace(/^https?:\/\//, "") ?? deployment.status}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <div className="site-actions">
                 <Button size="sm" variant="primary" disabled={!site.url} onClick={() => { state.openBrowser(site.url); state.setOverlay("none"); }}><ExternalLink size={12} /> Open</Button>
-                <Button size="sm" variant="soft" disabled={!site.url} onClick={() => { void navigator.clipboard.writeText(site.url); state.pushToast({ kind: "info", title: "URL copied", body: site.url }); }}><Copy size={12} /> Copy</Button>
+                <Button size="sm" variant="soft" disabled={!site.url} onClick={() => { const link = site.accessToken ? `${site.url}?t=${site.accessToken}` : site.url; void navigator.clipboard.writeText(link); state.pushToast({ kind: "info", title: site.accessToken ? "Protected URL copied" : "URL copied", body: link }); }}><Copy size={12} /> Copy</Button>
                 <Button size="sm" variant="soft" disabled={busy === site.id} onClick={() => void republish(site.id)}>{busy === site.id ? <Spinner /> : <Share2 size={12} />} Publish</Button>
+                <IconButton icon={site.accessToken ? <Lock size={13} /> : <Unlock size={13} />} label={site.accessToken ? "Remove access token" : "Protect with an access token"} onClick={async () => {
+                  await window.omp.setSiteAccess(site.id, !site.accessToken);
+                  await state.loadSites();
+                  state.pushToast({ kind: "info", title: site.accessToken ? "Site is public" : "Site protected", body: site.accessToken ? "Anyone on this machine can open it." : "Share the copy link, which includes the token." });
+                }} />
+                <IconButton icon={<Cloud size={13} />} label="Deploy to Cloudflare Pages" onClick={() => void deploy(site.id, "cloudflare")} disabled={busy !== null} />
+                <IconButton icon={<Upload size={13} />} label="Deploy to GitHub Pages" onClick={() => void deploy(site.id, "github-pages")} disabled={busy !== null} />
                 <IconButton icon={<Trash2 size={13} />} label="Delete site" onClick={async () => {
                   if (confirm(`Delete ${site.name}? Published files are removed.`)) await state.deleteSite(site.id);
                 }} />
@@ -514,33 +555,132 @@ function SitesModal() {
 
 function TerminalModal() {
   const state = useApp();
+  const [tab, setTab] = useState<"shells" | "runs">("shells");
+  return (
+    <Modal title="Terminal" subtitle="Persistent shells with preview URL detection, or one-off command runs." onClose={() => state.setOverlay("none")} width={1000} className="terminal-modal">
+      <div className="modal-tabs">
+        <button type="button" className={cx("modal-tab", tab === "shells" && "active")} onClick={() => setTab("shells")}>Shells</button>
+        <button type="button" className={cx("modal-tab", tab === "runs" && "active")} onClick={() => setTab("runs")}>Command runs</button>
+      </div>
+      {tab === "shells" ? <ShellsTab /> : <CommandRuns />}
+    </Modal>
+  );
+}
+
+function CommandRuns() {
+  const state = useApp();
   const [command, setCommand] = useState("");
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const thread = selectedThread(state);
   useEffect(() => { void state.loadTerminals(); }, []);
   const run = state.terminalRuns.find((item) => item.id === selectedRun) ?? state.terminalRuns[0];
   return (
-    <Modal title="Terminal" subtitle="Runs commands in the selected node or thread environment. Not a full PTY." onClose={() => state.setOverlay("none")} width={900}>
-      <div className="terminal-layout">
-        <div className="terminal-runs">
-          {state.terminalRuns.map((item) => (
-            <button key={item.id} type="button" className={cx("terminal-run", run?.id === item.id && "active")} onClick={() => setSelectedRun(item.id)}>
-              <span className={cx("run-dot", item.status)} />
-              <span className="mono">{truncate(item.command, 30)}</span>
-              <span>{relativeTime(item.startedAt)}</span>
-            </button>
-          ))}
-          {!state.terminalRuns.length ? <p className="muted">No commands yet.</p> : null}
+    <div className="terminal-layout">
+      <div className="terminal-runs">
+        {state.terminalRuns.map((item) => (
+          <button key={item.id} type="button" className={cx("terminal-run", run?.id === item.id && "active")} onClick={() => setSelectedRun(item.id)}>
+            <span className={cx("run-dot", item.status)} />
+            <span className="mono">{truncate(item.command, 30)}</span>
+            <span>{relativeTime(item.startedAt)}</span>
+          </button>
+        ))}
+        {!state.terminalRuns.length ? <p className="muted">No commands yet.</p> : null}
+      </div>
+      <div className="terminal-main">
+        <div className="terminal-output">{run?.output || "Run a command to see output."}</div>
+        <div className="terminal-input">
+          <span>$</span>
+          <input value={command} onChange={(event) => setCommand(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && command.trim()) { void state.runTerminal(command); setCommand(""); } }} placeholder="npm test" />
+          <Button size="sm" variant="primary" disabled={!command.trim()} onClick={() => { void state.runTerminal(command); setCommand(""); }}><Play size={13} /> Run</Button>
+          {run?.status === "running" ? <Button size="sm" variant="ghost" onClick={() => void window.omp.killTerminal(run.id)}><Square size={12} /> Stop</Button> : null}
         </div>
-        <div className="terminal-main">
-          <div className="terminal-output">{run?.output || "Run a command to see output."}</div>
-          <div className="terminal-input">
-            <span>$</span>
-            <input value={command} onChange={(event) => setCommand(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && command.trim()) { void state.runTerminal(command); setCommand(""); } }} placeholder="npm test" />
-            <Button size="sm" variant="primary" disabled={!command.trim()} onClick={() => { void state.runTerminal(command); setCommand(""); }}><Play size={13} /> Run</Button>
-            {run?.status === "running" ? <Button size="sm" variant="ghost" onClick={() => void window.omp.killTerminal(run.id)}><Square size={12} /> Stop</Button> : null}
-          </div>
-        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContextModal() {
+  const state = useApp();
+  const node = selectedNode(state);
+  const thread = selectedThread(state);
+  const [tab, setTab] = useState<"files" | "symbols" | "text">("files");
+  const [query, setQuery] = useState("");
+  const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [symbols, setSymbols] = useState<WorkspaceSymbol[]>([]);
+  const [matches, setMatches] = useState<WorkspaceMatch[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        if (tab === "files") {
+          const result = await window.omp.listWorkspaceFiles({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
+          if (!cancelled) setFiles(result);
+        } else if (tab === "symbols") {
+          const result = await window.omp.searchWorkspaceSymbols({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
+          if (!cancelled) setSymbols(result);
+        } else if (query.trim().length >= 2) {
+          const result = await window.omp.searchWorkspaceContent({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
+          if (!cancelled) setMatches(result);
+        } else if (!cancelled) {
+          setMatches([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 140);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query, tab, node?.id, thread?.id]);
+
+  const choose = (text: string) => {
+    state.insertComposer(text);
+    state.setOverlay("none");
+  };
+
+  return (
+    <Modal title="Add context" subtitle="Reference files and symbols, or attach images and text from the composer." onClose={() => state.setOverlay("none")} width={760}>
+      <div className="modal-tabs">
+        <button type="button" className={cx("modal-tab", tab === "files" && "active")} onClick={() => setTab("files")}>Files</button>
+        <button type="button" className={cx("modal-tab", tab === "symbols" && "active")} onClick={() => setTab("symbols")}>Symbols</button>
+        <button type="button" className={cx("modal-tab", tab === "text" && "active")} onClick={() => setTab("text")}>Text</button>
+        <span className="browser-devspace" />
+        {loading ? <Spinner size={13} /> : null}
+      </div>
+      <div className="context-search">
+        <Search size={13} />
+        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tab === "files" ? "Search files by name or path" : tab === "symbols" ? "Search functions, classes and types" : "Search text across the project"} />
+        <span>{tab === "files" ? `${files.length} files` : tab === "symbols" ? `${symbols.length} symbols` : `${matches.length} matches`}</span>
+      </div>
+      <div className="context-list">
+        {tab === "files"
+          ? files.map((file) => (
+              <button key={file.path} type="button" className="context-row" onClick={() => choose(`@${file.path}`)}>
+                <File size={13} />
+                <span className="context-name">{file.name}</span>
+                <span className="context-dir">{file.dir}</span>
+                <span className="context-meta">{formatNumber(file.size)} B</span>
+              </button>
+            ))
+          : tab === "symbols"
+            ? symbols.map((symbol) => (
+                <button key={`${symbol.path}:${symbol.line}:${symbol.name}`} type="button" className="context-row" onClick={() => choose(`@${symbol.path}:${symbol.line} ${symbol.name}`)}>
+                  <FileText size={13} />
+                  <span className="context-name">{symbol.name}</span>
+                  <span className="context-dir">{symbol.kind} · {symbol.path}:{symbol.line}</span>
+                </button>
+              ))
+            : matches.map((match) => (
+                <button key={`${match.path}:${match.line}`} type="button" className="context-row" onClick={() => choose(`@${match.path}:${match.line}`)}>
+                  <Search size={13} />
+                  <span className="context-name">{match.path}:{match.line}</span>
+                  <span className="context-dir">{match.preview}</span>
+                </button>
+              ))}
+        {tab === "files" && !files.length ? <p className="rail-empty">No files match.</p> : null}
+        {tab === "symbols" && !symbols.length ? <p className="rail-empty">No symbols match. Type a file or symbol name.</p> : null}
+        {tab === "text" && !matches.length ? <p className="rail-empty">Type at least two characters to search file contents.</p> : null}
       </div>
     </Modal>
   );
@@ -603,8 +743,136 @@ function PreviewModal() {
           <img src={fileUrl(preview.path)} alt={preview.title} />
           {preview.path ? <Button size="sm" variant="soft" onClick={() => void window.omp.openPath(preview.path!)}><ExternalLink size={13} /> Open file</Button> : null}
         </div>
-      ) : preview.kind === "diff" ? <DiffView text={preview.content} /> : <pre className="file-preview">{preview.content || "No content."}</pre>}
+      ) : preview.kind === "diff" ? (
+        preview.review ? <DiffReview preview={preview} review={preview.review} /> : <DiffView text={preview.content} />
+      ) : <pre className="file-preview">{preview.content || "No content."}</pre>}
     </Modal>
+  );
+}
+
+function DiffReview({ preview, review }: { preview: { content: string; path?: string; title: string }; review: { nodeId: string; threadId?: string; path: string } }) {
+  const state = useApp();
+  const [comments, setComments] = useState<Array<{ line: number; text: string }>>([]);
+  const [activeLine, setActiveLine] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
+  const [approved, setApproved] = useState<Record<number, boolean>>({});
+  const [busy, setBusy] = useState(false);
+  const lines = preview.content.split("\n");
+  const firstHunk = lines.findIndex((line) => line.startsWith("@@"));
+  const preamble = firstHunk > 0 ? lines.slice(0, firstHunk) : [];
+  const hunks: Array<{ header: string; lines: string[]; index: number }> = [];
+  for (let index = Math.max(0, firstHunk); index < lines.length; index += 1) {
+    if (lines[index].startsWith("@@")) {
+      hunks.push({ header: lines[index], lines: [], index: hunks.length });
+    } else if (hunks.length) {
+      hunks[hunks.length - 1].lines.push(lines[index]);
+    }
+  }
+
+  const addComment = () => {
+    if (activeLine === null || !comment.trim()) return;
+    setComments((items) => [...items, { line: activeLine, text: comment.trim() }]);
+    setComment("");
+    setActiveLine(null);
+  };
+
+  const askAgent = async () => {
+    const threadId = review.threadId ?? state.selectedThreadId;
+    if (!threadId || !comments.length) return;
+    setBusy(true);
+    try {
+      const body = [
+        `Review comments on ${review.path}:`,
+        ...comments.map((item) => `- Line ${item.line}: ${item.text}`),
+        "",
+        "Address each comment in the working tree, keep the rest of the change intact, verify the result, then report what changed. Do not discard unrelated work.",
+      ].join("\n");
+      await window.omp.send({ threadId, text: body });
+      state.pushToast({ kind: "success", title: "Comments sent to agent", body: `${comments.length} comment(s) on ${review.path}` });
+      state.setOverlay("none");
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Could not send comments", body: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="diff-review">
+      <div className="diff-review-body">
+        <pre className="diff-view">
+          {lines.map((line, index) => {
+            const className = line.startsWith("+++") || line.startsWith("---") ? "diff-same" : line.startsWith("+") ? "diff-add" : line.startsWith("-") ? "diff-del" : line.startsWith("@@") ? "diff-hunk" : "diff-same";
+            const canComment = line.startsWith("+") || line.startsWith("-") || line.startsWith(" ");
+            return (
+              <div key={index} className={cx(className, "diff-line")}>
+                <span className="diff-marker">{line.startsWith("+++") || line.startsWith("---") ? " " : line[0] === "+" || line[0] === "-" ? line[0] : " "}</span>
+                <span className="diff-text">{line.replace(/^[+-]/, "")}</span>
+                {canComment && line && !line.startsWith("@@") ? (
+                  <button type="button" className="diff-comment-btn" title={`Comment on line ${index + 1}`} onClick={() => setActiveLine(index + 1)}>+</button>
+                ) : null}
+                {comments.filter((item) => item.line === index + 1).map((item) => (
+                  <span key={item.text} className="diff-comment-chip" title={item.text}>💬 {item.text.slice(0, 60)}</span>
+                ))}
+              </div>
+            );
+          })}
+        </pre>
+      </div>
+      <div className="diff-side">
+        <div className="diff-hunks">
+          {hunks.map((hunk) => (
+            <div key={hunk.index} className="diff-hunk-row">
+              <span className="mono">{hunk.header.slice(0, 40)}</span>
+              {approved[hunk.index] ? (
+                <Badge tone="green">approved</Badge>
+              ) : (
+                <div className="inline-actions">
+                  <Button size="sm" variant="soft" onClick={() => setApproved((value) => ({ ...value, [hunk.index]: true }))}><Check size={11} /> Approve</Button>
+                  <Button size="sm" variant="danger" disabled={busy} onClick={async () => {
+                    setBusy(true);
+                    try {
+                      const patch = [...preamble, hunk.header, ...hunk.lines].join("\n") + "\n";
+                      const result = await window.omp.gitRejectHunk(review.nodeId, review.threadId ?? state.selectedThreadId ?? "", review.path, patch);
+                      state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Hunk rejected" : "Could not reject hunk", body: result.output.slice(0, 300) });
+                      if (result.ok) state.setOverlay("none");
+                    } catch (error) {
+                      state.pushToast({ kind: "error", title: "Could not reject hunk", body: String(error) });
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}>Reject hunk</Button>
+                </div>
+              )}
+            </div>
+          ))}
+          {!hunks.length ? <p className="rail-empty">No hunks in this diff.</p> : null}
+        </div>
+        <div className="diff-comments">
+          <strong>Comments {comments.length ? `(${comments.length})` : ""}</strong>
+          {comments.map((item, index) => (
+            <div key={`${item.line}-${index}`} className="diff-comment">
+              <span>Line {item.line}</span>
+              <p>{item.text}</p>
+              <IconButton icon={<X size={11} />} label="Remove comment" onClick={() => setComments((items) => items.filter((_, i) => i !== index))} />
+            </div>
+          ))}
+          {activeLine !== null ? (
+            <div className="diff-comment-form">
+              <span>Line {activeLine}</span>
+              <textarea autoFocus value={comment} onChange={(event) => setComment(event.target.value)} placeholder="What should change here?" />
+              <div className="inline-actions">
+                <Button size="sm" variant="primary" disabled={!comment.trim()} onClick={addComment}>Add comment</Button>
+                <Button size="sm" variant="ghost" onClick={() => { setActiveLine(null); setComment(""); }}>Cancel</Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="diff-actions">
+          <Button size="sm" variant="primary" disabled={!comments.length || busy} onClick={() => void askAgent()}><Send size={12} /> Ask agent to fix comments</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { AppEvent, TerminalRun } from "../../shared/types";
 import type { EnvironmentService } from "./environment";
 import type { Store } from "./store";
+import { audit } from "../audit";
 
 export class TerminalService {
   private store: Store;
@@ -23,6 +24,16 @@ export class TerminalService {
   run(input: { nodeId: string; threadId?: string; command: string }): TerminalRun {
     const node = this.store.getNode(input.nodeId);
     if (!node) throw new Error(`Node not found: ${input.nodeId}`);
+    const sandbox = this.store.settings.sandbox;
+    if (sandbox?.enabled) {
+      const lower = input.command.toLowerCase();
+      const hit = (sandbox.deniedCommands ?? []).find((pattern) => pattern.trim() && lower.includes(pattern.trim().toLowerCase()));
+      if (hit) {
+        audit("sandbox-block", { command: input.command.slice(0, 500), pattern: hit });
+        throw new Error(`Sandbox blocked this command: it matches "${hit}". Change the policy in Settings → Sandbox.`);
+      }
+    }
+    audit("terminal-run", { nodeId: input.nodeId, threadId: input.threadId, command: input.command.slice(0, 1_000) });
     const thread = input.threadId ? this.store.getThread(input.threadId) : undefined;
     const cwd = thread?.worktreePath || node.repoPath || node.path;
     const env = this.environments.resolveForNode(input.nodeId);

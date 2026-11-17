@@ -7,12 +7,15 @@ import {
   CircleHelp,
   CircleStop,
   Copy,
+  FileDown,
+  FileText,
   FolderGit2,
   GitBranch,
   MessageSquarePlus,
   Minimize2,
   PanelRightClose,
   PanelRightOpen,
+  Paperclip,
   Plus,
   RotateCw,
   Settings2,
@@ -281,6 +284,24 @@ function ThreadHeader({
         }} />
         <IconButton icon={<History size={15} />} label="History, fork and rewind" onClick={() => state.setOverlay("history")} />
         <IconButton icon={<Share2 size={15} />} label="Share this thread" onClick={() => void state.shareThread()} />
+        <IconButton icon={<FileDown size={15} />} label="Export thread as PDF" onClick={async () => {
+          try {
+            const result = await window.omp.exportThreadPdf(thread.id);
+            state.pushToast({ kind: "success", title: "PDF exported", body: result.path });
+            await window.omp.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
+          } catch (error) {
+            state.pushToast({ kind: "error", title: "PDF export failed", body: String(error) });
+          }
+        }} />
+        <IconButton icon={<FileText size={15} />} label="Export thread as Word document" onClick={async () => {
+          try {
+            const result = await window.omp.exportThreadDocx(thread.id);
+            state.pushToast({ kind: "success", title: "Word document exported", body: result.path });
+            await window.omp.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
+          } catch (error) {
+            state.pushToast({ kind: "error", title: "Word export failed", body: String(error) });
+          }
+        }} />
         {thread.kind !== "orchestrator" ? (
           <IconButton icon={<Trash2 size={15} />} label="Delete thread" onClick={async () => {
             if (!confirm(`Delete thread "${thread.title}"? Its branch and files stay on disk.`)) return;
@@ -304,6 +325,35 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
   const efforts = model?.thinking?.length ? model.thinking : ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
   const running = thread.status === "running" || thread.status === "starting";
   const contextPercent = thread.contextTokens && thread.contextWindow ? Math.min(100, (thread.contextTokens / thread.contextWindow) * 100) : 0;
+  const [dragging, setDragging] = useState(false);
+
+  const attach = async (list: FileList | File[] | null) => {
+    if (!list || !list.length) return;
+    const parts: string[] = [];
+    for (const file of [...list].slice(0, 6)) {
+      try {
+        if (/^image\//.test(file.type) && file.size <= 8_000_000) {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result ?? ""));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+          });
+          const saved = await window.omp.attachImage({ nodeId: node.id, threadId: thread.id, name: file.name, dataUrl });
+          parts.push(`Image: ${saved.path}`);
+        } else if (file.size <= 200_000) {
+          const text = await file.text();
+          parts.push(`File: ${file.name}\n\`\`\`\n${text.slice(0, 60_000)}\n\`\`\``);
+        } else {
+          parts.push(`File: ${file.name} (${formatNumber(file.size)} bytes, not inlined)`);
+        }
+      } catch (error) {
+        state.pushToast({ kind: "error", title: `Could not attach ${file.name}`, body: String(error) });
+      }
+    }
+    if (parts.length) setDraft((value) => `${value ? `${value}\n` : ""}${parts.join("\n\n")}\n`);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
   useEffect(() => {
     const element = textareaRef.current;
@@ -339,7 +389,17 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
       <div className="composer">
         <textarea
           ref={textareaRef}
+          className={dragging ? "composer-textarea dragging" : "composer-textarea"}
           value={draft}
+          onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => { event.preventDefault(); setDragging(false); void attach(event.dataTransfer.files); }}
+          onPaste={(event) => {
+            if (event.clipboardData?.files?.length) {
+              event.preventDefault();
+              void attach(event.clipboardData.files);
+            }
+          }}
           placeholder={
             thread.kind === "orchestrator"
               ? node.type === "root"
@@ -359,6 +419,7 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
         />
         <div className="composer-toolbar">
           <div className="composer-left">
+            <IconButton icon={<Paperclip size={13} />} label="Add files, symbols or images" onClick={() => state.setOverlay("context")} />
             <button type="button" className="composer-model" onClick={onModelPicker} title="Change model">
               <Sparkles size={13} />
               <span>{thread.model.name ?? thread.model.selector}</span>

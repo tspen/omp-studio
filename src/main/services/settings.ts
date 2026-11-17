@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, renameSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, renameSync, writeFileSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
 import YAML from "yaml";
 import type { McpServerInfo, OmpConfigEntry, OmpConfigSnapshot, SkillInfo, ToolApproval, ToolInfo } from "../../shared/types";
 import type { EngineLocator } from "../engine/engine-locator";
@@ -60,9 +60,19 @@ const HOST_TOOLS = [
   "tree_assign_environment",
   "tree_list_environments",
   "tree_test_environment",
+  "workspace_search",
+  "workspace_map",
+  "computer_screenshot",
+  "computer_click",
+  "computer_type",
+  "computer_keys",
   "site_list",
   "site_create",
   "site_publish",
+  "site_deploy",
+  "dev_server_start",
+  "dev_server_stop",
+  "dev_server_list",
   "app_browser_navigate",
   "app_browser_console",
   "app_browser_network",
@@ -73,6 +83,7 @@ const HOST_TOOLS = [
   "app_browser_forward",
   "app_browser_reload",
   "app_browser_screenshot",
+  "app_browser_visual_diff",
 ];
 
 export class SettingsService {
@@ -256,6 +267,135 @@ export class SettingsService {
     }
     return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
+
+  createSkill(input: { name: string; description: string; body: string }): SkillInfo {
+    const slug = input.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+    if (!slug) throw new Error("Skill name is required");
+    const root = join(process.env.USERPROFILE ?? "", ".omp", "agent", "skills");
+    const path = join(root, slug);
+    mkdirSync(path, { recursive: true });
+    const description = input.description.trim() || input.name.trim();
+    const content = `---\nname: ${input.name.trim()}\ndescription: ${description}\n---\n\n${input.body.trim()}\n`;
+    writeFileSync(join(path, "SKILL.md"), content, "utf8");
+    return { name: slug, path, description, enabled: true, source: "omp" };
+  }
+
+  readSkill(path: string): { content: string; path: string } {
+    for (const root of this.skillRoots()) {
+      if (!isInside(root, path)) continue;
+      const file = join(path, "SKILL.md");
+      if (existsSync(file)) return { content: readFileSync(file, "utf8"), path: file };
+    }
+    throw new Error("Skill not found in a managed skills folder");
+  }
+
+  saveSkill(path: string, content: string): void {
+    for (const root of this.skillRoots()) {
+      if (!isInside(root, path)) continue;
+      mkdirSync(path, { recursive: true });
+      writeFileSync(join(path, "SKILL.md"), content, "utf8");
+      return;
+    }
+    throw new Error("Skill not found in a managed skills folder");
+  }
+
+  deleteSkill(path: string): void {
+    for (const root of this.skillRoots()) {
+      if (!isInside(root, path)) continue;
+      rmSync(path, { recursive: true, force: true });
+      return;
+    }
+    throw new Error("Only skills in managed OMP/Claude skill folders can be deleted");
+  }
+
+  mcpConfigPath(): string {
+    return join(process.env.USERPROFILE ?? "", ".omp", "agent", "mcp.json");
+  }
+
+  addMcpServer(name: string, config: Record<string, unknown>): McpServerInfo[] {
+    const path = this.mcpConfigPath();
+    mkdirSync(dirname(path), { recursive: true });
+    let data: any = {};
+    if (existsSync(path)) {
+      try {
+        data = JSON.parse(readFileSync(path, "utf8"));
+      } catch {
+        data = {};
+      }
+    }
+    if (!data.mcpServers) data.mcpServers = {};
+    data.mcpServers[name] = config;
+    writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+    return this.mcpServers();
+  }
+
+  removeMcpServer(name: string): McpServerInfo[] {
+    const path = this.mcpConfigPath();
+    if (existsSync(path)) {
+      try {
+        const data = JSON.parse(readFileSync(path, "utf8"));
+        if (data?.mcpServers?.[name]) {
+          delete data.mcpServers[name];
+          writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+        }
+      } catch {
+        /* ignore malformed config */
+      }
+    }
+    return this.mcpServers();
+  }
+
+  importAgentConfigs(): { imported: string[]; path: string } {
+    const home = process.env.USERPROFILE ?? "";
+    const candidates: Array<{ path: string; key?: string }> = [
+      { path: join(home, ".claude.json") },
+      { path: join(home, ".claude", "mcp.json") },
+      { path: join(home, ".claude", "settings.json"), key: "mcpServers" },
+    ];
+    const imported: string[] = [];
+    for (const candidate of candidates) {
+      if (!existsSync(candidate.path)) continue;
+      try {
+        const data = JSON.parse(readFileSync(candidate.path, "utf8"));
+        const servers = candidate.key ? data?.[candidate.key] : data?.mcpServers ?? data?.servers;
+        for (const [name, value] of Object.entries(servers ?? {})) {
+          if (!value || typeof value !== "object") continue;
+          const config = value as any;
+          if (!config.url && !config.command) continue;
+          this.addMcpServer(name, config);
+          imported.push(name);
+        }
+      } catch {
+        /* ignore malformed config */
+      }
+    }
+    const codex = join(home, ".codex", "config.toml");
+    if (existsSync(codex)) {
+      try {
+        const text = readFileSync(codex, "utf8");
+        const blocks = text.split(/^\[\[?mcp_servers\.([^\]]+)\]\]?/m).slice(1);
+        for (let index = 0; index < blocks.length; index += 2) {
+          const name = blocks[index].replace(/["']/g, "").trim();
+          const body = blocks[index + 1] ?? "";
+          const url = body.match(/^\s*(?:url|serverUrl)\s*=\s*["']([^"']+)["']/m)?.[1];
+          const command = body.match(/^\s*command\s*=\s*["']([^"']+)["']/m)?.[1];
+          if (!name || (!url && !command)) continue;
+          this.addMcpServer(name, url ? { type: "http", url } : { command });
+          imported.push(name);
+        }
+      } catch {
+        /* ignore malformed TOML */
+      }
+    }
+    return { imported: [...new Set(imported)], path: this.mcpConfigPath() };
+  }
+
+  private skillRoots(): string[] {
+    return [
+      join(process.env.USERPROFILE ?? "", ".omp", "agent", "skills"),
+      join(process.env.USERPROFILE ?? "", ".claude", "skills"),
+    ];
+  }
 }
 
 function normalizeType(type: string): OmpConfigEntry["type"] {
@@ -314,4 +454,10 @@ function run(exe: string, args: string[], timeout: number): Promise<{ code: numb
       },
     );
   });
+}
+
+function isInside(root: string, target: string): boolean {
+  const base = resolve(root);
+  const path = resolve(target);
+  return path === base || path.startsWith(base.endsWith(sep) ? base : base + sep);
 }

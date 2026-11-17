@@ -100,8 +100,16 @@ export function buildSystemPrompt(input: {
     if (environment.envVars.length) lines.push(`- Environment variables: ${environment.envVars.map((v) => v.key).join(", ")}`);
     if (environment.setupCommands.length) lines.push(`- Setup commands already run by the host: ${environment.setupCommands.join(" ; ")}`);
   }
-  lines.push(`- Model: ${thread.model.name ?? thread.model.selector}; effort: ${thread.effort}`);
-  lines.push(
+  const sandbox = store.settings.sandbox;
+  if (sandbox?.enabled) {
+    lines.push("", "## Sandbox policy");
+    lines.push(`- Allowed paths: ${(sandbox.allowedPaths ?? []).join(", ") || `${thread.worktreePath || node.repoPath || node.path}, ${store.baseDir}`}`);
+    lines.push(`- Denied command fragments: ${(sandbox.deniedCommands ?? []).join(" | ") || "none"}`);
+    lines.push(`- Network access: ${sandbox.allowNetwork === false ? "disabled" : "allowed"}`);
+    lines.push("- Stay inside this policy. The host blocks matching commands in its terminals and logs violations to the audit trail; do not try to bypass the policy.");
+    lines.push("");
+  }
+  lines.push(`- Model: ${thread.model.name ?? thread.model.selector}; effort: ${thread.effort}`);  lines.push(
     `- Tool approval: ${
       node.approvalMode === "yolo"
         ? "YOLO — every tool call is auto-approved, including shell and destructive commands. Be deliberate."

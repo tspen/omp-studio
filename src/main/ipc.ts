@@ -11,8 +11,14 @@ import type { SettingsService } from "./services/settings";
 import type { ShareService } from "./services/share";
 import type { SiteService } from "./services/sites";
 import type { BrowserController } from "./services/browser";
+import type { PtyService } from "./services/pty";
+import type { WorkspaceService } from "./services/workspace";
+import type { PrService } from "./services/pr";
+import type { DeployService } from "./services/deploy";
+import type { ExportService } from "./services/exporter";
 import type { Store } from "./services/store";
 import { trace } from "./diagnostics";
+import { audit, readAudit } from "./audit";
 import type { TerminalService } from "./services/terminal";
 import type { UsageService } from "./services/usage";
 import type { ProviderService } from "./services/providers";
@@ -32,13 +38,19 @@ export interface IpcContext {
   share: ShareService;
   sites: SiteService;
   browser: BrowserController;
+  pty: PtyService;
+  workspace: WorkspaceService;
+  pr: PrService;
+  deploy: DeployService;
+  exporter: ExportService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
+  popOutBrowser: (url: string) => void;
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, share, sites, browser, engine, usage, broadcast, openBrowser } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -77,6 +89,8 @@ export function registerIpc(context: IpcContext): void {
     orchestrator.goalThread(id, op as any, objective, tokenBudget),
   );
   ipcMain.handle("thread:export", (_event, id: string) => orchestrator.exportThread(id));
+  ipcMain.handle("thread:export-pdf", (_event, id: string) => exporter.threadPdf(id));
+  ipcMain.handle("thread:export-docx", (_event, id: string) => exporter.threadDocx(id));
 
   ipcMain.handle("envelope:send", (_event, req) => orchestrator.sendEnvelope(req));
   ipcMain.handle("envelope:answer", (_event, id: string, body: string) => orchestrator.answerEnvelope(id, body));
@@ -118,6 +132,23 @@ export function registerIpc(context: IpcContext): void {
     orchestrator.gitCreatePr(nodeId, threadId, title, body),
   );
   ipcMain.handle("git:discard", (_event, nodeId: string, threadId: string) => orchestrator.gitDiscard(nodeId, threadId));
+  ipcMain.handle("git:reject-hunk", (_event, nodeId: string, threadId: string, path: string, patch: string) =>
+    orchestrator.gitRejectHunk(nodeId, threadId, path, patch),
+  );
+
+  const cwdFor = (nodeId: string, threadId?: string): string => {
+    const thread = threadId ? store.getThread(threadId) : undefined;
+    const node = store.getNode(nodeId);
+    const cwd = thread?.worktreePath || node?.repoPath || node?.path;
+    if (!cwd) throw new Error("Project has no working directory");
+    return cwd;
+  };
+  ipcMain.handle("pr:status", (_event, nodeId: string, threadId?: string) => pr.status(cwdFor(nodeId, threadId)));
+  ipcMain.handle("ci:runs", (_event, nodeId: string, threadId?: string) => pr.runs(cwdFor(nodeId, threadId)));
+  ipcMain.handle("ci:logs", (_event, nodeId: string, threadId: string | undefined, runId: string) => pr.logs(cwdFor(nodeId, threadId), runId));
+  ipcMain.handle("ci:rerun", (_event, nodeId: string, threadId: string | undefined, runId: string) => pr.rerun(cwdFor(nodeId, threadId), runId));
+  ipcMain.handle("pr:merge", (_event, nodeId: string, threadId: string | undefined, number: number) => pr.merge(cwdFor(nodeId, threadId), number));
+  ipcMain.handle("pr:comment", (_event, nodeId: string, threadId: string | undefined, number: number, body: string) => pr.comment(cwdFor(nodeId, threadId), number, body));
 
   ipcMain.handle("settings:update", async (_event, patch: SettingsPatch) => {
     const updated = store.setSettings(patch.settings ?? {});
@@ -271,6 +302,96 @@ export function registerIpc(context: IpcContext): void {
     sites.remove(id);
     broadcast({ type: "sites:updated", payload: sites.list() });
   });
+  ipcMain.handle("sites:deploy", async (_event, id: string, provider: "cloudflare" | "github-pages") => {    const deployment = await deploy.deploy(id, provider);
+    audit("site-deploy", { siteId: id, provider, url: deployment.url });
+    broadcast({ type: "sites:updated", payload: sites.list() });
+    return deployment;
+  });
+  ipcMain.handle("sites:access", async (_event, id: string, enabled: boolean) => {
+    const site = sites.setAccess(id, enabled);
+    broadcast({ type: "sites:updated", payload: sites.list() });
+    return site;
+  });
+
+  const connectorState = () => ({
+    "cloudflare.token": store.hasSecret("cloudflare.token"),
+    "github.token": store.hasSecret("github.token"),
+    "slack.webhook": store.hasSecret("slack.webhook"),
+    "linear.token": store.hasSecret("linear.token"),
+    "figma.token": store.hasSecret("figma.token"),
+  });
+  ipcMain.handle("connectors:secrets", () => connectorState());
+  ipcMain.handle("connectors:set-secret", (_event, key: string, value: string) => {
+    if (!key) throw new Error("Secret name required");
+    store.setSecret(key, value);
+    audit("connector-secret", { key, set: !!value });
+    return connectorState();
+  });
+  ipcMain.handle("connectors:test", async (_event, provider: string) => {
+    const signal = AbortSignal.timeout(20_000);
+    try {
+      if (provider === "cloudflare") {
+        const token = store.getSecret("cloudflare.token");
+        if (!token) return { ok: false, output: "No Cloudflare API token saved." };
+        const response = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", { headers: { authorization: `Bearer ${token}` }, signal });
+        const data = (await response.json().catch(() => ({}))) as any;
+        return { ok: response.ok && data.success !== false, output: response.ok ? `Token ${data.result?.status ?? "active"}` : JSON.stringify(data.errors ?? data).slice(0, 300) };
+      }
+      if (provider === "github") {
+        const token = store.getSecret("github.token");
+        if (!token) return { ok: false, output: "No GitHub token saved." };
+        const response = await fetch("https://api.github.com/user", { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" }, signal });
+        const data = (await response.json().catch(() => ({}))) as any;
+        return { ok: response.ok, output: response.ok ? `Signed in as ${data.login}` : String(data.message ?? response.status) };
+      }
+      if (provider === "slack") {
+        const webhook = store.getSecret("slack.webhook");
+        if (!webhook) return { ok: false, output: "No Slack webhook saved." };
+        const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "OMP Studio connected." }), signal });
+        return { ok: response.ok, output: response.ok ? "Test message sent." : `Slack returned ${response.status}` };
+      }
+      if (provider === "linear") {
+        const token = store.getSecret("linear.token");
+        if (!token) return { ok: false, output: "No Linear API key saved." };
+        const response = await fetch("https://api.linear.app/graphql", {
+          method: "POST",
+          headers: { authorization: token, "content-type": "application/json" },
+          body: JSON.stringify({ query: "{ viewer { name email } }" }),
+          signal,
+        });
+        const data = (await response.json().catch(() => ({}))) as any;
+        return { ok: response.ok && !data.errors, output: data.data?.viewer ? `Signed in as ${data.data.viewer.name ?? data.data.viewer.email}` : JSON.stringify(data.errors ?? data).slice(0, 300) };
+      }
+      if (provider === "figma") {
+        const token = store.getSecret("figma.token");
+        if (!token) return { ok: false, output: "No Figma token saved." };
+        const response = await fetch("https://api.figma.com/v1/me", { headers: { "x-figma-token": token }, signal });
+        const data = (await response.json().catch(() => ({}))) as any;
+        return { ok: response.ok, output: response.ok ? `Signed in as ${data.handle ?? data.email}` : String(data.message ?? response.status) };
+      }
+      return { ok: false, output: `Unknown connector: ${provider}` };
+    } catch (error) {
+      return { ok: false, output: error instanceof Error ? error.message : String(error) };
+    }
+  });
+  ipcMain.handle("mcp:add", (_event, name: string, config: Record<string, unknown>) => settings.addMcpServer(name, config));
+  ipcMain.handle("mcp:remove", (_event, name: string) => settings.removeMcpServer(name));
+  ipcMain.handle("mcp:import", () => settings.importAgentConfigs());
+  ipcMain.handle("mcp:add-cloudflare", () => {    const servers = settings.addMcpServer("cloudflare-api", { type: "http", url: "https://mcp.cloudflare.com/mcp" });
+    store.setSettings({ connectors: { ...store.settings.connectors, cloudflare: { ...store.settings.connectors.cloudflare, mcp: true } } });
+    return { path: settings.mcpConfigPath(), servers };
+  });
+
+  ipcMain.handle("skills:create", (_event, input: { name: string; description: string; body: string }) => settings.createSkill(input));
+  ipcMain.handle("skills:read", (_event, path: string) => settings.readSkill(path));
+  ipcMain.handle("skills:save", (_event, path: string, content: string) => settings.saveSkill(path, content));
+  ipcMain.handle("skills:delete", (_event, path: string) => settings.deleteSkill(path));
+
+  ipcMain.handle("automations:list", () => orchestrator.listAutomations());
+  ipcMain.handle("automations:save", (_event, input: any) => orchestrator.saveAutomation(input));
+  ipcMain.handle("automations:delete", (_event, id: string) => orchestrator.deleteAutomation(id));
+  ipcMain.handle("automations:run", (_event, id: string) => orchestrator.runAutomation(id).then(() => undefined));
+  ipcMain.handle("audit:list", (_event, limit?: number) => readAudit(limit ?? 200));
 
   ipcMain.handle("dialog:pick-directory", async () => {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
@@ -282,6 +403,25 @@ export function registerIpc(context: IpcContext): void {
   });
   ipcMain.handle("browser:devtools", () => browser.history());
   ipcMain.handle("browser:pick", () => browser.pickElement());
+  ipcMain.handle("browser:popout", (_event, url: string) => {
+    if (/^https?:\/\//i.test(url)) popOutBrowser(url);
+  });
+  ipcMain.handle("browser:screenshot", () => browser.screenshot());
+  ipcMain.handle("browser:diff", (_event, before: string, after: string) => browser.compare(before, after));
+
+  ipcMain.handle("pty:list", () => pty.list());
+  ipcMain.handle("pty:start", (_event, input) => pty.start(input ?? {}));
+  ipcMain.handle("pty:write", (_event, id: string, data: string) => pty.write(id, data));
+  ipcMain.handle("pty:resize", (_event, id: string, cols: number, rows: number) => pty.resize(id, cols, rows));
+  ipcMain.handle("pty:read", (_event, id: string) => pty.read(id));
+  ipcMain.handle("pty:kill", (_event, id: string) => pty.kill(id));
+  ipcMain.handle("pty:dev-start", (_event, input) => pty.startDevServer(input));
+
+  ipcMain.handle("files:list", (_event, input) => workspace.listFiles(input ?? {}));
+  ipcMain.handle("files:symbols", (_event, input) => workspace.searchSymbols(input ?? {}));
+  ipcMain.handle("files:content", (_event, input) => workspace.searchContent(input));
+  ipcMain.handle("files:map", (_event, input) => workspace.map(input ?? {}));
+  ipcMain.handle("files:attach-image", (_event, input) => workspace.attachImage(input));
   ipcMain.handle("shell:open-path", (_event, path: string) => shell.openPath(path));
 
   ipcMain.handle("engine:download", async () => {

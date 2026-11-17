@@ -105,6 +105,12 @@ export class SiteService {
     rmSync(join(this.root, id), { recursive: true, force: true });
   }
 
+  setAccess(id: string, enabled: boolean): Site {
+    const site = this.store.sites.find((item) => item.id === id);
+    if (!site) throw new Error("Site not found");
+    return this.store.updateSite(id, { accessToken: enabled ? randomUUID().replace(/-/g, "").slice(0, 24) : undefined });
+  }
+
   async stop(): Promise<void> {
     if (!this.server) return;
     await new Promise<void>((resolvePromise) => this.server!.close(() => resolvePromise()));
@@ -140,7 +146,24 @@ export class SiteService {
       return;
     }
     const site = this.store.sites.find((item) => item.id === match[1]);
-    if (!site?.currentVersion) {
+    if (!site) {
+      res.writeHead(404).end("Not found");
+      return;
+    }
+    if (site.accessToken) {
+      const cookieName = `omp_site_${site.id}`;
+      const cookies = Object.fromEntries(
+        (req.headers.cookie ?? "").split(";").map((part) => part.trim().split("=")).filter((pair) => pair.length === 2),
+      );
+      const provided = url.searchParams.get("t");
+      if (provided === site.accessToken) {
+        res.setHeader("set-cookie", `${cookieName}=${site.accessToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`);
+      } else if (cookies[cookieName] !== site.accessToken) {
+        res.writeHead(401, { "content-type": "text/plain; charset=utf-8" }).end("This site is protected. Open the shared link that includes its access token.");
+        return;
+      }
+    }
+    if (!site.currentVersion) {
       res.writeHead(404).end("Site has no published version");
       return;
     }

@@ -17,6 +17,9 @@ extraResources:
   - from: resources/icon.ico
     to: icon.ico
 asar: true
+asarUnpack:
+  - node_modules/node-pty/**
+npmRebuild: false
 win:
   target:
     - target: nsis

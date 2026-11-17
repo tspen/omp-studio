@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Minus, MousePointer2, RotateCw, TerminalSquare, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, GitCompare, Maximize2, Minus, MousePointer2, RotateCw, TerminalSquare, Trash2, X } from "lucide-react";
 import { useApp } from "../store";
 import { IconButton, cx, truncate } from "./Common";
 
@@ -14,6 +14,15 @@ export function BrowserPanel() {
   const [devtools, setDevtools] = useState(false);
   const [tab, setTab] = useState<"console" | "network">("console");
   const [picking, setPicking] = useState(false);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const [device, setDevice] = useState("desktop");
+  const devices = [
+    { id: "desktop", label: "Desktop" },
+    { id: "iphone", label: "iPhone 15", width: 393, height: 852 },
+    { id: "pixel", label: "Pixel 8", width: 412, height: 915 },
+    { id: "ipad", label: "iPad", width: 820, height: 1180 },
+  ];
+  const preset = devices.find((item) => item.id === device);
 
   const sync = () => {
     const view = viewRef.current;
@@ -82,6 +91,23 @@ export function BrowserPanel() {
     }
   };
 
+  const visualDiff = async () => {
+    try {
+      const shot = await window.omp.captureBrowser();
+      if (!baseline) {
+        setBaseline(shot);
+        state.pushToast({ kind: "info", title: "Baseline captured", body: "Change the page, then use visual diff again." });
+        return;
+      }
+      const result = await window.omp.compareBrowserScreenshots(baseline, shot);
+      setBaseline(shot);
+      state.openPreview({ title: "Visual diff", kind: "image", content: "", path: result.path });
+      state.pushToast({ kind: "info", title: "Visual diff", body: `${result.percent}% changed · ${result.diffPixels} pixels` });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Visual diff failed", body: String(error) });
+    }
+  };
+
   const go = () => {
     const view = viewRef.current;
     if (!view) return;
@@ -102,6 +128,13 @@ export function BrowserPanel() {
         <IconButton icon={<RotateCw size={14} />} label="Reload" onClick={() => { try { viewRef.current?.reload(); } catch { /* ignore */ } }} />
         <IconButton icon={<MousePointer2 size={14} />} label={picking ? "Click an element in the page" : "Pick element"} disabled={picking || state.browserMinimized} onClick={() => void pick()} />
         <IconButton icon={<TerminalSquare size={14} />} label="Console and network" disabled={state.browserMinimized} onClick={() => { setDevtools((value) => !value); void state.loadBrowserDevtools(); }} />
+        <IconButton icon={<GitCompare size={14} />} label={baseline ? "Compare with baseline screenshot" : "Capture baseline screenshot"} disabled={state.browserMinimized} onClick={() => void visualDiff()} />
+        <IconButton icon={<Maximize2 size={14} />} label="Pop out browser" disabled={state.browserMinimized} onClick={() => void window.omp.popOutBrowser(address)} />
+        {!state.browserMinimized ? (
+          <select className="browser-device" value={device} onChange={(event) => setDevice(event.target.value)} title="Preview viewport">
+            {devices.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        ) : null}
         {state.browserMinimized ? (
           <span className="browser-min-title">{title}</span>
         ) : (
@@ -118,14 +151,16 @@ export function BrowserPanel() {
         <IconButton icon={<Minus size={14} />} label={state.browserMinimized ? "Restore browser" : "Minimize browser"} onClick={state.toggleBrowserMinimized} />
         <IconButton icon={<X size={14} />} label="Close browser" onClick={state.closeBrowser} />
       </div>
-      <div className="browser-view">
-        {React.createElement("webview" as any, {
-          ref: viewRef,
-          src: state.browserUrl,
-          partition: "persist:omp-browser",
-          allowpopups: "true",
-          style: { width: "100%", height: "100%" },
-        })}
+      <div className={cx("browser-view", !!preset?.width && "device-preview")}>
+        <div className="browser-device-frame" style={preset?.width ? { width: `${preset.width}px`, height: `${preset.height}px` } : { width: "100%", height: "100%" }}>
+          {React.createElement("webview" as any, {
+            ref: viewRef,
+            src: state.browserUrl,
+            partition: "persist:omp-browser",
+            allowpopups: "true",
+            style: { width: "100%", height: "100%" },
+          })}
+        </div>
       </div>
       {devtools && !state.browserMinimized ? (
         <div className="browser-devtools">

@@ -75,11 +75,12 @@ export function App() {
   return (
     <div className="app">
       <TitleBar unread={unread} running={running} waiting={waiting} />
-      <div className="shell">
+      <div className="shell" style={{ "--sidebar-width": `${state.paneWidths.sidebar}px`, "--right-width": `${state.paneWidths.right}px`, "--browser-width": `${state.paneWidths.browser}px` } as React.CSSProperties}>
         <Sidebar />
+        <Splitter pane="sidebar" />
         <ChatView />
-        {state.browserOpen ? <BrowserPanel /> : null}
-        {state.railOpen ? <ThreadRail /> : null}
+        {state.browserOpen ? <><Splitter pane="browser" /><BrowserPanel /></> : null}
+        {state.railOpen ? <><Splitter pane="right" /><ThreadRail /></> : null}
       </div>
       <div className="statusbar">
         <div className="statusbar-left">
@@ -100,6 +101,31 @@ export function App() {
       <Toasts toasts={state.toasts} dismiss={state.dismissToast} />
     </div>
   );
+}
+
+function Splitter({ pane }: { pane: "sidebar" | "right" | "browser" }) {
+  const onDown = (event: React.MouseEvent) => {
+    event.preventDefault();
+    const state = useApp.getState();
+    const startX = event.clientX;
+    const start = state.paneWidths[pane];
+    document.body.classList.add("resizing");
+    const onMove = (moveEvent: MouseEvent) => {
+      const delta = pane === "right" || pane === "browser" ? startX - moveEvent.clientX : moveEvent.clientX - startX;
+      useApp.getState().setPaneWidth(pane, start + delta);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.classList.remove("resizing");
+      const widths = useApp.getState().paneWidths;
+      const settings = useApp.getState().snapshot?.settings;
+      if (settings) void window.omp.updateSettings({ settings: { ui: { ...settings.ui, sidebarWidth: widths.sidebar, rightWidth: widths.right } } });
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+  return <div className={cx("pane-splitter", `pane-${pane}`)} onMouseDown={onDown} />;
 }
 
 function TitleBar({ unread, running, waiting }: { unread: number; running: number; waiting: number }) {

@@ -1,6 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Session, WebContents } from "electron";
+import pixelmatch from "pixelmatch";
+import { PNG } from "pngjs";
 import type { AppEvent, BrowserConsoleEntry, BrowserNetworkEntry } from "../../shared/types";
 
 const MAX_ENTRIES = 400;
@@ -215,8 +217,25 @@ export class BrowserController {
     return path;
   }
 
-  async read(): Promise<string> {
-    const contents = await this.ensure();
+  async compare(beforePath: string, afterPath: string): Promise<{ path: string; diffPixels: number; totalPixels: number; percent: number }> {
+    const before = PNG.sync.read(readFileSync(beforePath));
+    const after = PNG.sync.read(readFileSync(afterPath));
+    const width = Math.min(before.width, after.width);
+    const height = Math.min(before.height, after.height);
+    if (!width || !height) throw new Error("Screenshots have no pixels");
+    const size = width * height;
+    const clippedBefore = clip(before, width, height);
+    const clippedAfter = clip(after, width, height);
+    const diff = new PNG({ width, height });
+    const diffPixels = pixelmatch(clippedBefore.data, clippedAfter.data, diff.data, width, height, { threshold: 0.1 });
+    const directory = join(this.artifactsDir, "browser");
+    mkdirSync(directory, { recursive: true });
+    const path = join(directory, `diff-${Date.now()}.png`);
+    writeFileSync(path, PNG.sync.write(diff));
+    return { path, diffPixels, totalPixels: size, percent: Math.round((diffPixels / size) * 10000) / 100 };
+  }
+
+  async read(): Promise<string> {    const contents = await this.ensure();
     const text = await contents.executeJavaScript("document.body ? document.body.innerText : ''", true);
     return String(text ?? "").slice(0, 20_000);
   }
@@ -353,4 +372,11 @@ export class BrowserController {
     const picked = await contents.executeJavaScript(script, true);
     return picked && typeof picked === "object" ? (picked as PickedElement) : null;
   }
+}
+
+function clip(source: PNG, width: number, height: number): PNG {
+  if (source.width === width && source.height === height) return source;
+  const target = new PNG({ width, height });
+  PNG.bitblt(source, target, 0, 0, width, height, 0, 0);
+  return target;
 }

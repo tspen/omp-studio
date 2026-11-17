@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import type { GitFileStatus, GitStatus } from "../../shared/types";
@@ -148,6 +148,22 @@ export class GitService {
     const reset = await this.run(worktreePath, ["reset", "--hard", "HEAD"]);
     if (reset.code !== 0) return reset;
     return this.run(worktreePath, ["clean", "-fd"]);
+  }
+
+  async applyReversePatch(cwd: string, patch: string): Promise<ExecResult> {
+    return new Promise((resolve) => {
+      const child = spawn("git", ["apply", "-R", "--recount", "--whitespace=nowarn", "-"], {
+        cwd,
+        windowsHide: true,
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (data: Buffer) => { stdout += data.toString(); });
+      child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });
+      child.on("error", (error) => resolve({ code: 1, stdout, stderr: stderr || error.message }));
+      child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+      child.stdin.end(patch);
+    });
   }
 
   async createPr(cwd: string, title: string, body: string): Promise<ExecResult & { url?: string }> {
