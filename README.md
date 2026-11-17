@@ -119,11 +119,9 @@ token, the PWA install link, targets, cold move and a cleanup report.
 - Live pause/resume: freeze the OMP process tree and resume the same in-flight
   turn; exposed in desktop and PWA, proxied for placed sessions.
 - Memory checkpoint: Docker/CRIU checkpoint of the Linux runner container
-  (process tree + memory), restore on the same host, and export/import bundles
-  for another agent. Stateless cross-daemon handoff is verified; a live runner
-  restore on a real second host fails because Docker does not reconnect the
-  checkpointed Electron/OMP pipes. Optional checkpoint agent and overlay in
-  `runner/`.
+  (process tree + memory) with restore on the same host. Cross-host memory
+  migration is **out of v1**; export/import bundles remain experimental. Same-host
+  restore and cold/warm moves are the supported paths.
 - Everything the runner creates is garbage-collected: startup plus every five
   minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
   `npm run runner:quota` and `POST /api/maintenance/sweep`.
@@ -132,8 +130,9 @@ Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
 15 ms; cold move of a 74 MB workspace 7.1 s, the same repeat move warm in 207 ms
 (51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push and the cost meter
 reads `GET /api/usage`. Relay traffic is end-to-end encrypted (17 sessions
-loaded through the relay in the checks). Full evidence and remaining gaps
-(signed iOS, cross-host memory migration, E2B live verification) are in
+loaded through the relay in the checks). Remaining optional tracks are signed iOS
+and E2B live verification; cross-host memory migration is deferred beyond v1.
+Full evidence and gaps are in
 [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 
 ## Architecture

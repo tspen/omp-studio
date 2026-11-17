@@ -5,6 +5,20 @@ Date: 2026-11-17
 This is the implementation record for the remote/mobile/cloud work. It lists what
 ships, how it was verified, the measured performance, and the remaining gaps.
 
+## V1 scope decision (2026-11-17)
+
+Cross-host **memory** migration is **out of v1**. Supported v1 paths are:
+
+- same-host pause/resume,
+- same-host Docker/CRIU checkpoint + restore,
+- cold and warm moves at turn boundaries,
+- relay/Tailscale access, PWA/Android, push, cost meter and self-cleaning.
+
+Cross-host checkpoint export/import remains in the code as experimental and is
+not part of the v1 guarantee. Docker/CRIU does not reconnect live Electron/OMP
+pipes on another host, so a durable cross-host handoff needs CRIU-native
+migration or E2B pause/resume rather than Docker checkpoints.
+
 ## What ships
 
 | Area | Implementation |
@@ -25,7 +39,7 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 | Push notifications | VAPID keys stored as secrets; `GET /api/push/key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`. Push fires on approval requests, waiting/error status, and reply-required envelopes even when no WebSocket is connected. PWA service worker shows the notification and opens `/?thread=<id>` on click. |
 | Cost meter | `GET /api/usage` aggregates thread cost/tokens; `targetUsage` fetches it, records cost/tokens/usageAt on the target and mirrors cost/tokens for placed sessions. Settings shows placed-session cost and a per-target meter refresh. |
 | Self-hosted relay | `relay/server.mjs` is a stateless WebSocket relay. Runner dials out, clients connect to a room, frames are AES-256-GCM encrypted with HKDF-SHA256, and the relay only routes ciphertext. Serves the PWA, enforces room tokens, frame/client limits and reaps empty rooms. Dockerfile/compose and cleanup/security notes in `relay/`. |
-| Memory checkpoint | `runner/checkpoint-agent.mjs` drives Docker Engine checkpoints (CRIU) for the Linux runner container. Checkpoint stores the full process tree/memory and stops the container; restore starts it from the image and the same in-flight turn continues. Export bundles checkpoint images + container metadata + `/data` archive; import recreates the container on another agent. Settings exposes agent URL/container/token, checkpoint/restore/delete, export/import and bundle list. Requires Docker experimental, CRIU 4.x, host networking. |
+| Memory checkpoint | `runner/checkpoint-agent.mjs` drives Docker Engine checkpoints (CRIU) for the Linux runner container. Checkpoint stores the full process tree/memory and stops the container; restore starts it from the image and the same in-flight turn continues. Same-host checkpoint/restore is v1. Export bundles checkpoint images + metadata + `/data` archive and import recreates a container; that cross-host path is **experimental and out of v1**. Settings exposes agent URL/container/token, checkpoint/restore/delete and the experimental bundle tools. Requires Docker experimental, CRIU 4.x, host networking. |
 | Live pause/resume | Threads have `pauseThread`/`resumeThread` on the runner and `POST /api/threads/:id/{pause,resume}`. The OMP process tree is suspended (SIGSTOP or `NtSuspendProcess` on Windows) and resumed (SIGCONT/`NtResumeProcess`), preserving memory and the in-flight turn. Desktop and PWA expose Pause/Resume; placed sessions proxy the action to their target. |
 | E2B Embed target | `src/main/services/e2b.ts` creates Firecracker sandboxes from an `omp-runner` template on a self-hosted E2B Embed API, passes a per-sandbox `OMP_REMOTE_TOKEN`, waits for `/api/health`, and registers a normal target. Settings lets you configure API URL/domain/template/key/timeout and create or terminate sandbox targets. Template and host setup are documented in `e2b/README.md`. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
@@ -288,15 +302,18 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   `omp-remote-ios-simulator.zip` 1.5 MB). A signed installable device build
   still needs an Apple account, a signing certificate and a provisioning
   profile.
-- **Cross-host runner memory migration**: export/import works for stateless
-  processes. A live runner restore failed on a real second host because Docker
-  CRIU checkpoints contain live pipe inodes from Electron/OMP and Docker does
-  not reconnect them. CRIU-native migration or E2B pause/resume is required.
-- **E2B live verification**: the adapter and template instructions ship, but the
-  available WSL2 host fails E2B preflight (kernel 5.15, no cgroup v2). Verification
-  requires a Linux/KVM host with kernel 6.8+ and cgroup v2.
 - **Docker image size**: includes Electron and build tooling; the OMP binary is
   downloaded on first use.
+
+## Deferred beyond v1
+
+- **Cross-host runner memory migration.** Export/import exists, but Docker/CRIU
+  does not reconnect live Electron/OMP pipes on another host. Use warm/cold moves
+  for cross-host handoff. CRIU-native migration or E2B pause/resume is a separate
+  phase.
+- **E2B Embed live sessions** on a supported KVM host (adapter and template ship,
+  preflight requires kernel 6.8+/cgroup v2; optional target, not required for v1).
+
 
 
 

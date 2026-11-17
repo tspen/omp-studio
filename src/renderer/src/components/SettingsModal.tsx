@@ -1455,7 +1455,7 @@ function CheckpointSettings() {
   return (
     <Section
       title="Live checkpoint (CRIU)"
-      subtitle="Pause the Linux runner container, snapshot its memory with Docker/CRIU, and restore the same in-flight process tree. The checkpoint agent runs on the Docker host with socket access."
+      subtitle="Same-host checkpoint/restore is v1: pause the Linux runner container, snapshot its memory with Docker/CRIU, and restore the same in-flight process tree. Bundle export/import is experimental and outside v1 cross-host migration."
       right={<Badge tone={info?.running ? "green" : info?.configured ? "amber" : "neutral"}>{info?.running ? "agent online" : info?.configured ? "agent offline" : "not set"}</Badge>}
     >
       <div className="remote-target-form">
@@ -1716,6 +1716,7 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
 
 
 

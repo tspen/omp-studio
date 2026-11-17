@@ -1,6 +1,6 @@
 # OMP Studio roadmap
 
-Every item from the Windows coding-agent parity checklist is either implemented or explicitly excluded by a user decision. Android device control is local through adb; iOS simulators and cloud/remote execution are out of scope for a Windows desktop app.
+Every item from the Windows coding-agent parity checklist is either implemented or explicitly excluded by a user decision. Android device control is local through adb; the remote runner and Android/iOS projects are implemented, while running iOS simulators and signing device builds still need macOS/Apple tooling.
 
 ## Workspace and shipping loop
 
@@ -65,17 +65,31 @@ Implemented from the analysis:
 
 Deliberately not pursued after user review: plan mode, lifecycle hooks, and a separate shared task board/mailbox (the tree already covers coordination for this workflow).
 
-## Remote execution design
+## Remote execution
 
-A full architecture for cloud/remote/mobile execution is in [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md): one runner, target registry, portable session bundles, user-owned network access, Docker/VPS or self-hosted E2B Embed targets, self-cleaning resources, performance gates, mobile PWA and phased rollout. Phase 1 implementation details are in [`docs/remote-phase1-spec.md`](docs/remote-phase1-spec.md). What actually ships today, with measurements and remaining gaps, is in [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
+The remote/mobile runner is implemented: token/QR pairing, HTTP/WebSocket API,
+PWA, Android/iOS Capacitor projects, Docker runner, relay, push, cost meter,
+cold/warm moves, automatic placement, same-host pause/checkpoint and cleanup.
+See [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md)
+for verified evidence and performance.
+
+V1 scope decision: same-host pause/resume and Docker/CRIU checkpoint are
+supported; **cross-host memory migration is out of v1** and deferred. Cross-host
+handoff uses cold or warm moves at turn boundaries. E2B Embed is an optional
+target requiring a supported Linux/KVM host; signed iOS device builds require
+Apple credentials.
+
+Design details remain in
+[`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md)
+and [`docs/remote-phase1-spec.md`](docs/remote-phase1-spec.md).
 
 ## Explicitly excluded
 
 The user confirmed these exclusions on 2026-11-17:
 
-- **iOS simulators** - require macOS and Xcode, so they cannot run in this Windows desktop app. Android simulators and devices are supported through adb, and the browser provides iPhone/Pixel/iPad viewport presets.
-- **Cloud/remote execution, cloud VMs and mobile control** - the app is local-Windows-first. No hosted runner, phone dispatch, remote supervision, or cloud environments. Cloudflare deployment and MCP are supported because they do not run agent sessions remotely.
+- **iOS simulator execution on Windows and signed device builds** - require macOS/Xcode and Apple credentials. The Capacitor iOS project and unsigned simulator CI build are included; Android simulators and devices are supported through adb, and the browser provides iPhone/Pixel/iPad viewport presets.
 - **Built-in code editor and side chats** - intentionally excluded product decisions.
 - **Kernel-level sandbox** - OMP runs under the Windows user account. The app enforces terminal command policy, path/network guidance in prompts, and an audit trail; it is not OS virtualization.
 - **Semantic/embedding code index** - local file, symbol and text search are included; embeddings and cross-repository retrieval are not.
+
 
