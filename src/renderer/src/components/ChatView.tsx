@@ -18,6 +18,7 @@ import {
   Paperclip,
   Plus,
   RotateCw,
+  Save,
   Settings2,
   Share2,
   Sparkles,
@@ -284,7 +285,15 @@ function ThreadHeader({
             state.pushToast({ kind: "error", title: "Compaction failed", body: String(error) });
           }
         }} />
-        <IconButton icon={<History size={15} />} label="History, fork and rewind" onClick={() => state.setOverlay("history")} />
+        <IconButton icon={<History size={15} />} label="History, checkpoints, fork and rewind" onClick={() => state.setOverlay("history")} />
+        <IconButton icon={<Save size={15} />} label="Create a file checkpoint" onClick={async () => {
+          try {
+            await window.omp.createCheckpoint(thread.id, "Manual checkpoint");
+            state.pushToast({ kind: "success", title: "Checkpoint created" });
+          } catch (error) {
+            state.pushToast({ kind: "error", title: "Checkpoint failed", body: String(error) });
+          }
+        }} />
         <IconButton icon={<Share2 size={15} />} label="Share this thread" onClick={() => void state.shareThread()} />
         <IconButton icon={<FileDown size={15} />} label="Export thread as PDF" onClick={async () => {
           try {

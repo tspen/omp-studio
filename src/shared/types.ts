@@ -375,6 +375,46 @@ export interface UsageSettings {
   autoContinueOnReset: boolean;
 }
 
+export interface InstalledPlugin {
+  name: string;
+  source: string;
+  path: string;
+  skills: string[];
+  mcpServers: string[];
+  commands: number;
+  agents: number;
+  hooks: number;
+  installedAt: number;
+}
+
+export interface PluginPreview {
+  name: string;
+  description?: string;
+  skills: number;
+  commands: number;
+  agents: number;
+  hooks: number;
+  mcpServers: number;
+}
+
+export interface Checkpoint {
+  id: string;
+  threadId: string;
+  nodeId: string;
+  label: string;
+  sha: string;
+  cwd: string;
+  entryId?: string;
+  createdAt: number;
+}
+
+export interface PermissionRule {
+  id: string;
+  pattern: string;
+  action: "allow" | "ask" | "deny";
+  note?: string;
+}
+
 export interface Automation {
   id: string;
   name: string;
@@ -414,6 +454,8 @@ export interface AppSettings {
     figma: { enabled: boolean; clientId?: string };
   };
   sandbox: { enabled: boolean; allowedPaths: string[]; deniedCommands: string[]; allowNetwork: boolean };
+  permissions: { rules: PermissionRule[] };
+  autoCheckpoints: boolean;
   computerUse: boolean;
   autoFixCi: boolean;
   advisor: boolean;
@@ -810,6 +852,7 @@ export interface SendMessageRequest {
   text: string;
   mode?: "prompt" | "steer" | "followUp";
   traceId?: string;
+  checkpoint?: boolean;
 }
 
 export interface ManualEnvelopeRequest {
@@ -885,6 +928,9 @@ export interface OmpStudioApi {
   branchThread(id: string, entryId: string): Promise<Thread>;
   navigateThread(id: string, entryId: string, summarize?: boolean): Promise<void>;
   getThreadEntries(id: string): Promise<ThreadEntry[]>;
+  listCheckpoints(threadId?: string): Promise<Checkpoint[]>;
+  createCheckpoint(threadId: string, label?: string): Promise<Checkpoint>;
+  restoreCheckpoint(id: string, mode: "code" | "both"): Promise<{ restored: number; removed: number }>;
   goalThread(id: string, op: "get" | "create" | "resume" | "pause" | "drop", objective?: string, tokenBudget?: number): Promise<any>;
   exportThread(id: string): Promise<{ path: string }>;
   exportThreadPdf(id: string): Promise<{ path: string }>;
@@ -978,6 +1024,11 @@ export interface OmpStudioApi {
   readSkill(path: string): Promise<{ content: string; path: string }>;
   saveSkill(path: string, content: string): Promise<void>;
   deleteSkill(path: string): Promise<void>;
+
+  listPlugins(): Promise<InstalledPlugin[]>;
+  previewPlugin(source: string): Promise<PluginPreview[]>;
+  installPlugin(source: string, name?: string): Promise<InstalledPlugin>;
+  removePlugin(name: string): Promise<void>;
 
   listAutomations(): Promise<Automation[]>;
   saveAutomation(input: Partial<Automation> & { name: string; nodeId: string; prompt: string; intervalMin: number }): Promise<Automation>;

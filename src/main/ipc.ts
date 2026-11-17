@@ -18,6 +18,7 @@ import type { DeployService } from "./services/deploy";
 import type { ExportService } from "./services/exporter";
 import type { OAuthService } from "./services/oauth";
 import type { MobileService } from "./services/mobile";
+import type { PluginService } from "./services/plugins";
 import type { Store } from "./services/store";
 import { trace } from "./diagnostics";
 import { audit, readAudit } from "./audit";
@@ -47,6 +48,7 @@ export interface IpcContext {
   exporter: ExportService;
   oauth: OAuthService;
   mobile: MobileService;
+  plugins: PluginService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
@@ -56,7 +58,7 @@ export interface IpcContext {
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, plugins, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -97,6 +99,9 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("thread:export", (_event, id: string) => orchestrator.exportThread(id));
   ipcMain.handle("thread:export-pdf", (_event, id: string) => exporter.threadPdf(id));
   ipcMain.handle("thread:export-docx", (_event, id: string) => exporter.threadDocx(id));
+  ipcMain.handle("checkpoints:list", (_event, threadId?: string) => orchestrator.listCheckpoints(threadId));
+  ipcMain.handle("checkpoints:create", (_event, threadId: string, label?: string) => orchestrator.createCheckpoint(threadId, label));
+  ipcMain.handle("checkpoints:restore", (_event, id: string, mode: "code" | "both") => orchestrator.restoreCheckpoint(id, mode));
 
   ipcMain.handle("envelope:send", (_event, req) => orchestrator.sendEnvelope(req));
   ipcMain.handle("envelope:answer", (_event, id: string, body: string) => orchestrator.answerEnvelope(id, body));
@@ -404,6 +409,11 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("skills:read", (_event, path: string) => settings.readSkill(path));
   ipcMain.handle("skills:save", (_event, path: string, content: string) => settings.saveSkill(path, content));
   ipcMain.handle("skills:delete", (_event, path: string) => settings.deleteSkill(path));
+
+  ipcMain.handle("plugins:list", () => plugins.list());
+  ipcMain.handle("plugins:preview", (_event, source: string) => plugins.preview(source));
+  ipcMain.handle("plugins:install", (_event, source: string, name?: string) => plugins.install(source, name));
+  ipcMain.handle("plugins:remove", (_event, name: string) => plugins.remove(name));
 
   ipcMain.handle("automations:list", () => orchestrator.listAutomations());
   ipcMain.handle("automations:save", (_event, input: any) => orchestrator.saveAutomation(input));

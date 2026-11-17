@@ -13,11 +13,13 @@ import {
   Gauge,
   KeyRound,
   MemoryStick,
+  Package,
   Play,
   Plug,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Settings2,
   Shield,
   SlidersHorizontal,
@@ -27,7 +29,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, McpServerInfo, ModelInfo, OmpConfigEntry, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -44,6 +46,7 @@ const TABS = [
   { id: "connectors", label: "Connectors", icon: <Plug size={15} /> },
   { id: "automations", label: "Automations", icon: <Clock size={15} /> },
   { id: "sandbox", label: "Sandbox", icon: <Shield size={15} /> },
+  { id: "plugins", label: "Plugins", icon: <Package size={15} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={15} /> },
   { id: "engine", label: "Engine", icon: <Cpu size={15} /> },
   { id: "advanced", label: "Advanced", icon: <SlidersHorizontal size={15} /> },
@@ -97,6 +100,7 @@ export function SettingsModal() {
             {tab === "connectors" ? <ConnectorsTab /> : null}
             {tab === "automations" ? <AutomationsTab /> : null}
             {tab === "sandbox" ? <SandboxTab /> : null}
+            {tab === "plugins" ? <PluginsTab /> : null}
             {tab === "notifications" ? <NotificationsTab /> : null}
             {tab === "engine" ? <EngineTab /> : null}
             {tab === "advanced" ? <AdvancedTab /> : null}
@@ -129,6 +133,8 @@ function settingsBlurb(tab: string): string {
       return "Scheduled instructions that spawn a fresh worker thread and report into your queue.";
     case "sandbox":
       return "Command denylist, path scope, network policy and the audit trail.";
+    case "plugins":
+      return "Install Claude Code-style plugin folders from Git or disk. Skills and MCP servers are installed; hooks are not executed.";
     case "notifications":
       return "Windows toasts, tray badge, and which events are worth interrupting you.";
     case "engine":
@@ -1080,6 +1086,8 @@ function SandboxTab() {
   const state = useApp();
   const settings = state.snapshot?.settings;
   const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [rulePattern, setRulePattern] = useState("");
+  const [ruleAction, setRuleAction] = useState<"allow" | "ask" | "deny">("ask");
   const load = async () => setEntries(await window.omp.listAudit(200));
   useEffect(() => { void load(); }, []);
   if (!settings) return null;
@@ -1094,8 +1102,39 @@ function SandboxTab() {
         <Row label="Allow network" hint="When off, agent guidance forbids network commands and browser use is still explicit."><Toggle checked={sandbox.allowNetwork !== false} onChange={(value) => update({ allowNetwork: value })} /></Row>
         <Row label="Windows computer use" hint="Allows desktop screenshots and mouse/keyboard tools. Off by default."><Toggle checked={settings.computerUse} onChange={(value) => state.updateSettings({ settings: { computerUse: value } })} /></Row>
         <Row label="Auto-fix CI" hint="Lets the CI panel send failing logs to the thread automatically."><Toggle checked={settings.autoFixCi} onChange={(value) => state.updateSettings({ settings: { autoFixCi: value } })} /></Row>
+        <Row label="Automatic file checkpoints" hint="Snapshot the checkout before each prompt so you can restore code later. YOLO stays safe."><Toggle checked={settings.autoCheckpoints !== false} onChange={(value) => state.updateSettings({ settings: { autoCheckpoints: value } })} /></Row>
       </Section>
-      <Section title="Audit trail" subtitle="Prompts, host tools, approvals, terminals and deploys, newest first." right={<Button size="sm" variant="soft" onClick={() => void load()}><RefreshCw size={12} /> Refresh</Button>}>
+      <Section title="Permission rules" subtitle="YOLO stays the default. Rules are opt-in exceptions evaluated before auto-approval." right={<Badge tone="green">YOLO default</Badge>}>
+        <Row label="Add rule" hint="Patterns like Bash(npm run *), Edit, Write, mcp__*, or * for everything.">
+          <div className="inline-actions">
+            <input value={rulePattern} onChange={(event) => setRulePattern(event.target.value)} placeholder="Bash(git push *)" />
+            <Select value={ruleAction} onChange={(value) => setRuleAction(value as "allow" | "ask" | "deny")}>
+              <option value="allow">allow</option>
+              <option value="ask">ask</option>
+              <option value="deny">deny</option>
+            </Select>
+            <Button size="sm" variant="soft" disabled={!rulePattern.trim()} onClick={() => {
+              const rules = [...(settings.permissions?.rules ?? []), { id: `rule_${Date.now().toString(36)}`, pattern: rulePattern.trim(), action: ruleAction }];
+              state.updateSettings({ settings: { permissions: { rules } } });
+              setRulePattern("");
+            }}><Plus size={12} /> Add</Button>
+          </div>
+        </Row>
+        {(settings.permissions?.rules ?? []).map((rule) => (
+          <div key={rule.id} className="simple-row">
+            <div><strong className="mono">{rule.pattern}</strong><span>{rule.action === "deny" ? "Blocked even in YOLO" : rule.action === "ask" ? "Always asks" : "Auto-approved"}</span></div>
+            <div className="inline-actions">
+              <Badge tone={rule.action === "deny" ? "red" : rule.action === "ask" ? "amber" : "green"}>{rule.action}</Badge>
+              <IconButton icon={<Trash2 size={12} />} label="Delete rule" onClick={() => {
+                const rules = (settings.permissions?.rules ?? []).filter((item) => item.id !== rule.id);
+                state.updateSettings({ settings: { permissions: { rules } } });
+              }} />
+            </div>
+          </div>
+        ))}
+        {!(settings.permissions?.rules ?? []).length ? <p className="muted">No rules. Every tool call is auto-approved.</p> : null}
+      </Section>
+      <Section title="Audit trail" subtitle="Prompts, host tools, approvals, rule hits, terminals and deploys, newest first." right={<Button size="sm" variant="soft" onClick={() => void load()}><RefreshCw size={12} /> Refresh</Button>}>
         <div className="audit-list">
           {entries.map((entry, index) => (
             <div key={`${entry.at}-${index}`} className="audit-row">
@@ -1106,6 +1145,93 @@ function SandboxTab() {
           ))}
           {!entries.length ? <p className="muted">No audit entries yet.</p> : null}
         </div>
+      </Section>
+    </>
+  );
+}
+
+function PluginsTab() {
+  const state = useApp();
+  const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
+  const [source, setSource] = useState("");
+  const [previews, setPreviews] = useState<PluginPreview[]>([]);
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = async () => setInstalled(await window.omp.listPlugins());
+  useEffect(() => { void load(); }, []);
+  const preview = async () => {
+    setBusy("preview");
+    try {
+      const list = await window.omp.previewPlugin(source);
+      setPreviews(list);
+      setSelected(list.length === 1 ? list[0].name : "");
+      if (!list.length) state.pushToast({ kind: "warning", title: "No plugins found", body: "Check the repository or folder." });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Plugin preview failed", body: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const install = async () => {
+    setBusy("install");
+    try {
+      const plugin = await window.omp.installPlugin(source, selected || undefined);
+      state.pushToast({ kind: "success", title: "Plugin installed", body: `${plugin.name}: ${plugin.skills.length} skills, ${plugin.mcpServers.length} MCP servers` });
+      setPreviews([]);
+      setSource("");
+      await load();
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Plugin install failed", body: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      <Section title="Install a plugin" subtitle="Git URL or local folder with plugin.json or .claude-plugin/marketplace.json. Skills and MCP servers are installed; hook code is counted but never executed.">
+        <Row label="Source">
+          <div className="inline-actions">
+            <input value={source} onChange={(event) => setSource(event.target.value)} placeholder="https://github.com/org/plugin or C:\\plugins\\mine" />
+            <Button size="sm" variant="soft" disabled={!source.trim() || busy !== null} onClick={() => void preview()}>{busy === "preview" ? <Spinner /> : <Search size={12} />} Preview</Button>
+          </div>
+        </Row>
+        {previews.length ? (
+          <div className="plugin-preview-list">
+            {previews.map((plugin) => (
+              <button key={plugin.name} type="button" className={cx("plugin-preview", selected === plugin.name && "active")} onClick={() => setSelected(plugin.name)}>
+                <div><strong>{plugin.name}</strong><span>{plugin.description || "No description"}</span></div>
+                <div className="plugin-components">
+                  <Badge tone="blue">{plugin.skills} skills</Badge>
+                  <Badge tone="purple">{plugin.commands} commands</Badge>
+                  <Badge tone="neutral">{plugin.agents} agents</Badge>
+                  <Badge tone="amber">{plugin.hooks} hooks (not run)</Badge>
+                  <Badge tone="green">{plugin.mcpServers} MCP</Badge>
+                </div>
+              </button>
+            ))}
+            <Button size="sm" variant="primary" disabled={!selected || busy !== null} onClick={() => void install()}>{busy === "install" ? <Spinner /> : <Download size={12} />} Install {selected || "selected"}</Button>
+          </div>
+        ) : null}
+      </Section>
+      <Section title="Installed plugins" subtitle="Remove restores skills and MCP entries added by the plugin.">
+        {installed.map((plugin) => (
+          <div key={plugin.name} className="simple-row">
+            <div>
+              <strong>{plugin.name}</strong>
+              <span>{plugin.skills.length} skills � {plugin.commands} commands � {plugin.mcpServers.length} MCP � {plugin.agents} agents � {plugin.hooks} hooks unused</span>
+              <small className="mono">{plugin.source}</small>
+            </div>
+            <Button size="sm" variant="danger" onClick={async () => {
+              if (!confirm(`Remove ${plugin.name} and its installed skills/MCP entries?`)) return;
+              await window.omp.removePlugin(plugin.name);
+              await load();
+            }}>Remove</Button>
+          </div>
+        ))}
+        {!installed.length ? <p className="muted">No plugins installed.</p> : null}
+      </Section>
+      <Section title="Safety" subtitle="Plugin hooks and mods are code execution. This app does not execute plugin hooks; only declarative skills, commands-as-skills and MCP servers are installed.">
+        <p className="muted">Review a plugin before installing. MCP servers start local processes or connect to remote URLs, so install only sources you trust.</p>
       </Section>
     </>
   );

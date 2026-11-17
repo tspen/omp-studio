@@ -1,6 +1,8 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import type { GitFileStatus, GitStatus } from "../../shared/types";
 
 export interface ExecResult {
@@ -163,6 +165,62 @@ export class GitService {
       child.on("error", (error) => resolve({ code: 1, stdout, stderr: stderr || error.message }));
       child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
       child.stdin.end(patch);
+    });
+  }
+
+  async createSnapshot(cwd: string, label: string): Promise<string | null> {
+    if (!(await this.isRepo(cwd))) return null;
+    const index = join(tmpdir(), `omp-index-${randomUUID()}.index`);
+    const env = { ...process.env, GIT_INDEX_FILE: index };
+    try {
+      const head = await this.runWithEnv(cwd, ["rev-parse", "--verify", "HEAD"], env);
+      await this.runWithEnv(cwd, [head.code === 0 ? "read-tree" : "read-tree", head.code === 0 ? "HEAD" : "--empty"], env);
+      const add = await this.runWithEnv(cwd, ["add", "-A"], env, 120_000);
+      if (add.code !== 0) return null;
+      const tree = await this.runWithEnv(cwd, ["write-tree"], env, 120_000);
+      if (tree.code !== 0) return null;
+      const commit = await this.runWithEnv(cwd, ["commit-tree", tree.stdout.trim(), "-m", `checkpoint: ${label}`], env, 120_000);
+      return commit.code === 0 ? commit.stdout.trim() : null;
+    } finally {
+      rmSync(index, { force: true });
+    }
+  }
+
+  async restoreSnapshot(cwd: string, sha: string): Promise<{ restored: number; removed: number }> {
+    if (!(await this.isRepo(cwd))) throw new Error("Working directory is not a git repository");
+    const tree = await this.run(cwd, ["ls-tree", "-r", "--name-only", "-z", sha], 120_000);
+    if (tree.code !== 0) throw new Error(tree.stderr.trim() || "Could not read checkpoint tree");
+    const keep = new Set(tree.stdout.split("\0").map((path) => path.trim()).filter(Boolean));
+    const checkout = await this.run(cwd, ["checkout", sha, "--", "."], 180_000);
+    if (checkout.code !== 0) throw new Error(checkout.stderr.trim() || "Could not restore checkpoint files");
+    const current = await this.run(cwd, ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], 120_000);
+    const extras = current.stdout
+      .split("\0")
+      .map((path) => path.trim())
+      .filter((path) => path && !keep.has(path));
+    for (const path of extras) {
+      const full = resolve(cwd, path);
+      if (!full.startsWith(resolve(cwd))) continue;
+      rmSync(full, { force: true });
+    }
+    await this.run(cwd, ["reset", "-q"], 60_000);
+    return { restored: keep.size, removed: extras.length };
+  }
+
+  private runWithEnv(cwd: string, args: string[], env: NodeJS.ProcessEnv, timeoutMs = 60_000): Promise<ExecResult> {
+    return new Promise((resolvePromise) => {
+      execFile(
+        "git",
+        args,
+        { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, encoding: "utf8", env },
+        (error, stdout, stderr) => {
+          resolvePromise({
+            code: error ? (typeof (error as any).code === "number" ? (error as any).code : 1) : 0,
+            stdout: stdout ?? "",
+            stderr: stderr ?? (error ? error.message : ""),
+          });
+        },
+      );
     });
   }
 

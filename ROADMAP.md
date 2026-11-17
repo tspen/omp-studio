@@ -55,7 +55,15 @@ Every item from the Windows coding-agent parity checklist is either implemented 
 
 ## Ecosystem gap analysis
 
-A 2026-11-17 deep dive comparing OMP Studio with Claude Code and the wider ecosystem is in [`docs/claude-code-gap-analysis.md`](docs/claude-code-gap-analysis.md). Highest-value additions: lifecycle hooks, shared task board + peer mailbox, plan review mode, plugin marketplaces, permission rules, kanban/goal board, LSP diagnostics, file checkpoints, usage analytics and security review.
+A 2026-11-17 deep dive comparing OMP Studio with Claude Code and the wider ecosystem is in [`docs/claude-code-gap-analysis.md`](docs/claude-code-gap-analysis.md).
+
+Implemented from the analysis:
+
+- **Plugin installer**: preview and install Claude Code-style plugin folders from Git or disk; skills, commands-as-skills and MCP servers are installed, hooks are never executed, and removal cleans up.
+- **File checkpoints**: automatic pre-prompt shadow-git snapshots with restore code / code+chat from Thread history.
+- **Permission rules**: YOLO stays the default; optional allow/ask/deny patterns (tool and argument globs) act as exceptions and are audited.
+
+Deliberately not pursued after user review: plan mode, lifecycle hooks, and a separate shared task board/mailbox (the tree already covers coordination for this workflow).
 
 ## Explicitly excluded
 

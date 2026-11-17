@@ -30,6 +30,9 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 - **Budgets**: app-level and per-node USD budgets with warn-only or pause-new-work enforcement.
 - **Codebase intelligence**: workspace file index, symbol codemap, content search, and recent-file ranking exposed to both the UI and `workspace_search`/`workspace_map`.
 - **Workspace panes**: a tabbed bottom pane host for Terminal, Diff and Tasks with a draggable splitter, pop-out windows for each pane, plus draggable sidebar/browser/rail splitters and a browser pop-out. No in-app code editor.
+- **Plugins**: install Claude Code-style plugin folders from Git or disk. Skills and commands become managed skills, MCP servers are registered, and hooks are counted but never executed. Preview before install, then remove cleanly.
+- **Permission rules, still YOLO**: every tool call is auto-approved by default. Optional `Bash(git push *)`, `Edit`, `mcp__*` style rules can deny or ask for specific patterns without changing the default. Rule hits land in the audit trail.
+- **File checkpoints**: a shadow git commit snapshots the checkout before each prompt. Restore code only, or code plus conversation, from Thread history. Automatic checkpoints can be turned off.
 - **Exports and extras**: thread export to PDF or DOCX, desktop screenshots and clicks/typing for Windows apps (opt-in), visual regression diffs from the browser, Android emulator/device control through adb (screenshot, tap, type, keys), and mobile viewport presets for responsive checks.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 

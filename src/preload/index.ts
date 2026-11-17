@@ -32,6 +32,9 @@ const api: OmpStudioApi = {
   exportThread: (id) => invoke("thread:export", id) as Promise<any>,
   exportThreadPdf: (id) => invoke("thread:export-pdf", id) as Promise<any>,
   exportThreadDocx: (id) => invoke("thread:export-docx", id) as Promise<any>,
+  listCheckpoints: (threadId) => invoke("checkpoints:list", threadId) as Promise<any>,
+  createCheckpoint: (threadId, label) => invoke("checkpoints:create", threadId, label) as Promise<any>,
+  restoreCheckpoint: (id, mode) => invoke("checkpoints:restore", id, mode) as Promise<any>,
 
   sendEnvelope: (req) => invoke("envelope:send", req) as Promise<any>,
   answerEnvelope: (id, body) => invoke("envelope:answer", id, body) as Promise<any>,
@@ -121,6 +124,11 @@ const api: OmpStudioApi = {
   readSkill: (path) => invoke("skills:read", path) as Promise<any>,
   saveSkill: (path, content) => invoke("skills:save", path, content) as Promise<any>,
   deleteSkill: (path) => invoke("skills:delete", path) as Promise<any>,
+
+  listPlugins: () => invoke("plugins:list") as Promise<any>,
+  previewPlugin: (source) => invoke("plugins:preview", source) as Promise<any>,
+  installPlugin: (source, name) => invoke("plugins:install", source, name) as Promise<any>,
+  removePlugin: (name) => invoke("plugins:remove", name) as Promise<any>,
 
   listAutomations: () => invoke("automations:list") as Promise<any>,
   saveAutomation: (input) => invoke("automations:save", input) as Promise<any>,

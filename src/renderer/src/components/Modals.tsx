@@ -35,7 +35,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import type { ApprovalRequest, Artifact, ChatBlock, Environment, MobileDevice, ModelInfo, Thread, TreeNode, WorkspaceFile, WorkspaceMatch, WorkspaceSymbol } from "../../../shared/types";
+import type { ApprovalRequest, Artifact, ChatBlock, Checkpoint, Environment, MobileDevice, ModelInfo, Thread, TreeNode, WorkspaceFile, WorkspaceMatch, WorkspaceSymbol } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
 import { ModelPicker } from "./ModelPicker";
 import { ShellsTab } from "./TerminalPane";
@@ -1051,6 +1051,7 @@ function HistoryModal() {
   const state = useApp();
   const thread = selectedThread(state);
   const [entries, setEntries] = useState<any[]>([]);
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!thread) return;
@@ -1059,10 +1060,46 @@ function HistoryModal() {
       .then(setEntries)
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
+    void window.omp.listCheckpoints(thread.id).then(setCheckpoints).catch(() => setCheckpoints([]));
   }, [thread?.id]);
   if (!thread) return null;
+  const restore = async (checkpoint: Checkpoint, mode: "code" | "both") => {
+    if (!confirm(`Restore ${mode === "both" ? "code and conversation" : "code"} from "${checkpoint.label}"? Current uncommitted changes in this checkout are replaced.`)) return;
+    try {
+      const result = await window.omp.restoreCheckpoint(checkpoint.id, mode);
+      await state.refresh();
+      await state.loadMessages(thread.id);
+      state.pushToast({ kind: "success", title: "Checkpoint restored", body: `${result.restored} files restored, ${result.removed} removed` });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Restore failed", body: String(error) });
+    }
+  };
   return (
-    <Modal title="Thread history" subtitle="Fork from a point or rewind this thread. Fork creates a new session file from the selected entry; rewind moves the leaf." onClose={() => state.setOverlay("none")} width={820}>
+    <Modal title="Thread history" subtitle="Checkpoints restore code, and optionally the conversation. Fork creates a new session from an entry; rewind moves the leaf." onClose={() => state.setOverlay("none")} width={820}>
+      <div className="checkpoint-head">
+        <div><strong>File checkpoints</strong><span>Automatic before each prompt, plus manual snapshots.</span></div>
+        <Button size="sm" variant="soft" onClick={async () => {
+          try {
+            await window.omp.createCheckpoint(thread.id, "Manual checkpoint");
+            setCheckpoints(await window.omp.listCheckpoints(thread.id));
+            state.pushToast({ kind: "success", title: "Checkpoint created" });
+          } catch (error) {
+            state.pushToast({ kind: "error", title: "Checkpoint failed", body: String(error) });
+          }
+        }}>Checkpoint now</Button>
+      </div>
+      <div className="checkpoint-list">
+        {checkpoints.map((checkpoint) => (
+          <div key={checkpoint.id} className="checkpoint-row">
+            <div><strong>{checkpoint.label}</strong><span>{relativeTime(checkpoint.createdAt)} · {checkpoint.sha.slice(0, 10)}</span></div>
+            <div className="inline-actions">
+              <Button size="sm" variant="soft" onClick={() => void restore(checkpoint, "code")}>Restore code</Button>
+              <Button size="sm" variant="ghost" onClick={() => void restore(checkpoint, "both")}>Code + chat</Button>
+            </div>
+          </div>
+        ))}
+        {!checkpoints.length ? <p className="muted">No checkpoints yet. One is created automatically before each prompt in a git project.</p> : null}
+      </div>
       {loading ? <div className="settings-loading"><Spinner /> Loading entries…</div> : (
         <div className="history-list">
           {entries.slice().reverse().map((entry) => (

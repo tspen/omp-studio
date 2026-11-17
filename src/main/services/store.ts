@@ -8,10 +8,12 @@ import type {
   AppSettings,
   Artifact,
   Automation,
+  Checkpoint,
   ChatMessage,
   EngineStatus,
   Envelope,
   Environment,
+  InstalledPlugin,
   MemoryEntry,
   ModelInfo,
   OmpConfigSnapshot,
@@ -42,6 +44,8 @@ interface PersistedState {
   sites: Site[];
   secrets: Record<string, string>;
   automations: Automation[];
+  checkpoints: Checkpoint[];
+  plugins: InstalledPlugin[];
   updatedAt: number;
 }
 
@@ -71,6 +75,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     figma: { enabled: false, clientId: "" },
   },
   sandbox: { enabled: false, allowedPaths: [], deniedCommands: [], allowNetwork: true },
+  permissions: { rules: [] },
+  autoCheckpoints: true,
   computerUse: false,
   autoFixCi: false,
   advisor: false,
@@ -232,6 +238,8 @@ export class Store {
         sites: [],
         secrets: {},
         automations: [],
+        checkpoints: [],
+        plugins: [],
         updatedAt: Date.now(),
       };
     }
@@ -272,6 +280,8 @@ export class Store {
         sites: parsed.sites ?? [],
         secrets: parsed.secrets ?? {},
         automations: parsed.automations ?? [],
+        checkpoints: parsed.checkpoints ?? [],
+        plugins: parsed.plugins ?? [],
       };
     } catch (error) {
       const backup = `${this.statePath}.corrupt-${Date.now()}`;
@@ -298,6 +308,8 @@ export class Store {
         sites: [],
         secrets: {},
         automations: [],
+        checkpoints: [],
+        plugins: [],
         updatedAt: Date.now(),
       };
     }
@@ -517,6 +529,45 @@ export class Store {
 
   get automations(): Automation[] {
     return this.state.automations;
+  }
+
+  get checkpoints(): Checkpoint[] {
+    return this.state.checkpoints;
+  }
+
+  get plugins(): InstalledPlugin[] {
+    return this.state.plugins;
+  }
+
+  addPlugin(plugin: InstalledPlugin): InstalledPlugin {
+    this.state.plugins = [plugin, ...this.state.plugins.filter((item) => item.name !== plugin.name)];
+    this.markDirty();
+    return plugin;
+  }
+
+  removePlugin(name: string): void {
+    this.state.plugins = this.state.plugins.filter((item) => item.name !== name);
+    this.markDirty();
+  }
+
+  addCheckpoint(checkpoint: Checkpoint): Checkpoint {
+    this.state.checkpoints.unshift(checkpoint);
+    const perThread = this.state.checkpoints.filter((item) => item.threadId === checkpoint.threadId);
+    if (perThread.length > 50) {
+      const drop = new Set(perThread.slice(50).map((item) => item.id));
+      this.state.checkpoints = this.state.checkpoints.filter((item) => !drop.has(item.id));
+    }
+    this.markDirty();
+    return checkpoint;
+  }
+
+  getCheckpoint(id: string): Checkpoint | undefined {
+    return this.state.checkpoints.find((item) => item.id === id);
+  }
+
+  removeCheckpoint(id: string): void {
+    this.state.checkpoints = this.state.checkpoints.filter((item) => item.id !== id);
+    this.markDirty();
   }
 
   addAutomation(automation: Automation): Automation {
@@ -988,6 +1039,8 @@ function compactValue(value: unknown, depth = 0): unknown {
 export function newId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
+
+
 
 
 

@@ -9,6 +9,7 @@ import type {
   Artifact,
   Automation,
   ChatMessage,
+  Checkpoint,
   Envelope,
   EnvelopeKind,
   Environment,
@@ -17,6 +18,7 @@ import type {
   ModelInfo,
   NewNodeRequest,
   NewThreadRequest,
+  PermissionRule,
   Priority,
   SendMessageRequest,
   Snapshot,
@@ -721,6 +723,11 @@ export class Orchestrator extends EventEmitter {
     if (!text) return;
     this.assertBudget(thread.nodeId);
     audit("user-prompt", { threadId: thread.id, nodeId: thread.nodeId, model: thread.model.selector, chars: text.length, text: text.slice(0, 2_000) });
+    if (request.checkpoint && this.store.settings.autoCheckpoints !== false) {
+      await this.createCheckpoint(thread.id, "Before prompt").catch((error) => {
+        trace("checkpoint-auto-failed", { threadId: thread.id, error: String(error) });
+      });
+    }
     let traceId = request.traceId;
     if (!traceId) {
       const trace = this.bus.createTrace({
@@ -796,6 +803,12 @@ export class Orchestrator extends EventEmitter {
     if (mode === "yolo") {
       const pending = [...this.approvals.entries()].filter(([, entry]) => this.store.getThread(entry.threadId)?.nodeId === nodeId);
       for (const [id, entry] of pending) {
+        const rule = this.matchPermissionRule(entry.request);
+        if (rule?.action === "deny") {
+          await this.respondApproval(id, denyValue(entry.request)).catch(() => undefined);
+          continue;
+        }
+        if (rule?.action === "ask") continue;
         const value = autoApproveValue(entry.request);
         if (value !== undefined) await this.respondApproval(id, value).catch(() => undefined);
       }
@@ -840,6 +853,47 @@ export class Orchestrator extends EventEmitter {
     await session.navigate(entryId, summarize);
     const restored = await session.restoredChat().catch(() => []);
     if (restored.length) this.store.replaceChat(threadId, restored);
+  }
+
+  listCheckpoints(threadId?: string): Checkpoint[] {
+    return threadId ? this.store.checkpoints.filter((item) => item.threadId === threadId) : this.store.checkpoints;
+  }
+
+  async createCheckpoint(threadId: string, label = "Manual checkpoint"): Promise<Checkpoint> {
+    const thread = this.store.getThread(threadId);
+    if (!thread) throw new Error("Thread not found");
+    const node = this.store.getNode(thread.nodeId);
+    if (!node) throw new Error("Node not found");
+    const cwd = thread.worktreePath || node.repoPath || node.path;
+    const entries = await this.getThreadEntries(threadId).catch(() => []);
+    const sha = await this.deps.git.createSnapshot(cwd, label);
+    if (!sha) throw new Error("Could not create a checkpoint. The thread folder must be a git repository.");
+    const checkpoint: Checkpoint = {
+      id: newId("cp"),
+      threadId,
+      nodeId: thread.nodeId,
+      label,
+      sha,
+      cwd,
+      entryId: entries.at(-1)?.id,
+      createdAt: Date.now(),
+    };
+    audit("checkpoint-create", { threadId, label, sha });
+    return this.store.addCheckpoint(checkpoint);
+  }
+
+  async restoreCheckpoint(id: string, mode: "code" | "both"): Promise<{ restored: number; removed: number }> {
+    const checkpoint = this.store.getCheckpoint(id);
+    if (!checkpoint) throw new Error("Checkpoint not found");
+    const result = await this.deps.git.restoreSnapshot(checkpoint.cwd, checkpoint.sha);
+    if (mode === "both" && checkpoint.entryId) {
+      await this.navigateThread(checkpoint.threadId, checkpoint.entryId, false).catch((error) => {
+        trace("checkpoint-conversation-restore-failed", { threadId: checkpoint.threadId, error: String(error) });
+      });
+    }
+    audit("checkpoint-restore", { checkpointId: id, threadId: checkpoint.threadId, mode, ...result });
+    await this.gitStatus(checkpoint.nodeId, checkpoint.threadId).catch(() => undefined);
+    return result;
   }
 
   async getThreadEntries(threadId: string): Promise<any[]> {
@@ -1350,7 +1404,24 @@ export class Orchestrator extends EventEmitter {
       },
     });
     session.on("ui_request", (request: ApprovalRequest, promise: Promise<any>) => {
-      if (this.store.getNode(thread.nodeId)?.approvalMode === "yolo") {
+      const rule = this.matchPermissionRule(request);
+      if (rule) {
+        audit("permission-rule", { threadId, rule: rule.pattern, action: rule.action, tool: request.toolName, title: request.title });
+        if (rule.action === "deny") {
+          void session.respondUi(request.id, denyValue(request)).catch(() => undefined);
+          return;
+        }
+        if (rule.action === "allow") {
+          const value = autoApproveValue(request);
+          if (value !== undefined) {
+            void session.respondUi(request.id, value).catch(() => undefined);
+            return;
+          }
+        }
+        if (rule.action === "ask") {
+          // fall through to the approval UI
+        }
+      } else if (this.store.getNode(thread.nodeId)?.approvalMode === "yolo") {
         const value = autoApproveValue(request);
         if (value !== undefined) {
           void session.respondUi(request.id, value).catch(() => undefined);
@@ -1410,6 +1481,28 @@ export class Orchestrator extends EventEmitter {
     await session.dispose();
     this.store.finalizeRunningTools(threadId, "Stopped");
     this.updateStatus(threadId, "parked", "Parked");
+  }
+
+  private matchPermissionRule(request: ApprovalRequest): PermissionRule | undefined {
+    const rules = this.store.settings.permissions?.rules ?? [];
+    if (!rules.length) return;
+    const tool = (request.toolName ?? request.kind).trim();
+    const args = (request.args ?? {}) as any;
+    const target = String(args.command ?? args.path ?? args.pattern ?? request.message ?? "");
+    for (const rule of rules) {
+      if (!rule.pattern.trim()) continue;
+      const match = /^([\w.*:-]+)(?:\((.*)\))?$/.exec(rule.pattern.trim());
+      if (!match) continue;
+      const toolPattern = match[1];
+      const argPattern = match[2];
+      if (!globMatch(toolPattern, tool)) continue;
+      if (argPattern !== undefined) {
+        const haystack = `${target} ${request.title ?? ""} ${request.message ?? ""}`;
+        if (!globMatch(argPattern, haystack)) continue;
+      }
+      return rule;
+    }
+    return undefined;
   }
 
   private assertComputerUse(): void {
@@ -2658,6 +2751,23 @@ function cleanThreadTitle(value: string): string {
     })
     .join(" ");
   return title.length > 60 ? `${title.slice(0, 57).trim()}…` : title;
+}
+
+function denyValue(request: ApprovalRequest): unknown {
+  if (request.kind === "confirm") return false;
+  if (request.kind === "select") {
+    return request.options?.find((option) => /deny|reject|cancel/i.test(option.label))?.value ?? request.options?.[0]?.value ?? null;
+  }
+  return null;
+}
+
+function globMatch(pattern: string, value: string): boolean {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+  try {
+    return new RegExp(`^${escaped}$`, "i").test(value.trim());
+  } catch {
+    return false;
+  }
 }
 
 function autoApproveValue(request: ApprovalRequest): unknown {

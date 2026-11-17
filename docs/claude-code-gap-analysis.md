@@ -83,6 +83,16 @@ Most ecosystem tools are thin wrappers over worktrees plus an agent CLI. OMP Stu
 - External IDE integrations.
 - Cross-session messaging beyond the tree.
 
+## Status updates after review (2026-11-17)
+
+Implemented since this analysis:
+
+- **File checkpoints**: automatic shadow-git snapshot before each prompt, restore code or code+conversation, 50 per thread.
+- **Permission rules**: YOLO remains the default; optional `allow` / `ask` / `deny` rules with tool+argument globs are evaluated before auto-approval and audited.
+- **Plugin installer**: preview/install from Git or local folders; installs skills, commands-as-skills and MCP servers, counts agents/hooks, never executes hooks, and uninstalls cleanly.
+
+Deliberately skipped after user review: plan mode, lifecycle hooks, and a separate shared task board/mailbox.
+
 ## Sources
 
 - Claude Code features overview: https://code.claude.com/docs/en/features-overview

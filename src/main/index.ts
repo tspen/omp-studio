@@ -24,6 +24,7 @@ import { ComputerService } from "./services/computer";
 import { ExportService } from "./services/exporter";
 import { OAuthService } from "./services/oauth";
 import { MobileService } from "./services/mobile";
+import { PluginService } from "./services/plugins";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
 import { UsageService } from "./services/usage";
@@ -596,6 +597,7 @@ async function bootstrap(): Promise<void> {
   const exporter = new ExportService(dataStore, artifacts);
   const oauth = new OAuthService(dataStore);
   const mobile = new MobileService(dataStore.artifactsDir);
+  const plugins = new PluginService(dataStore, settings);
 
   if (dataStore.data.models.length) {
     models.ensureDefaults();
@@ -656,6 +658,7 @@ async function bootstrap(): Promise<void> {
     exporter,
     oauth,
     mobile,
+    plugins,
     share: shareService,
     sites: siteService,
     browser: browserController!,

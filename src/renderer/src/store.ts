@@ -26,7 +26,7 @@ import type {
 } from "../../shared/types";
 
 export type RightTab = "threads" | "bus" | "git" | "ci";
-export type SettingsTab = "general" | "models" | "tools" | "memory" | "environments" | "git" | "notifications" | "engine" | "advanced" | "usage" | "connectors" | "automations" | "sandbox";
+export type SettingsTab = "general" | "models" | "tools" | "memory" | "environments" | "git" | "notifications" | "engine" | "advanced" | "usage" | "connectors" | "automations" | "sandbox" | "plugins";
 export type Overlay = "none" | "inbox" | "artifacts" | "terminal" | "search" | "memory" | "settings" | "new-node" | "new-thread" | "share" | "preview" | "history" | "goal" | "sites" | "context" | "devices";
 
 interface Toast {
@@ -533,7 +533,7 @@ export const useApp = create<AppState>((set, get) => ({
     if (!threadId || !text.trim()) return;
     set({ sending: true });
     try {
-      await api().send({ threadId, text, mode });
+      await api().send({ threadId, text, mode, checkpoint: true });
       playSound("send", soundOptions(get()));
     } catch (error) {
       get().pushToast({ kind: "error", title: "Message failed", body: String(error) });
