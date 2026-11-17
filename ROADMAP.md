@@ -53,6 +53,10 @@ Every item from the Windows coding-agent parity checklist is either implemented 
 | PDF and DOCX thread export | Done | `ExportService` |
 | Import from Claude/Codex configs | Done | Settings -> Connectors |
 
+## Ecosystem gap analysis
+
+A 2026-11-17 deep dive comparing OMP Studio with Claude Code and the wider ecosystem is in [`docs/claude-code-gap-analysis.md`](docs/claude-code-gap-analysis.md). Highest-value additions: lifecycle hooks, shared task board + peer mailbox, plan review mode, plugin marketplaces, permission rules, kanban/goal board, LSP diagnostics, file checkpoints, usage analytics and security review.
+
 ## Explicitly excluded
 
 The user confirmed these exclusions on 2026-11-17:
