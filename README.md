@@ -106,13 +106,17 @@ token, the PWA install link, targets, cold move and a cleanup report.
   sessions move there without per-session prompts. Running turns are never
   interrupted. Prompts, stop, continue and compact are proxied to the target and
   the desktop mirrors status and messages.
+- Push notifications (VAPID Web Push) for approvals, waiting/error sessions and
+  reply requests, with notification-click deep links; per-target cost/token meter.
 - Everything the runner creates is garbage-collected: startup plus every five
   minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
   `npm run runner:quota` and `POST /api/maintenance/sweep`.
 
 Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
-15 ms, cold move of an 81 KB session 41 ms, GC sweep 28–49 ms. Full evidence and
-remaining gaps (iOS signing, warm/live moves, automatic placement, push) are in
+15 ms; cold move of a 74 MB workspace 7.1 s, the same repeat move warm in 207 ms
+(51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push and the cost meter
+reads `GET /api/usage`. Full evidence and remaining gaps (signed iOS, live
+migration/E2B, encrypted relay) are in
 [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 
 ## Architecture

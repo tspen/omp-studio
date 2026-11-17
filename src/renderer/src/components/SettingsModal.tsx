@@ -32,7 +32,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, PlacementResult, RemoteInfo, RemoteTarget, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, PlacementResult, RemoteInfo, RemoteTarget, SkillInfo, TargetUsage, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -1364,6 +1364,8 @@ function RemoteTargets() {
   const [result, setResult] = useState("");
   const [placement, setPlacement] = useState("");
   const [lastPlacement, setLastPlacement] = useState<PlacementResult | null>(null);
+  const [usage, setUsage] = useState<TargetUsage | null>(null);
+  const [usageBusy, setUsageBusy] = useState<string | null>(null);
   useEffect(() => {
     void window.omp.listRemoteTargets().then(setTargets).catch(() => undefined);
     void window.omp.lastPlacement().then(setLastPlacement).catch(() => undefined);
@@ -1387,6 +1389,16 @@ function RemoteTargets() {
                   setBusy(target.id);
                   try { setTargets(await window.omp.testRemoteTarget(target.id)); } finally { setBusy(null); }
                 }}>Test</Button>
+                <Button size="sm" variant="ghost" disabled={usageBusy !== null} onClick={async () => {
+                  setUsageBusy(target.id);
+                  try {
+                    const report = await window.omp.targetUsage(target.id);
+                    setUsage(report);
+                    setTargets((current) => current.map((item) => item.id === target.id ? report.target : item));
+                  } catch (error) {
+                    state.pushToast({ kind: "error", title: "Cost check failed", body: String(error) });
+                  } finally { setUsageBusy(null); }
+                }}>{usageBusy === target.id ? <Spinner /> : <Gauge size={12} />} Costs</Button>
                 <Button size="sm" variant="outline" disabled={busy !== null} onClick={async () => {
                   if (!confirm(`Remove ${target.name}? The token is deleted from this device.`)) return;
                   setTargets(await window.omp.removeRemoteTarget(target.id));
@@ -1396,6 +1408,11 @@ function RemoteTargets() {
           ))}
         </div>
       ) : <p className="muted">No targets yet.</p>}
+      <div className="remote-cost">
+        <strong>Cost meter</strong>
+        <span>Placed sessions: ${threads.filter((thread) => thread.targetId).reduce((sum, thread) => sum + (thread.cost ?? 0), 0).toFixed(4)} · {threads.filter((thread) => thread.targetId).reduce((sum, thread) => sum + (thread.tokens ?? 0), 0).toLocaleString()} tok</span>
+        <span>{usage ? `${usage.target.name}: $${usage.totalCost.toFixed(4)} · ${usage.totalTokens.toLocaleString()} tok · ${usage.threads.length} session(s) · ${new Date(usage.generatedAt).toLocaleTimeString()}` : "Use Costs on a target to refresh its usage."}</span>
+      </div>
       <div className="remote-target-form">
         <input placeholder="Name (VPS)" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
         <input placeholder="https://vps.tailnet-name.ts.net" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
@@ -1483,6 +1500,8 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
+
 
 
 

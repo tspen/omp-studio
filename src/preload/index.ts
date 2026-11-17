@@ -148,6 +148,7 @@ const api: OmpStudioApi = {
   moveThreadToTarget: (threadId: string, targetId: string) => invoke("remote:move", threadId, targetId) as Promise<any>,
   placeIdleSessions: (force?: boolean, threadId?: string) => invoke("remote:place", force, threadId) as Promise<any>,
   lastPlacement: () => invoke("remote:last-placement") as Promise<any>,
+  targetUsage: (id: string) => invoke("remote:target-usage", id) as Promise<any>,
   exportThreadBundle: (threadId: string) => invoke("remote:export", threadId) as Promise<any>,
   importThreadBundle: (bundle: string) => invoke("remote:import", bundle) as Promise<any>,
   syncRemoteSessions: () => invoke("remote:sync") as Promise<any>,
@@ -200,6 +201,7 @@ const api: OmpStudioApi = {
 };
 
 contextBridge.exposeInMainWorld("omp", api);
+
 
 
 

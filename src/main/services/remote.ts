@@ -6,8 +6,9 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import QRCode from "qrcode";
 import JSZip from "jszip";
 import { WebSocketServer, type WebSocket } from "ws";
+import webpush from "web-push";
 import { app } from "electron";
-import type { AppEvent, ChatMessage, MoveResult, PlacementPolicy, PlacementResult, RemoteInfo, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
+import type { AppEvent, ChatMessage, MoveResult, PlacementPolicy, PlacementResult, RemoteInfo, RemoteUsage, TargetUsage, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
 import type { Orchestrator } from "../orchestrator/orchestrator";
 import { collectGarbage } from "./maintenance";
 import { newId, type Store } from "./store";
@@ -35,6 +36,7 @@ export class RemoteService {
   private lastError: string | undefined;
   private placementReport: PlacementResult | null = null;
   private fileHashes = new Map<string, { mtimeMs: number; size: number; hash: string }>();
+  private pushSubscriptions: Array<{ endpoint: string; expirationTime?: number | null; keys: { p256dh: string; auth: string } }> | null = null;
 
   constructor(store: Store, orchestrator: Orchestrator) {
     this.store = store;
@@ -295,6 +297,11 @@ export class RemoteService {
     if (remote.lastMessage !== undefined) patch.lastMessage = remote.lastMessage;
     if (remote.lastActivityAt) patch.lastActivityAt = remote.lastActivityAt;
     if (remote.unread !== undefined) patch.unread = remote.unread;
+    if (remote.cost !== undefined && remote.cost !== thread.cost) patch.cost = remote.cost;
+    if (remote.tokens !== undefined && remote.tokens !== thread.tokens) patch.tokens = remote.tokens;
+    if (remote.contextTokens !== undefined) patch.contextTokens = remote.contextTokens;
+    if (remote.contextWindow !== undefined) patch.contextWindow = remote.contextWindow;
+    if (remote.model) patch.model = remote.model;
     if (Object.keys(patch).length) {
       const updated = this.store.updateThread(thread.id, patch);
       this.orchestrator.notify({ type: "thread:updated", payload: updated });
@@ -304,6 +311,140 @@ export class RemoteService {
     }
   }
 
+
+  private vapidKeys(): { publicKey: string; privateKey: string } {
+    let publicKey = this.store.getSecret("remote.vapid.public");
+    let privateKey = this.store.getSecret("remote.vapid.private");
+    if (!publicKey || !privateKey) {
+      const keys = webpush.generateVAPIDKeys();
+      publicKey = keys.publicKey;
+      privateKey = keys.privateKey;
+      this.store.setSecret("remote.vapid.public", publicKey);
+      this.store.setSecret("remote.vapid.private", privateKey);
+    }
+    return { publicKey, privateKey };
+  }
+
+  private pushFile(): string {
+    return join(this.store.baseDir, "push-subscriptions.json");
+  }
+
+  private loadPush(): Array<{ endpoint: string; expirationTime?: number | null; keys: { p256dh: string; auth: string } }> {
+    if (this.pushSubscriptions) return this.pushSubscriptions;
+    try {
+      const parsed = JSON.parse(readFileSync(this.pushFile(), "utf8")) as unknown;
+      this.pushSubscriptions = Array.isArray(parsed) ? (parsed as any[]) : [];
+    } catch {
+      this.pushSubscriptions = [];
+    }
+    return this.pushSubscriptions;
+  }
+
+  private savePush(subs: Array<{ endpoint: string; expirationTime?: number | null; keys: { p256dh: string; auth: string } }>): void {
+    this.pushSubscriptions = subs.slice(-20);
+    try {
+      writeFileSync(this.pushFile(), JSON.stringify(this.pushSubscriptions), "utf8");
+    } catch {
+      /* push is best effort */
+    }
+  }
+
+  usageReport(): RemoteUsage {
+    const threads = this.store.threads.map((thread) => ({
+      id: thread.id,
+      title: thread.title,
+      nodeId: thread.nodeId,
+      status: thread.status,
+      cost: Number(thread.cost ?? 0),
+      tokens: Number(thread.tokens ?? 0),
+    }));
+    return {
+      generatedAt: Date.now(),
+      totalCost: threads.reduce((sum, thread) => sum + thread.cost, 0),
+      totalTokens: threads.reduce((sum, thread) => sum + thread.tokens, 0),
+      threads,
+    };
+  }
+
+  async targetUsage(targetId: string): Promise<TargetUsage> {
+    const target = this.listTargets().find((item) => item.id === targetId);
+    if (!target) throw new Error("Target not found");
+    const response = await fetch(`${target.url}/api/usage`, {
+      headers: { authorization: `Bearer ${this.targetToken(targetId)}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`Target usage failed with HTTP ${response.status}`);
+    const usage = (await response.json()) as RemoteUsage;
+    const updated: RemoteTarget = { ...target, cost: usage.totalCost, tokens: usage.totalTokens, usageAt: usage.generatedAt, lastSeen: Date.now() };
+    this.saveTargets(this.listTargets().map((item) => (item.id === targetId ? updated : item)));
+    return { ...usage, target: updated };
+  }
+
+  pushPublicKey(): { publicKey: string } {
+    return { publicKey: this.vapidKeys().publicKey };
+  }
+
+  subscribePush(subscription: { endpoint?: string; expirationTime?: number | null; keys?: { p256dh?: string; auth?: string } }): { ok: boolean; count: number } {
+    if (!subscription?.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) throw new Error("Invalid push subscription");
+    const next = this.loadPush().filter((item) => item.endpoint !== subscription.endpoint);
+    next.push({
+      endpoint: subscription.endpoint,
+      expirationTime: subscription.expirationTime ?? null,
+      keys: { p256dh: subscription.keys.p256dh, auth: subscription.keys.auth },
+    });
+    this.savePush(next);
+    return { ok: true, count: next.length };
+  }
+
+  unsubscribePush(endpoint: string): { ok: boolean; count: number } {
+    const next = this.loadPush().filter((item) => item.endpoint !== endpoint);
+    this.savePush(next);
+    return { ok: true, count: next.length };
+  }
+
+  async sendPush(payload: { title: string; body: string; threadId?: string; tag?: string }): Promise<{ sent: number; failed: number; skipped: number; error?: string }> {
+    const subs = this.loadPush();
+    if (!subs.length) return { sent: 0, failed: 0, skipped: 1 };
+    const { publicKey, privateKey } = this.vapidKeys();
+    webpush.setVapidDetails("mailto:omp@localhost", publicKey, privateKey);
+    let sent = 0;
+    let failed = 0;
+    let firstError = "";
+    const dead = new Set<string>();
+    await Promise.all(subs.map(async (subscription) => {
+      try {
+        await webpush.sendNotification(subscription as any, JSON.stringify(payload), { TTL: 300, urgency: "normal" });
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        if (!firstError) firstError = error instanceof Error ? error.message : String(error);
+        const code = (error as { statusCode?: number }).statusCode;
+        if (code === 404 || code === 410) dead.add(subscription.endpoint);
+      }
+    }));
+    if (dead.size) this.savePush(subs.filter((item) => !dead.has(item.endpoint)));
+    return { sent, failed, skipped: 0, ...(firstError ? { error: firstError } : {}) };
+  }
+
+  private notifyPushForEvent(event: AppEvent): void {
+    let payload: { title: string; body: string; threadId?: string; tag?: string } | null = null;
+    if (event.type === "approval:request") {
+      const request = event.payload;
+      payload = { title: "Approval needed", body: request.title || "A session is waiting for your approval.", threadId: request.threadId, tag: `approval:${request.id}` };
+    } else if (event.type === "thread:status" && ["waiting", "error"].includes(event.payload.status)) {
+      const thread = this.store.getThread(event.payload.threadId);
+      payload = {
+        title: event.payload.status === "error" ? "Session failed" : "Session needs input",
+        body: thread?.title ?? event.payload.message ?? "Open OMP to continue.",
+        threadId: event.payload.threadId,
+        tag: `status:${event.payload.threadId}:${event.payload.status}`,
+      };
+    } else if (event.type === "envelope:new" && event.payload.requiresResponse) {
+      payload = { title: "Reply requested", body: event.payload.subject || "A session sent you a message.", threadId: event.payload.toThreadId, tag: `envelope:${event.payload.id}` };
+    }
+    if (!payload) return;
+    void this.sendPush(payload).catch(() => undefined);
+  }
 
   async info(): Promise<RemoteInfo> {
     const settings = this.store.settings.remote;
@@ -401,6 +542,7 @@ export class RemoteService {
   }
 
   publish(event: AppEvent): void {
+    this.notifyPushForEvent(event);
     if (!this.clients.size) return;
     const payload = JSON.stringify(event);
     for (const client of this.clients) {
@@ -500,6 +642,23 @@ export class RemoteService {
     if (parts[1] === "import" && request.method === "POST") {
       const body = await readJson(request);
       return json(200, await this.importBundle(String(body.bundle ?? "")));
+    }
+    if (parts[1] === "usage" && request.method === "GET") {
+      return json(200, this.usageReport());
+    }
+    if (parts[1] === "push" && parts[2] === "key" && request.method === "GET") {
+      return json(200, this.pushPublicKey());
+    }
+    if (parts[1] === "push" && parts[2] === "subscribe" && request.method === "POST") {
+      const body = await readJson(request);
+      return json(200, this.subscribePush(body as any));
+    }
+    if (parts[1] === "push" && parts[2] === "unsubscribe" && request.method === "POST") {
+      const body = await readJson(request);
+      return json(200, this.unsubscribePush(String(body.endpoint ?? "")));
+    }
+    if (parts[1] === "push" && parts[2] === "test" && request.method === "POST") {
+      return json(200, await this.sendPush({ title: "OMP Remote", body: "Test notification from your runner.", tag: "test" }));
     }
     if (parts[1] === "workspace" && parts[2] && parts[3] === "manifest" && request.method === "GET") {
       const originKey = decodeURIComponent(parts[2]);
@@ -951,6 +1110,9 @@ function normalizeUrl(value: string): string {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   return new URL(withScheme).toString().replace(/\/+$/, "");
 }
+
+
+
 
 
 

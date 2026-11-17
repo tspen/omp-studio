@@ -428,7 +428,21 @@ export interface RemoteTarget {
   latencyMs?: number;
   lastSeen?: number;
   error?: string;
+  cost?: number;
+  tokens?: number;
+  usageAt?: number;
   createdAt: number;
+}
+
+export interface RemoteUsage {
+  generatedAt: number;
+  totalCost: number;
+  totalTokens: number;
+  threads: Array<{ id: string; title: string; nodeId: string; status: string; cost: number; tokens: number }>;
+}
+
+export interface TargetUsage extends RemoteUsage {
+  target: RemoteTarget;
 }
 
 export interface RemoteTargetInput {
@@ -1102,6 +1116,7 @@ export interface OmpStudioApi {
   testRemoteTarget(id: string): Promise<RemoteTarget[]>;
   moveThreadToTarget(threadId: string, targetId: string): Promise<MoveResult>;
   placeIdleSessions(force?: boolean, threadId?: string): Promise<PlacementResult>;
+  targetUsage(targetId: string): Promise<TargetUsage>;
   lastPlacement(): Promise<PlacementResult | null>;
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;
   importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }>;
@@ -1174,6 +1189,7 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
 
 
 

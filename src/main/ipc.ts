@@ -455,6 +455,7 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("remote:move", (_event, threadId: string, targetId: string) => remote.moveThread(threadId, targetId));
   ipcMain.handle("remote:place", (_event, force?: boolean, threadId?: string) => remote.placeIdleSessions(!!force, threadId));
   ipcMain.handle("remote:last-placement", () => remote.lastPlacement());
+  ipcMain.handle("remote:target-usage", (_event, id: string) => remote.targetUsage(id));
   ipcMain.handle("remote:export", (_event, threadId: string) => remote.exportThreadBundle(threadId));
   ipcMain.handle("remote:import", (_event, bundle: string) => remote.importThreadBundle(bundle));
   ipcMain.handle("remote:sync", () => remote.syncRemoteThreads());
@@ -525,6 +526,7 @@ export function registerIpc(context: IpcContext): void {
     });
   });
 }
+
 
 
 

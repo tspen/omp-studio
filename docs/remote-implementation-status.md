@@ -19,9 +19,11 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 | Cold move | Export zip (manifest + workspace + OMP session + chat) and import on the same or another runner. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
 | Warm move | Targets keep the workspace in place under an origin key (`.omp-origin.json` + `.omp-manifest.json`). Before export the source reads the target manifest, hashes the workspace, sends only changed files, and lists deletions. The target applies the delta to the existing workspace and creates only a new session thread. Reuses the target node and orchestrator. |
 | Automatic placement | `remotePlacement` policy: enabled + explicit consent + selected target + idle threshold. A scheduler checks every 20 seconds, picks idle worker sessions with history, cold-moves at most two per pass, never interrupts a running turn, releases the local OMP session, and records `targetId`, `remoteThreadId`, `remoteNodeId`, `movedAt`. Settings shows policy, "Place idle sessions now", and the last automatic placement. `placeIdleSessions(force, threadId)` is also available over IPC for scoped placement. |
-| Remote control | Prompts, stop, continue and compact on a placed session are proxied to its target over the target API; the desktop mirrors target status and new messages every 8 seconds and keeps local chat in sync. |
+| Remote control | Prompts, stop, continue and compact on a placed session are proxied to its target over the target API; the desktop mirrors target status, new messages, cost, tokens and model every 8 seconds and keeps local chat in sync. |
 | Docker/VPS runner | `runner/Dockerfile`, `runner/docker-compose.yml`, `runner/entrypoint.sh`, `runner/README.md`. Headless Electron (`OMP_HEADLESS=1`) under Xvfb, data on a labeled volume, loopback port by default, healthcheck, no public exposure. |
 | Self-cleaning | `src/main/services/maintenance.ts` + `src/cli/runner.ts` (`gc`, `quota`, `bench`). Startup sweep and 5-minute interval; `Maintenance → Clean up now/Preview` in Settings; `POST /api/maintenance/sweep`. |
+| Push notifications | VAPID keys stored as secrets; `GET /api/push/key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`. Push fires on approval requests, waiting/error status, and reply-required envelopes even when no WebSocket is connected. PWA service worker shows the notification and opens `/?thread=<id>` on click. |
+| Cost meter | `GET /api/usage` aggregates thread cost/tokens; `targetUsage` fetches it, records cost/tokens/usageAt on the target and mirrors cost/tokens for placed sessions. Settings shows placed-session cost and a per-target meter refresh. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
 
 ## Verification evidence
@@ -105,7 +107,6 @@ cleanup 200, target threads 1 nodes 1
 
 Warm move against the Docker runner, same source workspace (74.3 MB, 441
 workspace files):
-
 ```
 COLD  ms=7104    warm=false  filesWritten=443  filesUnchanged=0    bytesSent=74305489
 WARM  ms=206.6   warm=true   filesWritten=1    filesUnchanged=441  filesDeleted=1  bytesSent=50930
@@ -119,6 +120,35 @@ warm session: 15 messages
 That is **34× faster** and **~1,458× less data sent** than the cold move for the
 same workspace. The first move still uses the cold path when the target has no
 matching origin workspace.
+
+Push notification delivery (mock HTTPS push endpoint with a real VAPID-signed
+Web Push request):
+
+```
+publicKey 200 87 BPUtuexF6WTt
+subscribe 200 {"ok":true,"count":1}
+test      200 {"sent":1,"failed":0,"skipped":0}
+deliveries [{"method":"POST","url":"/push/test-device",
+             "encoding":"aes128gcm","ttl":"300","auth":true,"bytes":183}]
+unsubscribe 200 {"ok":true,"count":0}
+```
+
+The runner only used an insecure TLS override for the local mock certificate;
+the production path uses normal HTTPS. PWA Settings shows Notifications,
+Enable/Send test, and the notification click deep link opens
+`/?thread=thr_291d0ea8d7614744` with 15 messages.
+
+Cost meter (`GET /api/usage` and desktop `targetUsage`):
+
+```
+runner: cost=$4.192741758000002 tokens=315,891,093 threads=17
+desktop target meter: $4.192741758 / 315,891,093 tok / 17 sessions
+top: Mission Control $0.2605 · 10,253,024 tok
+     slow-cricket   $1.7140 · 132,585,462 tok
+```
+
+Settings renders `Cost meter`, `Placed sessions: $...`, and a per-target
+`Costs` refresh.
 
 GC CLI on the real data directory (216 MB):
 
@@ -163,9 +193,10 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   profile.
 - **Live migration**: moves are cold or warm at turn boundaries. Memory/device
   snapshot migration and paused-microVM (E2B Embed) resume are not implemented.
-- **Push notifications and cost meter**: not implemented.
 - **Relay**: Tailscale (or another user-owned reverse proxy) is the supported
   access path. No self-hosted encrypted relay service is included.
 - **Docker image size**: includes Electron and build tooling; the OMP binary is
   downloaded on first use.
+
+
 

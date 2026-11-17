@@ -78,7 +78,7 @@ export function App() {
     const fromHash = hash.get("t") || hash.get("token");
     if (fromHash) {
       localStorage.setItem(LS_TOKEN, fromHash);
-      history.replaceState(null, "", location.pathname);
+      history.replaceState(null, "", location.pathname + location.search);
       return fromHash;
     }
     return localStorage.getItem(LS_TOKEN) || "";
@@ -96,6 +96,7 @@ export function App() {
   const retryRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
   const activeRef = useRef<string | null>(null);
+  const openedFromLink = useRef(false);
   const [polling, setPolling] = useState(false);
 
   const base = cleanBase(server || location.origin);
@@ -257,6 +258,15 @@ export function App() {
       setError(failure instanceof Error ? failure.message : String(failure));
     }
   };
+
+  useEffect(() => {
+    if (!snapshot || openedFromLink.current) return;
+    openedFromLink.current = true;
+    const target = new URLSearchParams(location.search).get("thread");
+    if (!target) return;
+    history.replaceState(null, "", location.pathname);
+    void openThread(target);
+  }, [snapshot]);
 
   const send = async (text: string) => {
     if (!activeId || !text.trim()) return false;
@@ -425,15 +435,133 @@ function PairScreen({ server, setServer, token, setToken, onConnect, error }: { 
 }
 
 function SettingsSheet({ server, setServer, token, setToken, onReconnect, onForget }: { server: string; setServer: (v: string) => void; token: string; setToken: (v: string) => void; onReconnect: () => void; onForget: () => void }) {
+  const [push, setPush] = useState<"unknown" | "enabled" | "disabled" | "unsupported" | "error">("unknown");
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState("");
+  const base = cleanBase(server);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        if (!cancelled) setPush("unsupported");
+        return;
+      }
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (!cancelled) setPush(subscription ? "enabled" : "disabled");
+      } catch {
+        if (!cancelled) setPush("error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const enablePush = async () => {
+    setPushBusy(true);
+    setPushMessage("");
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Push is not available in this browser. On iPhone, install the PWA to the Home Screen first.");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("Notification permission was not granted.");
+      const registration = await navigator.serviceWorker.ready;
+      const keyResponse = await fetch(`${base}/api/push/key`, { headers: { authorization: `Bearer ${token}` } });
+      if (!keyResponse.ok) throw new Error(`Could not read the push key (HTTP ${keyResponse.status}).`);
+      const { publicKey } = await keyResponse.json();
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      const response = await fetch(`${base}/api/push/subscribe`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify(subscription.toJSON()),
+      });
+      if (!response.ok) throw new Error(`Could not save the subscription (HTTP ${response.status}).`);
+      setPush("enabled");
+      setPushMessage("Notifications are on.");
+    } catch (error) {
+      setPush("error");
+      setPushMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const disablePush = async () => {
+    setPushBusy(true);
+    setPushMessage("");
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await fetch(`${base}/api/push/unsubscribe`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+        await subscription.unsubscribe();
+      }
+      setPush("disabled");
+      setPushMessage("Notifications are off.");
+    } catch (error) {
+      setPushMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const testPush = async () => {
+    setPushBusy(true);
+    setPushMessage("");
+    try {
+      const response = await fetch(`${base}/api/push/test`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: "{}",
+      });
+      const result = await response.json();
+      setPushMessage(result.sent ? `Test sent to ${result.sent} device(s).` : `No subscription accepted the test (${result.failed ?? 0} failed).`);
+    } catch (error) {
+      setPushMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
   return (
     <main className="settings">
       <label>Runner URL<input value={server} onChange={(event) => setServer(event.target.value)} autoCapitalize="none" /></label>
       <label>Pairing token<input type="password" value={token} onChange={(event) => setToken(event.target.value)} /></label>
       <button className="primary" onClick={onReconnect}>Reconnect</button>
+      <section className="settings-block">
+        <strong>Notifications</strong>
+        <p className="hint">
+          Get a push when a session needs input or approval. On iPhone, add the PWA to the Home Screen first.
+          {push === "unsupported" ? " Push is not exposed by this browser." : ""}
+        </p>
+        <div className="settings-row">
+          {push === "enabled"
+            ? <button className="ghost" disabled={pushBusy} onClick={() => void disablePush()}>Turn off</button>
+            : <button className="primary" disabled={pushBusy || push === "unsupported"} onClick={() => void enablePush()}>Enable notifications</button>}
+          <button className="ghost" disabled={pushBusy} onClick={() => void testPush()}>Send test</button>
+        </div>
+        {pushMessage ? <p className="hint">{pushMessage}</p> : null}
+      </section>
       <button className="danger" onClick={() => { if (confirm("Forget this runner on this device?")) onForget(); }}>Forget this runner</button>
       <p className="hint">The token is stored on this device. Rotate it in OMP Studio to revoke all devices.</p>
     </main>
   );
+}
+
+function urlBase64ToUint8Array(value: string): Uint8Array {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const bytes = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) bytes[index] = raw.charCodeAt(index);
+  return bytes;
 }
 
 function Composer({ running, disabled, onSend, onStop, onContinue }: { running: boolean; disabled: boolean; onSend: (text: string) => Promise<boolean>; onStop: () => void; onContinue: () => void }) {
@@ -499,4 +627,5 @@ function relativeTime(at: number): string {
   if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
   return `${Math.round(seconds / 86400)}d`;
 }
+
 
