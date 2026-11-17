@@ -28,6 +28,7 @@ import { PluginService } from "./services/plugins";
 import { collectGarbage } from "./services/maintenance";
 import { RelayService } from "./services/relay";
 import { E2BService } from "./services/e2b";
+import { CheckpointService } from "./services/checkpoint";
 import { RemoteService } from "./services/remote";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
@@ -663,6 +664,7 @@ async function bootstrap(): Promise<void> {
   const relayService = new RelayService(dataStore);
   relay = relayService;
   const e2bService = new E2BService(dataStore, remoteService);
+  const checkpointService = new CheckpointService(dataStore);
   if (dataStore.settings.remoteRelay?.enabled || process.env.OMP_RELAY_URL) {
     await relayService.start().catch((error) => trace("relay-start-failed", error instanceof Error ? error.message : String(error)));
   }
@@ -720,6 +722,7 @@ async function bootstrap(): Promise<void> {
     remote: remoteService,
     relay: relayService,
     e2b: e2bService,
+    checkpoint: checkpointService,
     share: shareService,
     sites: siteService,
     browser: browserController!,
@@ -825,6 +828,8 @@ app.on("before-quit", () => {
   notifications?.destroy();
   store?.flush();
 });
+
+
 
 
 

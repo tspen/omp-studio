@@ -437,6 +437,21 @@ export interface RemoteTarget {
   createdAt: number;
 }
 
+export interface CheckpointInfo {
+  configured: boolean;
+  running: boolean;
+  url: string;
+  container: string;
+  checkpoints: string[];
+  error?: string;
+}
+
+export interface CheckpointInput {
+  url: string;
+  container: string;
+  token: string;
+}
+
 export interface E2BInfo {
   configured: boolean;
   apiUrl: string;
@@ -597,6 +612,7 @@ export interface AppSettings {
   remotePlacement: PlacementPolicy;
   remoteRelay: { enabled: boolean; url: string; room: string };
   remoteE2B: { apiUrl: string; domain: string; template: string; timeoutMinutes: number };
+  remoteCheckpoint: { url: string; container: string };
   computerUse: boolean;
   autoFixCi: boolean;
   advisor: boolean;
@@ -1174,6 +1190,11 @@ export interface OmpStudioApi {
   configureE2B(input: E2BInput): Promise<E2BInfo>;
   provisionE2B(): Promise<RemoteTarget>;
   terminateE2B(targetId: string): Promise<E2BInfo>;
+  runnerCheckpointInfo(): Promise<CheckpointInfo>;
+  configureRunnerCheckpoint(input: CheckpointInput): Promise<CheckpointInfo>;
+  createRunnerCheckpoint(name?: string): Promise<CheckpointInfo>;
+  restoreRunnerCheckpoint(name: string): Promise<CheckpointInfo>;
+  deleteRunnerCheckpoint(name: string): Promise<CheckpointInfo>;
   lastPlacement(): Promise<PlacementResult | null>;
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;
   importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }>;
@@ -1246,6 +1267,8 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
+
 
 
 

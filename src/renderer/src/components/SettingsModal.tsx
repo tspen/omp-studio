@@ -16,6 +16,7 @@ import {
   KeyRound,
   MemoryStick,
   Package,
+  Pause,
   Play,
   Plug,
   Plus,
@@ -32,7 +33,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, E2BInfo, MaintenanceReport, PlacementResult, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, TargetUsage, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, CheckpointInfo, E2BInfo, MaintenanceReport, PlacementResult, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, TargetUsage, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -1350,6 +1351,7 @@ function RemoteTab() {
       <RemoteTargets />
       <RelaySettings />
       <E2BSettings />
+      <CheckpointSettings />
     </>
   );
 }
@@ -1425,6 +1427,70 @@ function E2BSettings() {
   );
 }
 
+
+function CheckpointSettings() {
+  const state = useApp();
+  const [info, setInfo] = useState<CheckpointInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState("");
+  const [form, setForm] = useState({ url: "http://127.0.0.1:43160", container: "omp-runner", token: "" });
+  useEffect(() => {
+    void window.omp.runnerCheckpointInfo().then((next: CheckpointInfo) => {
+      setInfo(next);
+      setForm((current) => ({ ...current, url: next.url, container: next.container }));
+    }).catch(() => undefined);
+  }, []);
+  const run = async (task: () => Promise<CheckpointInfo>) => {
+    setBusy(true);
+    try {
+      setInfo(await task());
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Checkpoint failed", body: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section
+      title="Live checkpoint (CRIU)"
+      subtitle="Pause the Linux runner container, snapshot its memory with Docker/CRIU, and restore the same in-flight process tree. The checkpoint agent runs on the Docker host with socket access."
+      right={<Badge tone={info?.running ? "green" : info?.configured ? "amber" : "neutral"}>{info?.running ? "agent online" : info?.configured ? "agent offline" : "not set"}</Badge>}
+    >
+      <div className="remote-target-form">
+        <input placeholder="http://127.0.0.1:43160" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
+        <input placeholder="omp-runner" value={form.container} onChange={(event) => setForm({ ...form, container: event.target.value })} />
+        <input type="password" placeholder="Checkpoint token" value={form.token} onChange={(event) => setForm({ ...form, token: event.target.value })} />
+        <Button size="sm" variant="soft" disabled={busy} onClick={() => void run(async () => {
+          const next = await window.omp.configureRunnerCheckpoint(form);
+          setForm((current) => ({ ...current, token: "" }));
+          return next;
+        })}><Save size={12} /> Save</Button>
+      </div>
+      <div className="remote-target-form">
+        <input placeholder="Checkpoint name (auto)" value={name} onChange={(event) => setName(event.target.value)} />
+        <Button size="sm" variant="soft" disabled={busy || !info?.running} onClick={() => void run(async () => {
+          const next = await window.omp.createRunnerCheckpoint(name);
+          setName("");
+          return next;
+        })}>{busy ? <Spinner /> : <Pause size={12} />} Checkpoint now</Button>
+      </div>
+      {info?.error ? <p className="muted">{info.error}</p> : null}
+      {info?.checkpoints.length ? (
+        <div className="remote-targets">
+          {info.checkpoints.map((checkpoint) => (
+            <div key={checkpoint} className="remote-target">
+              <div><strong>{checkpoint}</strong><span>{info.container}</span></div>
+              <div className="inline-actions">
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => window.omp.restoreRunnerCheckpoint(checkpoint))}><Play size={12} /> Restore</Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(() => window.omp.deleteRunnerCheckpoint(checkpoint))}>Delete</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : <p className="muted">No checkpoints yet. The agent requires Docker experimental mode, CRIU 4.x, and a host-network runner container.</p>}
+    </Section>
+  );
+}
 
 function RelaySettings() {
   const state = useApp();
@@ -1624,6 +1690,9 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
+
+
 
 
 

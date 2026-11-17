@@ -62,6 +62,36 @@ Generate a stable token before the first start:
 OMP_REMOTE_TOKEN=$(openssl rand -hex 24) docker compose -f runner/docker-compose.yml up -d
 ```
 
+## Live checkpoint (optional)
+
+A Linux host with Docker **experimental mode** and **CRIU 4.x** can snapshot the
+whole runner container with its memory and in-flight sessions.
+
+```bash
+# host prerequisites
+#   /etc/docker/daemon.json -> {"experimental": true}; restart docker
+#   apt install criu        # 4.x, CRIU PPA on Ubuntu 22.04
+#   printf 'file-locks\n' > /etc/criu/runc.conf
+CHECKPOINT_TOKEN=$(openssl rand -hex 24) \
+  docker compose -f runner/docker-compose.yml -f runner/checkpoint.compose.yml up -d --build
+```
+
+The overlay switches the runner to host networking (Docker cannot restore port
+mappings with CRIU) and starts `omp-checkpoint-agent` on `127.0.0.1:43160`.
+Configure Settings → Remote → **Live checkpoint** with that URL, container
+`omp-runner`, and the token.
+
+Checkpoint stops the runner after CRIU writes the memory image; Restore starts
+it again from that image, continuing the same process tree and in-flight turn.
+Checkpoints live under Docker's data directory on the same host; cross-host
+transfer is not automated.
+
+**Security:** the agent mounts the Docker socket, which is root-equivalent on
+the host. Keep it bound to loopback, use a strong token, and do not expose it
+through a proxy or the relay.
+
+
+
 ## Cleanup
 
 Everything the runner creates inside `/data` is garbage-collected by the app at

@@ -118,6 +118,9 @@ token, the PWA install link, targets, cold move and a cleanup report.
   reply requests, with notification-click deep links; per-target cost/token meter.
 - Live pause/resume: freeze the OMP process tree and resume the same in-flight
   turn; exposed in desktop and PWA, proxied for placed sessions.
+- Memory checkpoint: Docker/CRIU checkpoint of the Linux runner container
+  (process tree + memory) with restore on the same host; optional checkpoint
+  agent and compose overlay in `runner/`.
 - Everything the runner creates is garbage-collected: startup plus every five
   minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
   `npm run runner:quota` and `POST /api/maintenance/sweep`.
@@ -181,4 +184,5 @@ A parent prompt says: state objective, constraints and definition of done; spawn
 ## License
 
 MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 

@@ -159,6 +159,11 @@ const api: OmpStudioApi = {
   configureE2B: (input: unknown) => invoke("e2b:configure", input) as Promise<any>,
   provisionE2B: () => invoke("e2b:provision") as Promise<any>,
   terminateE2B: (id: string) => invoke("e2b:terminate", id) as Promise<any>,
+  runnerCheckpointInfo: () => invoke("checkpoint:info") as Promise<any>,
+  configureRunnerCheckpoint: (input: unknown) => invoke("checkpoint:configure", input) as Promise<any>,
+  createRunnerCheckpoint: (name?: string) => invoke("checkpoint:create", name) as Promise<any>,
+  restoreRunnerCheckpoint: (name: string) => invoke("checkpoint:restore", name) as Promise<any>,
+  deleteRunnerCheckpoint: (name: string) => invoke("checkpoint:delete", name) as Promise<any>,
   exportThreadBundle: (threadId: string) => invoke("remote:export", threadId) as Promise<any>,
   importThreadBundle: (bundle: string) => invoke("remote:import", bundle) as Promise<any>,
   syncRemoteSessions: () => invoke("remote:sync") as Promise<any>,
@@ -211,6 +216,8 @@ const api: OmpStudioApi = {
 };
 
 contextBridge.exposeInMainWorld("omp", api);
+
+
 
 
 
