@@ -11,7 +11,10 @@ Locked decisions from the architecture review:
 - Placement is automatic; no per-session "pick a place" dialog.
 - Cold move at turn boundaries only; no live migration.
 - PWA first for mobile.
-- Fly Sprites is **not** a dependency. It is a later optional convenience adapter because it is proprietary and puts code on a third-party VM.
+- No proprietary managed sandbox adapter. Docker/VPS and self-hosted E2B Embed are the only sandbox targets in v1.
+- Setup must be one command + QR; local sessions need no setup.
+- Everything the runner creates is labeled and garbage-collected automatically.
+- Performance gates: local start <300 ms, warm start <1 s, cold Docker <5 s, reconnect <500 ms, move small repo <5 s.
 
 ## 1. Refactor: shared core
 
@@ -159,7 +162,7 @@ Persisted in the app Store, synced to paired runners:
 interface ExecutionTarget {
   id: string;
   name: string;
-  kind: "local" | "paired" | "docker" | "sprites" | "e2b" | "cloudflare";
+  kind: "local" | "paired" | "docker" | "e2b-embed";
   runnerId?: string;
   status: "online" | "offline" | "sleeping" | "provisioning";
   region?: string;
@@ -234,7 +237,70 @@ Web Push payloads contain only `sessionId`, `kind` and a nonce; the app fetches 
 - Audit entries for pairing, placement, moves, approvals and revocations.
 - Lethal trifecta: never combine private code, untrusted content and unrestricted egress in one context.
 
-## 10. Milestones and evidence
+## 10. Frictionless setup
+
+Local: zero config, embedded runner.
+
+New PC or VPS:
+
+```
+curl -fsSL https://get.omp.studio/runner | sh
+```
+
+The script:
+
+1. detects OS/arch, Docker/Podman, KVM, Tailscale;
+2. installs a user-space runner and system service;
+3. starts it and prints a QR + 6-character code;
+4. app scans, confirms the device, target appears;
+5. optional Tailscale toggle, no port/firewall setup.
+
+No account, no YAML, no cloud signup. If Docker is missing, offer rootless Docker or a direct Linux runner.
+
+First-run has three buttons: **Start here**, **Connect this computer**, **Connect a server**. Cloud default turns on only after an always-on target is paired and consented.
+
+## 11. Self-cleaning
+
+Label every created resource:
+
+```
+omp.managed=true
+omp.runner=<runnerId>
+omp.session=<sessionId>
+omp.kind=container|volume|network
+```
+
+| Resource | Policy |
+| --- | --- |
+| Session workspace | delete on terminate, 5-minute trash, startup reconciliation |
+| Ephemeral container | `--rm`, max 2 warm per target, stop at 10 min idle, remove at 30 min |
+| Pinned container | stop at 30 min idle, remove at 24 h unless pinned |
+| Session volume | delete at 7 days idle unless pinned |
+| Checkpoints | last 5 per session, 50 per thread |
+| Moved bundles | last 3, source deleted 24 h after move |
+| Images | 2 pinned digests max, prune unused, never global `docker system prune` |
+| Package caches | LRU, 10 GB cap |
+| Logs | rotate at 20 MB, 3 files |
+| Orphans | sweep at startup + every 5 min, remove after 1 h |
+| Disk quota | 20 GB/runner, 5 GB/session, warn 80%, deny 100% |
+
+Expose `omp-runner gc --dry-run` and a "Clean up now" UI action. Cleanup is always label-scoped.
+
+## 12. Performance
+
+| Operation | Gate |
+| --- | --- |
+| Local session start | <300 ms |
+| Warm target start | <1 s |
+| Cold Docker start | <5 s |
+| Reconnect | <500 ms |
+| Cold move, small repo | <5 s |
+| Cold move, 1 GB | <30 s |
+| GC sweep | <100 ms |
+
+Mechanisms: prebuilt runner image, warm pool, persistent volume first, bare repo cache + git delta, copy-on-write workspaces, event-log resume, background transfer, shared package caches, never restart a running agent on UI disconnect.
+
+## 13. Milestones and evidence
 
 1. **Core extraction** — typecheck passes with no Electron imports in `src/core`.
 2. **Runner boots locally** — `omp-runner serve` starts a Core, creates a thread, runs a prompt, streams events.
@@ -243,6 +309,7 @@ Web Push payloads contain only `sessionId`, `kind` and a nonce; the app fetches 
 5. **Self-hosted relay** — runner dials out, phone PWA pairs, no inbound port on runner.
 6. **Cold move** — create session on target A, checkpoint, export bundle, import on target B, resume from same conversation state; git diff matches.
 7. **Placement** — default target applied automatically to a new worker; budget/data-residency guard blocks an invalid move.
-8. **Optional Sprites plugin (later, not required for v1)** — opt-in target creates a computer, installs runner, pairs, sleeps/wakes, checkpoint API works. Not open source; never default.
+8. **Performance and cleanup gates** - measure start/reconnect/move, run GC dry-run, verify no orphaned managed resources after terminate, crash, and move.
+9. **E2B Embed adapter (optional)** - only if Docker isolation is insufficient; never required for v1.
 
 Out of scope: live migration, managed relay, native mobile, Kubernetes, multi-region scheduling.

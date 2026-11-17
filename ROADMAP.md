@@ -67,7 +67,7 @@ Deliberately not pursued after user review: plan mode, lifecycle hooks, and a se
 
 ## Remote execution design
 
-A full architecture for cloud/remote/mobile execution is in [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md): one runner, target registry, portable session bundles, outbound-only E2E relay, Sprites/E2B/Docker targets, mobile PWA and phased rollout.
+A full architecture for cloud/remote/mobile execution is in [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md): one runner, target registry, portable session bundles, user-owned network access, Docker/VPS or self-hosted E2B Embed targets, self-cleaning resources, performance gates, mobile PWA and phased rollout. Phase 1 implementation details are in [`docs/remote-phase1-spec.md`](docs/remote-phase1-spec.md).
 
 ## Explicitly excluded
 
