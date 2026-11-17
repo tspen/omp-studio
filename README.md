@@ -33,6 +33,18 @@ A Windows desktop cockpit for [oh-my-pi](https://github.com/can1357/oh-my-pi) bu
 - **Exports and extras**: thread export to PDF or DOCX, desktop screenshots and clicks/typing for Windows apps (opt-in), visual regression diffs from the browser, Android emulator/device control through adb (screenshot, tap, type, keys), and mobile viewport presets for responsive checks.
 - **Tools and settings**: OMP tool matrix with per-tool approval, full dynamic OMP config browser, skills/MCP inventory, engine manager.
 
+## Connectors and OAuth
+
+Settings → Connectors stores GitHub, Cloudflare, Slack, Linear and Figma credentials. Tokens and client secrets are encrypted with Electron `safeStorage` (Windows DPAPI). For OAuth, create an OAuth app with the provider and register `http://127.0.0.1:43110/oauth/callback` as the callback URL, then paste the client ID and secret and press **Connect with OAuth**. The app opens the system browser, receives the loopback callback, exchanges the code and stores the token. Cloudflare's full API is available through the one-click **Cloudflare MCP** (`https://mcp.cloudflare.com/mcp`), which uses OAuth on first tool use in OMP.
+
+## Sites deployment
+
+Sites publish locally first. **Deploy to Cloudflare Pages** performs a direct upload: blake3 content hashes (`content + extension`, wrangler-compatible), an upload token, asset batches, then a deployment manifest. **Deploy to GitHub Pages** pushes the published snapshot to `gh-pages` and enables Pages. Cloudflare custom domains are added from the site card; DNS for zones outside Cloudflare still has to be pointed at the Pages project.
+
+## Android devices
+
+The Devices panel uses `adb` and the Android emulator. List devices and AVDs, start an emulator, take screenshots, click the screenshot to tap, type text and send key events. Agents get the same capability through `mobile_devices`, `mobile_start_avd`, `mobile_screenshot`, `mobile_tap`, `mobile_text` and `mobile_key`. iOS simulators require macOS and are not supported on Windows.
+
 ## First run
 
 OMP Studio opens a setup wizard before Mission Control:
