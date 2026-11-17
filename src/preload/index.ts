@@ -153,6 +153,10 @@ const api: OmpStudioApi = {
   configureRelay: (input: unknown) => invoke("relay:configure", input) as Promise<any>,
   startRelay: () => invoke("relay:start") as Promise<any>,
   stopRelay: () => invoke("relay:stop") as Promise<any>,
+  e2bInfo: () => invoke("e2b:info") as Promise<any>,
+  configureE2B: (input: unknown) => invoke("e2b:configure", input) as Promise<any>,
+  provisionE2B: () => invoke("e2b:provision") as Promise<any>,
+  terminateE2B: (id: string) => invoke("e2b:terminate", id) as Promise<any>,
   exportThreadBundle: (threadId: string) => invoke("remote:export", threadId) as Promise<any>,
   importThreadBundle: (bundle: string) => invoke("remote:import", bundle) as Promise<any>,
   syncRemoteSessions: () => invoke("remote:sync") as Promise<any>,
@@ -205,6 +209,7 @@ const api: OmpStudioApi = {
 };
 
 contextBridge.exposeInMainWorld("omp", api);
+
 
 
 

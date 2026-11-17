@@ -101,7 +101,11 @@ token, the PWA install link, targets, cold move and a cleanup report.
 - Self-hosted encrypted relay: `docker compose -f relay/docker-compose.yml up -d
   --build`, open the relay URL, and enable Settings → Remote → Self-hosted
   relay. The runner dials out; the relay forwards AES-256-GCM frames only. See
-  [`relay/README.md`](relay/README.md) for security and cleanup.
+  [`relay/README.md`](relay/README.md).
+- E2B Embed target adapter: create a Firecracker sandbox from an `omp-runner`
+  template on a self-hosted KVM host. Template build and host requirements are
+  in [`e2b/README.md`](e2b/README.md). Live sandbox verification needs a Linux
+  host with kernel 6.8+/cgroup v2; this Windows WSL2 host fails preflight.
 - Sessions move as portable bundles (workspace + OMP session + chat) at turn
   boundaries. The source is retained for rollback. Repeats to the same target are
   **warm**: the target keeps the workspace, and only changed files plus the
@@ -121,7 +125,7 @@ Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
 (51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push and the cost meter
 reads `GET /api/usage`. Relay traffic is end-to-end encrypted (17 sessions
 loaded through the relay in the checks). Full evidence and remaining gaps
-(signed iOS, live migration/E2B) are in
+(signed iOS, live migration, E2B live verification) are in
 [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 
 ## Architecture

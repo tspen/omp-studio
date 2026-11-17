@@ -25,6 +25,7 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 | Push notifications | VAPID keys stored as secrets; `GET /api/push/key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`. Push fires on approval requests, waiting/error status, and reply-required envelopes even when no WebSocket is connected. PWA service worker shows the notification and opens `/?thread=<id>` on click. |
 | Cost meter | `GET /api/usage` aggregates thread cost/tokens; `targetUsage` fetches it, records cost/tokens/usageAt on the target and mirrors cost/tokens for placed sessions. Settings shows placed-session cost and a per-target meter refresh. |
 | Self-hosted relay | `relay/server.mjs` is a stateless WebSocket relay. Runner dials out, clients connect to a room, frames are AES-256-GCM encrypted with HKDF-SHA256, and the relay only routes ciphertext. Serves the PWA, enforces room tokens, frame/client limits and reaps empty rooms. Dockerfile/compose and cleanup/security notes in `relay/`. |
+| E2B Embed target | `src/main/services/e2b.ts` creates Firecracker sandboxes from an `omp-runner` template on a self-hosted E2B Embed API, passes a per-sandbox `OMP_REMOTE_TOKEN`, waits for `/api/health`, and registers a normal target. Settings lets you configure API URL/domain/template/key/timeout and create or terminate sandbox targets. Template and host setup are documented in `e2b/README.md`. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
 
 ## Verification evidence
@@ -171,6 +172,24 @@ The relay never receives the room's E2E secret; frames are decoded only in the
 runner and the phone. It stores no files and reaps rooms after the runner and
 clients disconnect.
 
+E2B Embed target — adapter implemented, live verification **blocked by this
+host**:
+
+```
+official E2B Embed preflight:
+  kernel 5.15.167.4-microsoft-standard-WSL2 is older than 6.8
+  cgroup v2 is not mounted at /sys/fs/cgroup
+  FIX: install linux-generic-hwe-24.04 and reboot
+  FIX: boot with systemd.unified_cgroup_hierarchy=1
+```
+
+The self-hosted E2B stack was downloaded and started in WSL; it stopped at
+`preflight` before host mutation. E2B Embed requires a real Linux host (or a
+nested-virtualization VM) with kernel 6.8+, cgroup v2, `/dev/kvm` and
+`/dev/net/tun`; WSL2's 5.15 kernel cannot run it. The E2B target adapter,
+settings UI and `omp-runner` template build instructions ship, but a sandbox
+session could not be created or measured on this machine.
+
 GC CLI on the real data directory (216 MB):
 
 ```
@@ -214,8 +233,12 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   profile.
 - **Live migration**: moves are cold or warm at turn boundaries. Memory/device
   snapshot migration and paused-microVM (E2B Embed) resume are not implemented.
+- **E2B live verification**: the adapter and template instructions ship, but the
+  available WSL2 host fails E2B preflight (kernel 5.15, no cgroup v2). Verification
+  requires a Linux/KVM host with kernel 6.8+ and cgroup v2.
 - **Docker image size**: includes Electron and build tooling; the OMP binary is
   downloaded on first use.
+
 
 
 

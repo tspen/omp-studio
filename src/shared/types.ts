@@ -423,7 +423,7 @@ export interface RemoteTarget {
   id: string;
   name: string;
   url: string;
-  kind: "paired" | "docker";
+  kind: "paired" | "docker" | "e2b-embed";
   status: "online" | "offline" | "unknown";
   latencyMs?: number;
   lastSeen?: number;
@@ -431,7 +431,27 @@ export interface RemoteTarget {
   cost?: number;
   tokens?: number;
   usageAt?: number;
+  sandboxId?: string;
+  template?: string;
   createdAt: number;
+}
+
+export interface E2BInfo {
+  configured: boolean;
+  apiUrl: string;
+  domain: string;
+  template: string;
+  hasKey: boolean;
+  targets: RemoteTarget[];
+  error?: string;
+}
+
+export interface E2BInput {
+  apiUrl: string;
+  domain: string;
+  template: string;
+  timeoutMinutes: number;
+  apiKey: string;
 }
 
 export interface RelayInfo {
@@ -471,7 +491,9 @@ export interface RemoteTargetInput {
   name: string;
   url: string;
   token: string;
-  kind?: "paired" | "docker";
+  kind?: "paired" | "docker" | "e2b-embed";
+  sandboxId?: string;
+  template?: string;
 }
 
 export interface PlacementPolicy {
@@ -573,6 +595,7 @@ export interface AppSettings {
   remoteTargets: RemoteTarget[];
   remotePlacement: PlacementPolicy;
   remoteRelay: { enabled: boolean; url: string; room: string };
+  remoteE2B: { apiUrl: string; domain: string; template: string; timeoutMinutes: number };
   computerUse: boolean;
   autoFixCi: boolean;
   advisor: boolean;
@@ -1144,6 +1167,10 @@ export interface OmpStudioApi {
   configureRelay(input: RelayInput): Promise<RelayInfo>;
   startRelay(): Promise<RelayInfo>;
   stopRelay(): Promise<RelayInfo>;
+  e2bInfo(): Promise<E2BInfo>;
+  configureE2B(input: E2BInput): Promise<E2BInfo>;
+  provisionE2B(): Promise<RemoteTarget>;
+  terminateE2B(targetId: string): Promise<E2BInfo>;
   lastPlacement(): Promise<PlacementResult | null>;
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;
   importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }>;
@@ -1216,6 +1243,7 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
 
 
 

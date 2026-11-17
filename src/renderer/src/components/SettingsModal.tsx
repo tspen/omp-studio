@@ -32,7 +32,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, PlacementResult, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, TargetUsage, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, E2BInfo, MaintenanceReport, PlacementResult, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, TargetUsage, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -1349,9 +1349,82 @@ function RemoteTab() {
       </Section>
       <RemoteTargets />
       <RelaySettings />
+      <E2BSettings />
     </>
   );
 }
+
+function E2BSettings() {
+  const state = useApp();
+  const [info, setInfo] = useState<E2BInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ apiUrl: "http://127.0.0.1:3000", domain: "localhost", template: "omp-runner", timeoutMinutes: 60, apiKey: "" });
+  useEffect(() => {
+    void window.omp.e2bInfo().then((next: E2BInfo) => {
+      setInfo(next);
+      setForm((current) => ({ ...current, apiUrl: next.apiUrl, domain: next.domain, template: next.template }));
+    }).catch(() => undefined);
+  }, []);
+  const save = async () => {
+    setBusy(true);
+    try {
+      setInfo(await window.omp.configureE2B(form));
+      setForm((current) => ({ ...current, apiKey: "" }));
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "E2B settings failed", body: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const provision = async () => {
+    setBusy(true);
+    try {
+      const target = await window.omp.provisionE2B();
+      setInfo(await window.omp.e2bInfo());
+      state.pushToast({ kind: "success", title: "E2B sandbox ready", body: `${target.name} at ${target.url}` });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "E2B sandbox failed", body: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section
+      title="E2B Embed target"
+      subtitle="Create a Firecracker microVM target on your own KVM host. The sandbox runs the OMP runner template and is terminated when its target is removed."
+      right={<Badge tone={info?.configured ? "green" : "neutral"}>{info?.configured ? "configured" : "setup"}</Badge>}
+    >
+      <div className="remote-target-form">
+        <input placeholder="http://127.0.0.1:3000" value={form.apiUrl} onChange={(event) => setForm({ ...form, apiUrl: event.target.value })} />
+        <input placeholder="localhost" value={form.domain} onChange={(event) => setForm({ ...form, domain: event.target.value })} />
+      </div>
+      <div className="remote-target-form">
+        <input placeholder="omp-runner" value={form.template} onChange={(event) => setForm({ ...form, template: event.target.value })} />
+        <input className="num-input" type="number" min={5} max={1440} value={form.timeoutMinutes} onChange={(event) => setForm({ ...form, timeoutMinutes: Number(event.target.value) })} />
+        <input type="password" placeholder={info?.hasKey ? "API key (leave blank to keep)" : "E2B API key"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} />
+      </div>
+      <div className="inline-actions">
+        <Button size="sm" variant="soft" disabled={busy} onClick={() => void save()}>{busy ? <Spinner /> : <Save size={12} />} Save</Button>
+        <Button size="sm" variant="soft" disabled={busy || !info?.configured} onClick={() => void provision()}>{busy ? <Spinner /> : <Cloud size={12} />} Create sandbox target</Button>
+      </div>
+      {info?.error ? <p className="muted">{info.error}</p> : null}
+      {info?.targets.length ? (
+        <div className="remote-targets">
+          {info.targets.map((target) => (
+            <div key={target.id} className="remote-target">
+              <div><strong>{target.name}</strong><span>{target.sandboxId} · {target.url}</span></div>
+              <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
+                setBusy(true);
+                try { setInfo(await window.omp.terminateE2B(target.id)); } finally { setBusy(false); }
+              }}>Terminate</Button>
+            </div>
+          ))}
+        </div>
+      ) : <p className="muted">No E2B targets. Build the “omp-runner” template on your KVM host first (see e2b/README.md).</p>}
+    </Section>
+  );
+}
+
 
 function RelaySettings() {
   const state = useApp();
@@ -1551,6 +1624,7 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
 
 
 

@@ -81,6 +81,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   remoteTargets: [],
   remotePlacement: { enabled: false, targetId: "", idleSeconds: 60, consent: false },
   remoteRelay: { enabled: false, url: "", room: "" },
+  remoteE2B: { apiUrl: "http://127.0.0.1:3000", domain: "localhost", template: "omp-runner", timeoutMinutes: 60 },
   computerUse: false,
   autoFixCi: false,
   advisor: false,
@@ -1043,6 +1044,7 @@ function compactValue(value: unknown, depth = 0): unknown {
 export function newId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
+
 
 
 

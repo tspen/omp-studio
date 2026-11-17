@@ -100,6 +100,8 @@ export class RemoteService {
       name,
       url,
       kind: input.kind ?? "paired",
+      sandboxId: input.sandboxId,
+      template: input.template,
       status: "online",
       latencyMs,
       lastSeen: Date.now(),
@@ -1110,6 +1112,7 @@ function normalizeUrl(value: string): string {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   return new URL(withScheme).toString().replace(/\/+$/, "");
 }
+
 
 
 
