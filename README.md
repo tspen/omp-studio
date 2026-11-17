@@ -98,6 +98,10 @@ token, the PWA install link, targets, cold move and a cleanup report.
 - Self-hosted runner: `docker compose -f runner/docker-compose.yml up -d --build`
   then read the pairing link from the logs. Loopback by default; front it with
   Tailscale. See [`runner/README.md`](runner/README.md).
+- Self-hosted encrypted relay: `docker compose -f relay/docker-compose.yml up -d
+  --build`, open the relay URL, and enable Settings → Remote → Self-hosted
+  relay. The runner dials out; the relay forwards AES-256-GCM frames only. See
+  [`relay/README.md`](relay/README.md) for security and cleanup.
 - Sessions move as portable bundles (workspace + OMP session + chat) at turn
   boundaries. The source is retained for rollback. Repeats to the same target are
   **warm**: the target keeps the workspace, and only changed files plus the
@@ -115,8 +119,9 @@ token, the PWA install link, targets, cold move and a cleanup report.
 Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
 15 ms; cold move of a 74 MB workspace 7.1 s, the same repeat move warm in 207 ms
 (51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push and the cost meter
-reads `GET /api/usage`. Full evidence and remaining gaps (signed iOS, live
-migration/E2B, encrypted relay) are in
+reads `GET /api/usage`. Relay traffic is end-to-end encrypted (17 sessions
+loaded through the relay in the checks). Full evidence and remaining gaps
+(signed iOS, live migration/E2B) are in
 [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 
 ## Architecture

@@ -1,6 +1,5 @@
 node_modules
 dist
-out
 android
 ios
 .git
@@ -8,3 +7,4 @@ ios
 *.webm
 coverage
 .pwatest.cjs
+

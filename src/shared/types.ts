@@ -434,6 +434,28 @@ export interface RemoteTarget {
   createdAt: number;
 }
 
+export interface RelayInfo {
+  enabled: boolean;
+  running: boolean;
+  connected: boolean;
+  url: string;
+  room: string;
+  clients: number;
+  hasToken: boolean;
+  hasSecret: boolean;
+  link?: string;
+  qr?: string;
+  error?: string;
+}
+
+export interface RelayInput {
+  enabled: boolean;
+  url: string;
+  room: string;
+  token: string;
+  secret: string;
+}
+
 export interface RemoteUsage {
   generatedAt: number;
   totalCost: number;
@@ -550,6 +572,7 @@ export interface AppSettings {
   remote: { enabled: boolean; port: number; host: string; keepRunning: boolean };
   remoteTargets: RemoteTarget[];
   remotePlacement: PlacementPolicy;
+  remoteRelay: { enabled: boolean; url: string; room: string };
   computerUse: boolean;
   autoFixCi: boolean;
   advisor: boolean;
@@ -1117,6 +1140,10 @@ export interface OmpStudioApi {
   moveThreadToTarget(threadId: string, targetId: string): Promise<MoveResult>;
   placeIdleSessions(force?: boolean, threadId?: string): Promise<PlacementResult>;
   targetUsage(targetId: string): Promise<TargetUsage>;
+  relayInfo(): Promise<RelayInfo>;
+  configureRelay(input: RelayInput): Promise<RelayInfo>;
+  startRelay(): Promise<RelayInfo>;
+  stopRelay(): Promise<RelayInfo>;
   lastPlacement(): Promise<PlacementResult | null>;
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;
   importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }>;
@@ -1189,6 +1216,8 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
+
 
 
 

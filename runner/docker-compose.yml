@@ -32,6 +32,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OMP_RELAY_URL: ${OMP_RELAY_URL:-}
+      OMP_RELAY_ROOM: ${OMP_RELAY_ROOM:-}
+      OMP_RELAY_TOKEN: ${OMP_RELAY_TOKEN:-}
+      OMP_RELAY_SECRET: ${OMP_RELAY_SECRET:-}
     volumes:
       - omp-data:/data
     security_opt:
@@ -44,5 +48,6 @@ volumes:
       omp.managed: "true"
       omp.runner: "docker"
       omp.kind: "volume"
+
 
 

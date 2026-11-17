@@ -26,6 +26,7 @@ import { OAuthService } from "./services/oauth";
 import { MobileService } from "./services/mobile";
 import { PluginService } from "./services/plugins";
 import { collectGarbage } from "./services/maintenance";
+import { RelayService } from "./services/relay";
 import { RemoteService } from "./services/remote";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
@@ -45,6 +46,7 @@ let sites: SiteService | null = null;
 let store: Store | null = null;
 let terminals: PtyService | null = null;
 let remote: RemoteService | null = null;
+let relay: RelayService | null = null;
 let isQuitting = false;
 const paneWindows = new Map<PaneKind, BrowserWindow>();
 const panePayload = new Map<PaneKind, PaneDiff | null>();
@@ -85,6 +87,7 @@ function broadcast(event: AppEvent): void {
     mainWindow.webContents.send("omp:event", event);
   }
   remote?.publish(event);
+  relay?.publish(event);
 }
 
 function messageChars(message: { blocks?: Array<Record<string, unknown>> }): number {
@@ -656,6 +659,11 @@ async function bootstrap(): Promise<void> {
 
   const remoteService = new RemoteService(dataStore, orchestrator);
   remote = remoteService;
+  const relayService = new RelayService(dataStore);
+  relay = relayService;
+  if (dataStore.settings.remoteRelay?.enabled || process.env.OMP_RELAY_URL) {
+    await relayService.start().catch((error) => trace("relay-start-failed", error instanceof Error ? error.message : String(error)));
+  }
   const maintenance = () => collectGarbage(dataStore.baseDir, { nodes: dataStore.nodes, threads: dataStore.threads }, { dryRun: false });
   setTimeout(() => {
     maintenance()
@@ -708,6 +716,7 @@ async function bootstrap(): Promise<void> {
     mobile,
     plugins,
     remote: remoteService,
+    relay: relayService,
     share: shareService,
     sites: siteService,
     browser: browserController!,
@@ -807,9 +816,13 @@ app.on("before-quit", () => {
   void share?.stop().catch(() => undefined);
   void sites?.stop().catch(() => undefined);
   void remote?.stop().catch(() => undefined);
+  void relay?.stop(false).catch(() => undefined);
   terminals?.disposeAll();
   void orchestrator?.shutdown().catch(() => undefined);
   notifications?.destroy();
   store?.flush();
 });
+
+
+
 

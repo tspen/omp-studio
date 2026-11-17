@@ -20,6 +20,7 @@ import type { OAuthService } from "./services/oauth";
 import type { MobileService } from "./services/mobile";
 import type { PluginService } from "./services/plugins";
 import type { RemoteService } from "./services/remote";
+import type { RelayService } from "./services/relay";
 import { collectGarbage } from "./services/maintenance";
 import type { Store } from "./services/store";
 import { trace } from "./diagnostics";
@@ -52,6 +53,7 @@ export interface IpcContext {
   mobile: MobileService;
   plugins: PluginService;
   remote: RemoteService;
+  relay: RelayService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
@@ -61,7 +63,7 @@ export interface IpcContext {
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, plugins, remote, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, plugins, remote, relay, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -456,6 +458,10 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("remote:place", (_event, force?: boolean, threadId?: string) => remote.placeIdleSessions(!!force, threadId));
   ipcMain.handle("remote:last-placement", () => remote.lastPlacement());
   ipcMain.handle("remote:target-usage", (_event, id: string) => remote.targetUsage(id));
+  ipcMain.handle("relay:info", () => relay.info());
+  ipcMain.handle("relay:configure", (_event, input) => relay.configure(input));
+  ipcMain.handle("relay:start", () => relay.start());
+  ipcMain.handle("relay:stop", () => relay.stop());
   ipcMain.handle("remote:export", (_event, threadId: string) => remote.exportThreadBundle(threadId));
   ipcMain.handle("remote:import", (_event, bundle: string) => remote.importThreadBundle(bundle));
   ipcMain.handle("remote:sync", () => remote.syncRemoteThreads());
@@ -526,6 +532,8 @@ export function registerIpc(context: IpcContext): void {
     });
   });
 }
+
+
 
 
 

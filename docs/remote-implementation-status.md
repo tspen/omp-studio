@@ -24,6 +24,7 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 | Self-cleaning | `src/main/services/maintenance.ts` + `src/cli/runner.ts` (`gc`, `quota`, `bench`). Startup sweep and 5-minute interval; `Maintenance → Clean up now/Preview` in Settings; `POST /api/maintenance/sweep`. |
 | Push notifications | VAPID keys stored as secrets; `GET /api/push/key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`. Push fires on approval requests, waiting/error status, and reply-required envelopes even when no WebSocket is connected. PWA service worker shows the notification and opens `/?thread=<id>` on click. |
 | Cost meter | `GET /api/usage` aggregates thread cost/tokens; `targetUsage` fetches it, records cost/tokens/usageAt on the target and mirrors cost/tokens for placed sessions. Settings shows placed-session cost and a per-target meter refresh. |
+| Self-hosted relay | `relay/server.mjs` is a stateless WebSocket relay. Runner dials out, clients connect to a room, frames are AES-256-GCM encrypted with HKDF-SHA256, and the relay only routes ciphertext. Serves the PWA, enforces room tokens, frame/client limits and reaps empty rooms. Dockerfile/compose and cleanup/security notes in `relay/`. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
 
 ## Verification evidence
@@ -150,6 +151,26 @@ top: Mission Control $0.2605 · 10,253,024 tok
 Settings renders `Cost meter`, `Placed sessions: $...`, and a per-target
 `Costs` refresh.
 
+Self-hosted encrypted relay:
+
+```
+relay /health: {"ok":true,"rooms":1,"runners":1,"clients":0}
+runner relayInfo: enabled=true running=true connected=true room=test-room
+PWA through relay: 17 sessions, chat "Make Live Cricket Animation Feel Real", 500 messages
+relay frame logs (RELAY_DEBUG_FRAMES=1):
+  frame from=client bytes=185      sample={"v":1,"iv":"...","data":"QxJ4yV4..."
+  frame from=runner bytes=1103825  sample={"v":1,"iv":"...","data":"vVIh2Nh..."
+  frame from=client bytes=189      sample={"v":1,"iv":"...","data":"9ssRTj0..."
+  frame from=runner bytes=169      sample={"v":1,"iv":"...","data":"6AM39PE..."
+auth: wrong token -> HTTP 403, unknown room -> HTTP 404, bad role -> HTTP 400
+wrong E2E key: 0 sessions (frames cannot be decrypted)
+relay image: built, container Up (healthy), /health 200, PWA 200
+```
+
+The relay never receives the room's E2E secret; frames are decoded only in the
+runner and the phone. It stores no files and reaps rooms after the runner and
+clients disconnect.
+
 GC CLI on the real data directory (216 MB):
 
 ```
@@ -193,10 +214,10 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
   profile.
 - **Live migration**: moves are cold or warm at turn boundaries. Memory/device
   snapshot migration and paused-microVM (E2B Embed) resume are not implemented.
-- **Relay**: Tailscale (or another user-owned reverse proxy) is the supported
-  access path. No self-hosted encrypted relay service is included.
 - **Docker image size**: includes Electron and build tooling; the OMP binary is
   downloaded on first use.
+
+
 
 
 

@@ -32,7 +32,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, PlacementResult, RemoteInfo, RemoteTarget, SkillInfo, TargetUsage, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, PlacementResult, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, TargetUsage, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -1348,7 +1348,58 @@ function RemoteTab() {
         ) : <p className="muted">Runs automatically at startup and every five minutes. Quota: 20 GB per runner, 5 GB per session.</p>}
       </Section>
       <RemoteTargets />
+      <RelaySettings />
     </>
+  );
+}
+
+function RelaySettings() {
+  const state = useApp();
+  const [info, setInfo] = useState<RelayInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ url: "", room: "", token: "", secret: "" });
+  useEffect(() => {
+    void window.omp.relayInfo().then((next: RelayInfo) => {
+      setInfo(next);
+      setForm({ url: next.url, room: next.room, token: "", secret: "" });
+    }).catch(() => undefined);
+  }, []);
+  const save = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      const next = await window.omp.configureRelay({ enabled, url: form.url, room: form.room, token: form.token, secret: form.secret });
+      setInfo(next);
+      setForm({ url: next.url, room: next.room, token: "", secret: "" });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Relay failed", body: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section
+      title="Self-hosted relay"
+      subtitle="Runner and phone connect outbound to a relay you own. The relay forwards AES-256-GCM frames and never sees prompts or session data."
+      right={<Badge tone={info?.connected ? "green" : info?.running ? "amber" : "neutral"}>{info?.connected ? "connected" : info?.running ? "connecting" : "off"}</Badge>}
+    >
+      <div className="remote-target-form">
+        <input placeholder="https://relay.tailnet-name.ts.net" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
+        <input placeholder="Room (auto)" value={form.room} onChange={(event) => setForm({ ...form, room: event.target.value })} />
+      </div>
+      <div className="remote-target-form">
+        <input type="password" placeholder={info?.hasToken ? "Room token (leave blank to keep)" : "Room token (auto)"} value={form.token} onChange={(event) => setForm({ ...form, token: event.target.value })} />
+        <input type="password" placeholder={info?.hasSecret ? "E2E secret (leave blank to keep)" : "E2E secret (auto)"} value={form.secret} onChange={(event) => setForm({ ...form, secret: event.target.value })} />
+      </div>
+      <div className="inline-actions">
+        <Button size="sm" variant="soft" disabled={busy || !form.url.trim()} onClick={() => void save(true)}>{busy ? <Spinner /> : <Cloud size={12} />} Save and connect</Button>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => void save(false)}>Disconnect</Button>
+        {info?.link ? <Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard.writeText(info.link!); state.pushToast({ kind: "info", title: "Relay link copied" }); }}><Copy size={12} /> Copy link</Button> : null}
+        <Button size="sm" variant="ghost" disabled={!info?.link} onClick={() => void window.omp.openExternal(info!.link!)}><ExternalLink size={12} /> Open relay</Button>
+      </div>
+      {info?.error ? <p className="muted">{info.error}</p> : null}
+      {info?.connected ? <p className="muted">Room {info.room} · {info.clients} client(s). The relay only sees ciphertext.</p> : null}
+      {info?.qr ? <div className="remote-qr"><img src={info.qr} alt="Relay pairing QR" /><div><strong>Relay pairing</strong><span>Scan on the phone. The token and E2E key are in the URL fragment.</span><small>Put the relay behind Tailscale or TLS; it should not be public.</small></div></div> : null}
+    </Section>
   );
 }
 
@@ -1500,6 +1551,7 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
 
 
 

@@ -149,6 +149,10 @@ const api: OmpStudioApi = {
   placeIdleSessions: (force?: boolean, threadId?: string) => invoke("remote:place", force, threadId) as Promise<any>,
   lastPlacement: () => invoke("remote:last-placement") as Promise<any>,
   targetUsage: (id: string) => invoke("remote:target-usage", id) as Promise<any>,
+  relayInfo: () => invoke("relay:info") as Promise<any>,
+  configureRelay: (input: unknown) => invoke("relay:configure", input) as Promise<any>,
+  startRelay: () => invoke("relay:start") as Promise<any>,
+  stopRelay: () => invoke("relay:stop") as Promise<any>,
   exportThreadBundle: (threadId: string) => invoke("remote:export", threadId) as Promise<any>,
   importThreadBundle: (bundle: string) => invoke("remote:import", bundle) as Promise<any>,
   syncRemoteSessions: () => invoke("remote:sync") as Promise<any>,
@@ -201,6 +205,7 @@ const api: OmpStudioApi = {
 };
 
 contextBridge.exposeInMainWorld("omp", api);
+
 
 
 

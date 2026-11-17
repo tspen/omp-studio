@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { RelayTransport, relayConfigFromHash, type RelayConfig } from "./relay";
 
 type ThreadStatus = "idle" | "queued" | "starting" | "running" | "waiting" | "completed" | "error" | "cancelled" | "parked";
 
@@ -72,6 +73,9 @@ function cleanBase(value: string): string {
 }
 
 export function App() {
+  const [relayConfig, setRelayConfig] = useState<RelayConfig | null>(() => relayConfigFromHash());
+  const relayRef = useRef<RelayTransport | null>(null);
+  const applyEventRef = useRef<(event: any) => void>(() => undefined);
   const [server, setServer] = useState(() => localStorage.getItem(LS_SERVER) || location.origin);
   const [token, setToken] = useState(() => {
     const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -102,7 +106,36 @@ export function App() {
   const base = cleanBase(server || location.origin);
   const active = snapshot?.threads.find((thread) => thread.id === activeId) ?? null;
 
+  const ensureRelay = (): RelayTransport | null => {
+    if (!relayConfig) return null;
+    if (!relayRef.current) {
+      relayRef.current = new RelayTransport(
+        relayConfig,
+        (event) => applyEventRef.current(event),
+        (online) => {
+          setConnected(online);
+          if (!online) startPolling();
+          else stopPolling();
+        },
+      );
+    }
+    return relayRef.current;
+  };
+
   const api = async (path: string, init?: RequestInit) => {
+    if (relayConfig) {
+      const transport = ensureRelay()!;
+      const response = await transport.request(path, init);
+      if (response.status === 401) throw new Error("Relay pairing was rejected.");
+      let body: any = {};
+      try {
+        body = response.body ? JSON.parse(response.body) : {};
+      } catch {
+        body = {};
+      }
+      if (response.status >= 400) throw new Error(body.error || `HTTP ${response.status}`);
+      return body;
+    }
     const response = await fetch(`${base}${path}`, {
       ...init,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init?.headers ?? {}) },
@@ -113,11 +146,14 @@ export function App() {
   };
 
   const connect = async () => {
-    if (!token.trim()) return;
-    localStorage.setItem(LS_SERVER, base);
-    localStorage.setItem(LS_TOKEN, token.trim());
+    if (!token.trim() && !relayConfig) return;
+    if (!relayConfig) {
+      localStorage.setItem(LS_SERVER, base);
+      localStorage.setItem(LS_TOKEN, token.trim());
+    }
     setError("");
     try {
+      if (relayConfig) await ensureRelay()!.connect();
       const state = await api("/api/state");
       setSnapshot(state);
       setConnected(true);
@@ -130,6 +166,13 @@ export function App() {
   };
 
   const connectSocket = () => {
+    if (relayConfig) {
+      ensureRelay()!
+        .connect()
+        .then(() => setConnected(true))
+        .catch(() => setConnected(false));
+      return;
+    }
     wsRef.current?.close();
     if (retryRef.current) window.clearTimeout(retryRef.current);
     try {
@@ -222,12 +265,14 @@ export function App() {
     if (event.type === "approval:request") setApprovals((current) => [...current.filter((item) => item.id !== event.payload.id), event.payload]);
     if (event.type === "approval:resolved") setApprovals((current) => current.filter((item) => item.id !== event.payload.id));
   };
+  applyEventRef.current = applyEvent;
 
   useEffect(() => {
-    if (!token) return;
+    if (!token && !relayConfig) return;
     void connect();
     return () => {
       wsRef.current?.close();
+      relayRef.current?.close();
       if (retryRef.current) window.clearTimeout(retryRef.current);
       if (pollRef.current) window.clearInterval(pollRef.current);
     };
@@ -242,7 +287,7 @@ export function App() {
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
       void refresh();
-      if (!wsRef.current || wsRef.current.readyState > WebSocket.OPEN) connectSocket();
+      if (!relayConfig && (!wsRef.current || wsRef.current.readyState > WebSocket.OPEN)) connectSocket();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
@@ -316,7 +361,7 @@ export function App() {
 
   const liveCount = (snapshot?.threads ?? []).filter((thread) => ["running", "starting", "waiting", "queued"].includes(thread.status) || thread.pendingApproval).length;
 
-  if (!token) {
+  if (!token && !relayConfig) {
     return <PairScreen server={server} setServer={setServer} token={token} setToken={setToken} onConnect={() => void connect()} error={error} />;
   }
 
@@ -403,13 +448,25 @@ export function App() {
         </main>
       ) : null}
       {tab === "settings" ? (
-        <SettingsSheet server={server} setServer={setServer} token={token} setToken={setToken} onReconnect={() => void connect()} onForget={() => {
-          localStorage.removeItem(LS_TOKEN);
-          localStorage.removeItem(LS_SERVER);
-          setToken("");
-          setSnapshot(null);
-          setConnected(false);
-        }} />
+        <SettingsSheet
+          server={server}
+          setServer={setServer}
+          token={token}
+          setToken={setToken}
+          relay={relayConfig}
+          apiFetch={api}
+          onReconnect={() => void connect()}
+          onForget={() => {
+            localStorage.removeItem(LS_TOKEN);
+            localStorage.removeItem(LS_SERVER);
+            localStorage.removeItem("omp.relay");
+            relayRef.current?.close();
+            setRelayConfig(null);
+            setToken("");
+            setSnapshot(null);
+            setConnected(false);
+          }}
+        />
       ) : null}
       <nav className="tabs">
         <button className={tab === "sessions" ? "active" : ""} onClick={() => setTab("sessions")}>Sessions</button>
@@ -434,11 +491,19 @@ function PairScreen({ server, setServer, token, setToken, onConnect, error }: { 
   );
 }
 
-function SettingsSheet({ server, setServer, token, setToken, onReconnect, onForget }: { server: string; setServer: (v: string) => void; token: string; setToken: (v: string) => void; onReconnect: () => void; onForget: () => void }) {
+function SettingsSheet({ server, setServer, token, setToken, relay, apiFetch, onReconnect, onForget }: {
+  server: string;
+  setServer: (v: string) => void;
+  token: string;
+  setToken: (v: string) => void;
+  relay?: RelayConfig | null;
+  apiFetch: (path: string, init?: RequestInit) => Promise<any>;
+  onReconnect: () => void;
+  onForget: () => void;
+}) {
   const [push, setPush] = useState<"unknown" | "enabled" | "disabled" | "unsupported" | "error">("unknown");
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
-  const base = cleanBase(server);
 
   useEffect(() => {
     let cancelled = false;
@@ -466,19 +531,12 @@ function SettingsSheet({ server, setServer, token, setToken, onReconnect, onForg
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw new Error("Notification permission was not granted.");
       const registration = await navigator.serviceWorker.ready;
-      const keyResponse = await fetch(`${base}/api/push/key`, { headers: { authorization: `Bearer ${token}` } });
-      if (!keyResponse.ok) throw new Error(`Could not read the push key (HTTP ${keyResponse.status}).`);
-      const { publicKey } = await keyResponse.json();
+      const { publicKey } = await apiFetch("/api/push/key");
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
-      const response = await fetch(`${base}/api/push/subscribe`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify(subscription.toJSON()),
-      });
-      if (!response.ok) throw new Error(`Could not save the subscription (HTTP ${response.status}).`);
+      await apiFetch("/api/push/subscribe", { method: "POST", body: JSON.stringify(subscription.toJSON()) });
       setPush("enabled");
       setPushMessage("Notifications are on.");
     } catch (error) {
@@ -496,11 +554,7 @@ function SettingsSheet({ server, setServer, token, setToken, onReconnect, onForg
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
-        await fetch(`${base}/api/push/unsubscribe`, {
-          method: "POST",
-          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-          body: JSON.stringify({ endpoint: subscription.endpoint }),
-        });
+        await apiFetch("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint }) });
         await subscription.unsubscribe();
       }
       setPush("disabled");
@@ -516,12 +570,7 @@ function SettingsSheet({ server, setServer, token, setToken, onReconnect, onForg
     setPushBusy(true);
     setPushMessage("");
     try {
-      const response = await fetch(`${base}/api/push/test`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: "{}",
-      });
-      const result = await response.json();
+      const result = await apiFetch("/api/push/test", { method: "POST", body: "{}" });
       setPushMessage(result.sent ? `Test sent to ${result.sent} device(s).` : `No subscription accepted the test (${result.failed ?? 0} failed).`);
     } catch (error) {
       setPushMessage(error instanceof Error ? error.message : String(error));
@@ -532,8 +581,17 @@ function SettingsSheet({ server, setServer, token, setToken, onReconnect, onForg
 
   return (
     <main className="settings">
-      <label>Runner URL<input value={server} onChange={(event) => setServer(event.target.value)} autoCapitalize="none" /></label>
-      <label>Pairing token<input type="password" value={token} onChange={(event) => setToken(event.target.value)} /></label>
+      {relay ? (
+        <section className="settings-block">
+          <strong>Connected through relay</strong>
+          <p className="hint">{relay.relay} · room {relay.room}<br />Traffic is end-to-end encrypted; the relay only forwards ciphertext.</p>
+        </section>
+      ) : (
+        <>
+          <label>Runner URL<input value={server} onChange={(event) => setServer(event.target.value)} autoCapitalize="none" /></label>
+          <label>Pairing token<input type="password" value={token} onChange={(event) => setToken(event.target.value)} /></label>
+        </>
+      )}
       <button className="primary" onClick={onReconnect}>Reconnect</button>
       <section className="settings-block">
         <strong>Notifications</strong>
@@ -627,5 +685,10 @@ function relativeTime(at: number): string {
   if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
   return `${Math.round(seconds / 86400)}d`;
 }
+
+
+
+
+
 
 
