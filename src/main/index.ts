@@ -25,6 +25,8 @@ import { ExportService } from "./services/exporter";
 import { OAuthService } from "./services/oauth";
 import { MobileService } from "./services/mobile";
 import { PluginService } from "./services/plugins";
+import { collectGarbage } from "./services/maintenance";
+import { RemoteService } from "./services/remote";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
 import { UsageService } from "./services/usage";
@@ -42,6 +44,8 @@ let share: ShareService | null = null;
 let sites: SiteService | null = null;
 let store: Store | null = null;
 let terminals: PtyService | null = null;
+let remote: RemoteService | null = null;
+let isQuitting = false;
 const paneWindows = new Map<PaneKind, BrowserWindow>();
 const panePayload = new Map<PaneKind, PaneDiff | null>();
 
@@ -80,6 +84,7 @@ function broadcast(event: AppEvent): void {
     }
     mainWindow.webContents.send("omp:event", event);
   }
+  remote?.publish(event);
 }
 
 function messageChars(message: { blocks?: Array<Record<string, unknown>> }): number {
@@ -413,7 +418,10 @@ function openPaneWindow(input: { kind: PaneKind; threadId?: string; diff?: PaneD
   win.show();
 }
 
+const HEADLESS = process.env.OMP_HEADLESS === "1";
+
 async function createWindow(): Promise<void> {
+  if (HEADLESS) return;
   const icon = iconPath();
   mainWindow = new BrowserWindow({
     width: 1480,
@@ -441,6 +449,13 @@ async function createWindow(): Promise<void> {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
+  });
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return;
+    if (store?.settings.remote.keepRunning && remote?.running()) {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -639,6 +654,27 @@ async function bootstrap(): Promise<void> {
   });
   await orchestrator.init();
 
+  const remoteService = new RemoteService(dataStore, orchestrator);
+  remote = remoteService;
+  const maintenance = () => collectGarbage(dataStore.baseDir, { nodes: dataStore.nodes, threads: dataStore.threads }, { dryRun: false });
+  setTimeout(() => {
+    maintenance()
+      .then((report) => {
+        if (report.actions.length) trace("gc-startup", { actions: report.actions.length, bytes: report.bytesReclaimed, ms: report.durationMs });
+      })
+      .catch((error) => trace("gc-startup-failed", error instanceof Error ? error.message : String(error)));
+  }, 5_000).unref();
+  const gcTimer = setInterval(() => {
+    void maintenance().catch(() => undefined);
+  }, 5 * 60_000);
+  gcTimer.unref();
+  app.on("before-quit", () => clearInterval(gcTimer));
+  if (dataStore.settings.remote.enabled !== false) {
+    await remoteService.start().catch((error) => {
+      trace("remote-start-failed", error instanceof Error ? error.message : String(error));
+    });
+  }
+
   const context: IpcContext = {
     store: dataStore,
     engine,
@@ -659,6 +695,7 @@ async function bootstrap(): Promise<void> {
     oauth,
     mobile,
     plugins,
+    remote: remoteService,
     share: shareService,
     sites: siteService,
     browser: browserController!,
@@ -676,7 +713,7 @@ async function bootstrap(): Promise<void> {
   registerIpc(context);
 
   await createWindow();
-  notificationService.createTray(iconPath());
+  if (!HEADLESS) notificationService.createTray(iconPath());
 
   if (!smokeTest) {
     void models.refresh().then((list) => {
@@ -745,18 +782,22 @@ if (!gotLock) {
 }
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+  if (!HEADLESS && BrowserWindow.getAllWindows().length === 0) void createWindow();
 });
 
 app.on("window-all-closed", () => {
+  if (HEADLESS) return;
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
   void share?.stop().catch(() => undefined);
   void sites?.stop().catch(() => undefined);
+  void remote?.stop().catch(() => undefined);
   terminals?.disposeAll();
   void orchestrator?.shutdown().catch(() => undefined);
   notifications?.destroy();
   store?.flush();
 });
+

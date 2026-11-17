@@ -19,6 +19,8 @@ import type { ExportService } from "./services/exporter";
 import type { OAuthService } from "./services/oauth";
 import type { MobileService } from "./services/mobile";
 import type { PluginService } from "./services/plugins";
+import type { RemoteService } from "./services/remote";
+import { collectGarbage } from "./services/maintenance";
 import type { Store } from "./services/store";
 import { trace } from "./diagnostics";
 import { audit, readAudit } from "./audit";
@@ -49,6 +51,7 @@ export interface IpcContext {
   oauth: OAuthService;
   mobile: MobileService;
   plugins: PluginService;
+  remote: RemoteService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
@@ -58,7 +61,7 @@ export interface IpcContext {
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, plugins, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, plugins, remote, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -420,6 +423,21 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("automations:delete", (_event, id: string) => orchestrator.deleteAutomation(id));
   ipcMain.handle("automations:run", (_event, id: string) => orchestrator.runAutomation(id).then(() => undefined));
   ipcMain.handle("audit:list", (_event, limit?: number) => readAudit(limit ?? 200));
+  ipcMain.handle("remote:info", () => remote.info());
+  ipcMain.handle("remote:start", () => remote.start());
+  ipcMain.handle("remote:stop", () => remote.stop());
+  ipcMain.handle("remote:rotate", () => {
+    remote.rotateToken();
+    return remote.info();
+  });
+  ipcMain.handle("maintenance:sweep", (_event, dryRun?: boolean) =>
+    collectGarbage(store.baseDir, { nodes: store.nodes, threads: store.threads }, { dryRun: dryRun !== false }),
+  );
+  ipcMain.handle("remote:targets", () => remote.listTargets());
+  ipcMain.handle("remote:target:add", (_event, input) => remote.addTarget(input));
+  ipcMain.handle("remote:target:remove", (_event, id: string) => remote.removeTarget(id));
+  ipcMain.handle("remote:target:test", (_event, id: string) => remote.testTarget(id));
+  ipcMain.handle("remote:move", (_event, threadId: string, targetId: string) => remote.moveThread(threadId, targetId));
   ipcMain.handle("mobile:status", () => mobile.available());
   ipcMain.handle("mobile:devices", () => mobile.devices());
   ipcMain.handle("mobile:avds", () => mobile.avds());

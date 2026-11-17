@@ -961,8 +961,15 @@ export class Orchestrator extends EventEmitter {
     this.bus.markRead(id);
   }
 
-  async respondApproval(id: string, response: unknown): Promise<void> {
-    const entry = this.approvals.get(id);
+  pendingApprovals(): ApprovalRequest[] {
+    return [...this.approvals.values()].map((entry) => entry.request);
+  }
+
+  notify(event: AppEvent): void {
+    this.deps.emit(event);
+  }
+
+  async respondApproval(id: string, response: unknown): Promise<void> {    const entry = this.approvals.get(id);
     if (!entry) return;
     await entry.session.respondUi(id, response);
     this.approvals.delete(id);

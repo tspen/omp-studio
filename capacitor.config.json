@@ -1,0 +1,9 @@
+{
+  "appId": "com.ompstudio.remote",
+  "appName": "OMP Remote",
+  "webDir": "out/mobile",
+  "bundledWebRuntime": false,
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true },
+  "ios": { "contentInset": "always" }
+}

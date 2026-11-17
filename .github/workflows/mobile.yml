@@ -1,0 +1,61 @@
+name: mobile
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "mobile/**"
+      - "src/shared/**"
+      - "capacitor.config.json"
+      - "android/**"
+      - "ios/**"
+      - ".github/workflows/mobile.yml"
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build:mobile
+      - run: npx cap sync android
+      - run: cd android && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omp-remote-android
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:mobile
+      - run: npx cap sync ios
+      - run: cd ios/App && pod install
+      - name: Build for simulator (unsigned)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Debug -sdk iphonesimulator \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Package app
+        run: |
+          cd ios/App/build/Build/Products/Debug-iphonesimulator
+          zip -r omp-remote-ios-simulator.zip App.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omp-remote-ios-simulator
+          path: ios/App/build/Build/Products/Debug-iphonesimulator/omp-remote-ios-simulator.zip

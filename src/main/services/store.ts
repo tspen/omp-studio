@@ -26,7 +26,7 @@ import type {
   UsageSnapshot,
 } from "../../shared/types";
 
-interface PersistedState {
+export interface PersistedState {
   version: number;
   nodes: TreeNode[];
   threads: Thread[];
@@ -77,6 +77,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sandbox: { enabled: false, allowedPaths: [], deniedCommands: [], allowNetwork: true },
   permissions: { rules: [] },
   autoCheckpoints: true,
+  remote: { enabled: true, port: 43120, host: "127.0.0.1", keepRunning: false },
+  remoteTargets: [],
   computerUse: false,
   autoFixCi: false,
   advisor: false,
@@ -1039,6 +1041,8 @@ function compactValue(value: unknown, depth = 0): unknown {
 export function newId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
+
+
 
 
 

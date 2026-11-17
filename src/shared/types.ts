@@ -408,6 +408,55 @@ export interface Checkpoint {
   createdAt: number;
 }
 
+export interface MaintenanceAction {
+  kind: "session-dir" | "workspace" | "worktree" | "share-bundle" | "artifact" | "log";
+  path: string;
+  bytes: number;
+  reason: string;
+}
+
+export interface RemoteTarget {
+  id: string;
+  name: string;
+  url: string;
+  kind: "paired" | "docker";
+  status: "online" | "offline" | "unknown";
+  latencyMs?: number;
+  lastSeen?: number;
+  error?: string;
+  createdAt: number;
+}
+
+export interface RemoteTargetInput {
+  name: string;
+  url: string;
+  token: string;
+  kind?: "paired" | "docker";
+}
+
+export interface MaintenanceReport {
+  at: number;
+  dryRun: boolean;
+  actions: MaintenanceAction[];
+  bytesReclaimed: number;
+  runnerBytes: number;
+  quotaBytes: number;
+  quotaUsedPct: number;
+  warnings: string[];
+  durationMs: number;
+}
+
+export interface RemoteInfo {  enabled: boolean;
+  running: boolean;
+  host: string;
+  port: number;
+  token: string;
+  urls: string[];
+  qr?: string;
+  keepRunning: boolean;
+  error?: string;
+}
+
 export interface PermissionRule {
   id: string;
   pattern: string;
@@ -456,6 +505,8 @@ export interface AppSettings {
   sandbox: { enabled: boolean; allowedPaths: string[]; deniedCommands: string[]; allowNetwork: boolean };
   permissions: { rules: PermissionRule[] };
   autoCheckpoints: boolean;
+  remote: { enabled: boolean; port: number; host: string; keepRunning: boolean };
+  remoteTargets: RemoteTarget[];
   computerUse: boolean;
   autoFixCi: boolean;
   advisor: boolean;
@@ -1011,6 +1062,17 @@ export interface OmpStudioApi {
   addSiteDomain(id: string, domain: string): Promise<{ ok: boolean; output: string; url?: string }>;
   configureCloudflareAccess(id: string, domain: string, emails: string[]): Promise<{ ok: boolean; output: string }>;
 
+  remoteInfo(): Promise<RemoteInfo>;
+  startRemote(): Promise<RemoteInfo>;
+  stopRemote(): Promise<RemoteInfo>;
+  rotateRemoteToken(): Promise<RemoteInfo>;
+  maintenanceSweep(dryRun?: boolean): Promise<MaintenanceReport>;
+  listRemoteTargets(): Promise<RemoteTarget[]>;
+  addRemoteTarget(input: RemoteTargetInput): Promise<RemoteTarget[]>;
+  removeRemoteTarget(id: string): Promise<RemoteTarget[]>;
+  testRemoteTarget(id: string): Promise<RemoteTarget[]>;
+  moveThreadToTarget(threadId: string, targetId: string): Promise<{ threadId: string; nodeId: string }>;
+
   setConnectorSecret(key: string, value: string): Promise<Record<string, boolean>>;
   connectorSecrets(): Promise<Record<string, boolean>>;
   testConnector(provider: string): Promise<{ ok: boolean; output: string }>;
@@ -1078,3 +1140,4 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+

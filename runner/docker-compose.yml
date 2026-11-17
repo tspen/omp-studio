@@ -1,0 +1,41 @@
+# Self-hosted OMP runner.
+#
+#   docker compose -f runner/docker-compose.yml up -d --build
+#   docker compose -f runner/docker-compose.yml logs runner | grep "pairing link"
+#
+# The port is bound to loopback by default. Reach it from your phone through
+# Tailscale (`tailscale serve --bg 43120` on the host) or a reverse proxy you
+# control. Nothing is exposed publicly.
+services:
+  runner:
+    build:
+      context: ..
+      dockerfile: runner/Dockerfile
+    image: omp-runner:local
+    container_name: omp-runner
+    restart: unless-stopped
+    labels:
+      omp.managed: "true"
+      omp.runner: "docker"
+      omp.kind: "container"
+    ports:
+      - "${OMP_RUNNER_BIND:-127.0.0.1}:${OMP_RUNNER_PORT:-43120}:43120"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      OMP_REMOTE_TOKEN: ${OMP_REMOTE_TOKEN:-}
+      OMP_REMOTE_HOST: 0.0.0.0
+      OMP_REMOTE_PORT: "43120"
+      OMP_STUDIO_USER_DATA: /data
+    volumes:
+      - omp-data:/data
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+
+volumes:
+  omp-data:
+    labels:
+      omp.managed: "true"
+      omp.runner: "docker"
+      omp.kind: "volume"

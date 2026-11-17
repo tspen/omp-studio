@@ -86,6 +86,29 @@ npm run package
 
 The NSIS installer is written to `dist/`. The OMP engine is bundled as an extra resource, so the installed app has its own runtime. The binary is excluded from git by `.gitignore` and fetched by `npm run fetch:omp`.
 
+## Remote, mobile and cloud
+
+The desktop app can act as a runner for the phone and for other machines. Enable
+**Settings → Remote**, then open the printed URL (or scan the QR) on a device
+that can reach this machine over Tailscale or the LAN. The same screen shows the
+token, the PWA install link, targets, cold move and a cleanup report.
+
+- Phone app: installable PWA, or build the Capacitor Android/iOS projects in
+  `android/` and `ios/`. `npm run mobile:android` builds a debug APK.
+- Self-hosted runner: `docker compose -f runner/docker-compose.yml up -d --build`
+  then read the pairing link from the logs. Loopback by default; front it with
+  Tailscale. See [`runner/README.md`](runner/README.md).
+- Sessions move as portable bundles (workspace + OMP session + chat) at turn
+  boundaries. The source is retained for rollback.
+- Everything the runner creates is garbage-collected: startup plus every five
+  minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
+  `npm run runner:quota` and `POST /api/maintenance/sweep`.
+
+Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
+15 ms, cold move of an 81 KB session 41 ms, GC sweep 28–49 ms. Full evidence and
+remaining gaps (iOS signing, warm/live moves, automatic placement, push) are in
+[`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
+
 ## Architecture
 
 ```text

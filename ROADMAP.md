@@ -67,7 +67,7 @@ Deliberately not pursued after user review: plan mode, lifecycle hooks, and a se
 
 ## Remote execution design
 
-A full architecture for cloud/remote/mobile execution is in [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md): one runner, target registry, portable session bundles, user-owned network access, Docker/VPS or self-hosted E2B Embed targets, self-cleaning resources, performance gates, mobile PWA and phased rollout. Phase 1 implementation details are in [`docs/remote-phase1-spec.md`](docs/remote-phase1-spec.md).
+A full architecture for cloud/remote/mobile execution is in [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md): one runner, target registry, portable session bundles, user-owned network access, Docker/VPS or self-hosted E2B Embed targets, self-cleaning resources, performance gates, mobile PWA and phased rollout. Phase 1 implementation details are in [`docs/remote-phase1-spec.md`](docs/remote-phase1-spec.md). What actually ships today, with measurements and remaining gaps, is in [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 
 ## Explicitly excluded
 
@@ -78,3 +78,4 @@ The user confirmed these exclusions on 2026-11-17:
 - **Built-in code editor and side chats** - intentionally excluded product decisions.
 - **Kernel-level sandbox** - OMP runs under the Windows user account. The app enforces terminal command policy, path/network guidance in prompts, and an audit trail; it is not OS virtualization.
 - **Semantic/embedding code index** - local file, symbol and text search are included; embeddings and cross-repository retrieval are not.
+

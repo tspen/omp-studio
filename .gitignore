@@ -21,3 +21,19 @@ vendor/omp/omp.exe
 vendor/omp/omp.exe.part
 vendor/omp/LICENSE
 login-*.txt
+
+# Capacitor / native build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+ios/App/Pods/
+ios/App/build/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/DerivedData/
+ios/App/*.xcworkspace/
+vendor/omp/omp
+vendor/omp/omp.part

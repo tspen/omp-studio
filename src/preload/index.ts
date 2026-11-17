@@ -136,6 +136,17 @@ const api: OmpStudioApi = {
   runAutomation: (id) => invoke("automations:run", id) as Promise<any>,
   listAudit: (limit) => invoke("audit:list", limit) as Promise<any>,
 
+  remoteInfo: () => invoke("remote:info") as Promise<any>,
+  startRemote: () => invoke("remote:start") as Promise<any>,
+  stopRemote: () => invoke("remote:stop") as Promise<any>,
+  rotateRemoteToken: () => invoke("remote:rotate") as Promise<any>,
+  maintenanceSweep: (dryRun?: boolean) => invoke("maintenance:sweep", dryRun) as Promise<any>,
+  listRemoteTargets: () => invoke("remote:targets") as Promise<any>,
+  addRemoteTarget: (input: unknown) => invoke("remote:target:add", input) as Promise<any>,
+  removeRemoteTarget: (id: string) => invoke("remote:target:remove", id) as Promise<any>,
+  testRemoteTarget: (id: string) => invoke("remote:target:test", id) as Promise<any>,
+  moveThreadToTarget: (threadId: string, targetId: string) => invoke("remote:move", threadId, targetId) as Promise<any>,
+
   mobileStatus: () => invoke("mobile:status") as Promise<any>,
   listMobileDevices: () => invoke("mobile:devices") as Promise<any>,
   listAvds: () => invoke("mobile:avds") as Promise<any>,

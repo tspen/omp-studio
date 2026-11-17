@@ -2,7 +2,7 @@
 
 Date: 2026-11-17
 
-Status: **design only**. Nothing here is implemented in the app yet. There is no runner, relay, PWA, sandbox SDK or remote execution code in `src/`; the only committed artifacts are this document and `docs/remote-phase1-spec.md`.
+Status: **partially implemented**. Remote server, pairing, PWA, Android/iOS projects, cold move, target registry, Docker/VPS runner and self-cleaning GC ship in this tree. See [`remote-implementation-status.md`](remote-implementation-status.md) for verified evidence and remaining gaps (iOS signing, warm/live moves, automatic placement, push).
 
 Goals:
 
@@ -241,7 +241,7 @@ Secrets are never in the bundle; the target injects its own.
 
 **Do I pick a place per agent?** No. Placement is automatic; you set defaults and guardrails once.
 
-**Implemented today?** No. The current app is local Windows only.
+**Implemented today?** Partly: the remote server, PWA, Android build, cold move, target registry, Docker runner and GC are implemented. Warm/live moves, automatic placement and push are not. See [`remote-implementation-status.md`](remote-implementation-status.md).
 
 ## Phases
 
@@ -269,3 +269,4 @@ Secrets are never in the bundle; the target injects its own.
 - Tailscale: https://tailscale.com/
 - Cloudflare Tunnel: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
 - pi-daemon (persistent agent + PWA via Tailscale/Cloudflare Access): https://github.com/SASUKE40/pi-daemon
+

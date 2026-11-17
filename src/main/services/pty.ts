@@ -1,4 +1,4 @@
-import * as pty from "node-pty";
+import type { IPty } from "node-pty";
 import { randomUUID } from "node:crypto";
 import type { AppEvent, PtySession } from "../../shared/types";
 import type { EnvironmentService } from "./environment";
@@ -11,7 +11,7 @@ const URL_PATTERN = /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?
 
 interface Live {
   session: PtySession;
-  proc: pty.IPty;
+  proc: IPty;
   output: string;
   waiters: Array<(url: string | null) => void>;
 }
@@ -53,7 +53,7 @@ export class PtyService {
     const cols = Math.min(400, Math.max(20, input.cols || 100));
     const rows = Math.min(200, Math.max(5, input.rows || 30));
     const isPowerShell = /powershell|pwsh/i.test(shell);
-    const proc = pty.spawn(shell, isPowerShell ? ["-NoLogo"] : [], {
+    const proc = loadPty().spawn(shell, isPowerShell ? ["-NoLogo"] : [], {
       name: "xterm-256color",
       cols,
       rows,
@@ -211,5 +211,23 @@ export class PtyService {
       setTimeout(() => this.onPreview(found[0]), 350);
     }
     return found;
+  }
+}
+
+let cachedPty: typeof import("node-pty") | null = null;
+
+/**
+ * The desktop build ships node-pty. Headless Linux runners may not have a
+ * usable native build, so loading is deferred and a missing module only
+ * disables terminals instead of preventing the runner from starting.
+ */
+function loadPty(): typeof import("node-pty") {
+  if (cachedPty) return cachedPty;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    cachedPty = require("node-pty") as typeof import("node-pty");
+    return cachedPty;
+  } catch (error) {
+    throw new Error(`Terminals are unavailable on this runner: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

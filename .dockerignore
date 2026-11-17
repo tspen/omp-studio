@@ -1,0 +1,10 @@
+node_modules
+dist
+out
+android
+ios
+.git
+*.log
+*.webm
+coverage
+.pwatest.cjs

@@ -8,8 +8,15 @@ import type { EngineStatus } from "../../shared/types";
 import type { Store } from "../services/store";
 
 const RELEASE_API = "https://api.github.com/repos/can1357/oh-my-pi/releases/latest";
-const FALLBACK_ASSET =
-  "https://github.com/can1357/oh-my-pi/releases/download/v18.20.0/omp-windows-x64.exe";
+const FALLBACK_VERSION = "v18.22.0";
+const IS_WINDOWS = process.platform === "win32";
+const ENGINE_BIN = IS_WINDOWS ? "omp.exe" : "omp";
+
+function assetName(): string {
+  if (process.platform === "win32") return process.arch === "arm64" ? "omp-windows-arm64.exe" : "omp-windows-x64.exe";
+  if (process.platform === "darwin") return process.arch === "arm64" ? "omp-darwin-arm64" : "omp-darwin-x64";
+  return process.arch === "arm64" ? "omp-linux-arm64" : "omp-linux-x64";
+}
 
 export class EngineLocator {
   private store: Store;
@@ -33,12 +40,12 @@ export class EngineLocator {
     if (this.store.settings.enginePath) {
       candidates.push({ path: this.store.settings.enginePath, source: "custom" });
     }
-    candidates.push({ path: join(process.resourcesPath, "omp", "omp.exe"), source: "bundled" });
-    candidates.push({ path: join(app.getAppPath(), "vendor", "omp", "omp.exe"), source: "bundled" });
-    candidates.push({ path: join(this.store.baseDir, "engine", "omp.exe"), source: "downloaded" });
+    candidates.push({ path: join(process.resourcesPath, "omp", ENGINE_BIN), source: "bundled" });
+    candidates.push({ path: join(app.getAppPath(), "vendor", "omp", ENGINE_BIN), source: "bundled" });
+    candidates.push({ path: join(this.store.baseDir, "engine", ENGINE_BIN), source: "downloaded" });
     const local = process.env.LOCALAPPDATA;
-    if (local) candidates.push({ path: join(local, "omp", "omp.exe"), source: "installed" });
-    const onPath = findOnPath("omp.exe");
+    if (local) candidates.push({ path: join(local, "omp", ENGINE_BIN), source: "installed" });
+    const onPath = findOnPath(ENGINE_BIN);
     if (onPath) candidates.push({ path: onPath, source: "installed" });
 
     for (const candidate of candidates) {
@@ -85,11 +92,11 @@ export class EngineLocator {
 
   resolveForSpawn(): string {
     if (this.status.found && this.status.path) return this.status.path;
-    const fallback = this.status.path ?? join(this.store.baseDir, "engine", "omp.exe");
+    const fallback = this.status.path ?? join(this.store.baseDir, "engine", ENGINE_BIN);
     if (existsSync(fallback)) return fallback;
-    const bundled = join(process.resourcesPath, "omp", "omp.exe");
+    const bundled = join(process.resourcesPath, "omp", ENGINE_BIN);
     if (existsSync(bundled)) return bundled;
-    const dev = join(app.getAppPath(), "vendor", "omp", "omp.exe");
+    const dev = join(app.getAppPath(), "vendor", "omp", ENGINE_BIN);
     if (existsSync(dev)) return dev;
     throw new Error("OMP engine is not available");
   }
@@ -98,11 +105,11 @@ export class EngineLocator {
     if (this.status.downloading) return this.status;
     const targetDir = join(this.store.baseDir, "engine");
     mkdirSync(targetDir, { recursive: true });
-    const target = join(targetDir, "omp.exe");
+    const target = join(targetDir, ENGINE_BIN);
     const partial = `${target}.part`;
     this.setDownloading(true, 0);
     try {
-      const assetUrl = await this.latestWindowsAsset();
+      const assetUrl = await this.latestAsset();
       const response = await fetch(assetUrl, {
         headers: { "User-Agent": "OMP-Studio" },
         redirect: "follow",
@@ -157,29 +164,30 @@ export class EngineLocator {
     this.onProgress?.(this.status);
   }
 
-  private async latestWindowsAsset(): Promise<string> {
+  private async latestAsset(): Promise<string> {
     try {
       const response = await fetch(RELEASE_API, {
         headers: { "User-Agent": "OMP-Studio", Accept: "application/vnd.github+json" },
       });
       if (response.ok) {
         const json = (await response.json()) as { assets?: Array<{ name: string; browser_download_url: string }> };
-        const asset = json.assets?.find((item) => item.name === "omp-windows-x64.exe");
+        const asset = json.assets?.find((item) => item.name === assetName());
         if (asset?.browser_download_url) return asset.browser_download_url;
       }
     } catch {
       /* fall back */
     }
-    return FALLBACK_ASSET;
+    return `https://github.com/can1357/oh-my-pi/releases/download/${FALLBACK_VERSION}/${assetName()}`;
   }
 }
 
 function findOnPath(command: string): string | undefined {
   try {
-    const output = execFileSync("where.exe", [command], { encoding: "utf8", windowsHide: true, timeout: 5000 });
+    const output = execFileSync(IS_WINDOWS ? "where.exe" : "which", [command], { encoding: "utf8", windowsHide: true, timeout: 5000 });
     const first = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
     return first || undefined;
   } catch {
     return undefined;
   }
 }
+
