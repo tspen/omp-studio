@@ -53,6 +53,7 @@ import { newId } from "../services/store";
 import { trace } from "../diagnostics";
 import { lspRequest } from "../services/lsp";
 import { astEdit, astGrep } from "../services/ast";
+import { webSearch } from "../services/web-search";
 import type { PythonService } from "../services/python";
 import { notebookRequest } from "../services/notebook";
 import { audit } from "../audit";
@@ -2135,6 +2136,22 @@ export class Orchestrator extends EventEmitter {
           return {
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             details: { changes: result.changes.length, files: result.files, applied: result.applied, truncated: result.truncated },
+          };
+        }
+        case "web_search": {
+          if (this.store.settings.sandbox.enabled && this.store.settings.sandbox.allowNetwork === false) {
+            throw new Error("Network access is disabled in Settings → Sandbox");
+          }
+          const response = await webSearch(String(context.args.query ?? ""), Number(context.args.limit) || 6);
+          if (!response.results.length) return textResult("No web results.");
+          return {
+            content: [{
+              type: "text",
+              text: response.results
+                .map((result, index) => `${index + 1}. ${result.title}\n${result.url}\n${result.snippet}`)
+                .join("\n\n"),
+            }],
+            details: { provider: response.provider, count: response.results.length },
           };
         }
         case "python": {

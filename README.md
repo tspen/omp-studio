@@ -10,7 +10,7 @@ Perch is the cockpit. Pi is the engine. There is no legacy engine runtime, no se
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
 - **Parallel tasks**: the `task` host tool fans out up to eight worker threads and returns structured results, so Pi agents get parallel task delegation without in-process subagents.
 - **Pi under the hood**: Perch launches the bundled `@earendil-works/pi-coding-agent` in `--mode rpc`, uses Pi sessions, tools, skills, provider auth and compaction. It does not reimplement the agent loop.
-- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP, AST, Python, notebook and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are available without a separate agent engine; Python and Jupyter cells use a persistent kernel; `ast_grep`/`ast_edit` rewrite JS/TS/TSX/HTML/CSS structurally.
+- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP, AST, Python, notebook, web search and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are available without a separate agent engine; Python and Jupyter cells use a persistent kernel; `ast_grep`/`ast_edit` rewrite JS/TS/TSX/HTML/CSS structurally; `web_search` uses the provider you configure.
 - **Explicit model selection**: Per-thread model and thinking level, plus role defaults for root/group/project/worker/naming/memory.
 - **Git-aware threads**: Project repositories, worker branches and worktrees, status, diffs, commit, merge and PR actions. Worktrees live outside the repository so unmerged work is not silently destroyed.
 - **Memory**: Per-node durable memory, visible and editable. Orchestrators write through `tree_memory_write`; completed thread outcomes are auto-captured as low-importance entries.
@@ -60,6 +60,19 @@ npm run package
 
 The NSIS installer is written to `dist/`. The Pi runtime is bundled from `node_modules/@earendil-works/pi-coding-agent` and unpacked from the asar archive.
 
+## Web search
+
+`web_search` is disabled by default. Choose one provider and set the matching environment variables before launching Perch:
+
+| Provider | Variables |
+| --- | --- |
+| Brave | `PERCH_SEARCH_PROVIDER=brave`, `PERCH_BRAVE_API_KEY` |
+| Tavily | `PERCH_SEARCH_PROVIDER=tavily`, `PERCH_TAVILY_API_KEY` |
+| SearXNG | `PERCH_SEARCH_PROVIDER=searxng`, `PERCH_SEARXNG_URL` |
+| Exa | `PERCH_SEARCH_PROVIDER=exa`, `PERCH_EXA_API_KEY` |
+
+Perch does not scrape a keyless search engine. Tool and extension packages can execute code; install only sources you trust.
+
 ## Remote, mobile and cloud
 
 **Same Wi-Fi:** enable **Settings -> Remote** and scan the QR on your phone. No Tailscale, no firewall changes.
@@ -78,14 +91,14 @@ Scan the relay QR once. The runner dials out; the relay only forwards AES-256-GC
 
 ## Privacy
 
-Perch runs Pi locally. Pi's install/update telemetry is disabled (`PI_TELEMETRY=0`), startup network calls are disabled (`PI_OFFLINE=1`), and Perch does not install keyless third-party search providers. Prompts go only to the model provider you configure. Tool and extension packages can execute code; install only sources you trust.
+Perch runs Pi locally. Pi's install/update telemetry is disabled (`PI_TELEMETRY=0`), startup network calls are disabled (`PI_OFFLINE=1`), and Perch does not scrape a keyless search engine. Prompts go to the model provider you configure, and web search queries go only to the search provider you explicitly configure. Tool and extension packages can execute code; install only sources you trust.
 
 ## Architecture
 
 ```
 Renderer (React) ---- IPC ---- Main (Electron)
                                   |- Orchestrator ---- one Pi RPC session per active thread
-                                  |- Host tools ------ tree_* / browser / sites / dev server / mobile
+                                  |- Host tools ------ tree_* / browser / sites / dev server / LSP / AST / Python / notebook / web search / mobile
                                   |- Pi host bridge - authenticated local HTTP -> Pi extension
                                   |- ModelService ---- Pi catalog + AA daily refresh
                                   |- Git / worktrees / memory / checkpoints / artifacts / audit

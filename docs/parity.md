@@ -11,7 +11,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Engine process | Pi `1.5.2` in `--mode rpc`, one process per active thread |
 | Chat streaming | text/thinking deltas, tool cards, usage, stop reasons |
 | Tools | Pi `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls` |
-| Host tools | `tree_*`, browser, sites, dev servers, workspace, mobile, computer use via the local authenticated bridge |
+| Host tools | `tree_*`, browser, sites, dev servers, workspace, LSP, AST, Python, notebook, web search, mobile and computer use via the local authenticated bridge |
 | Approvals | Pi `tool_call` hook -> RPC extension UI -> Perch approval sheet; per-tool allow/deny/prompt policy |
 | Sessions | Pi session JSONL, resume, fork/clone, compaction |
 | Models | Pi catalog (1,600+ models), custom `models.json`, Pi `auth.json` |
@@ -23,6 +23,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Python | Persistent Python 3 kernel per thread, reset, timeout; `PERCH_PYTHON` or PATH discovery |
 | Notebook | Read, edit and execute `.ipynb` cells through the persistent Python kernel |
 | AST editing | Structural `ast_grep`/`ast_edit` for JavaScript, TypeScript, TSX, HTML and CSS via `@ast-grep/napi` |
+| Web search | Configurable `web_search` host tool: Brave, Tavily, SearXNG or Exa; disabled until a provider is configured |
 | Rebrand | Perch window, tray, PWA, Android/iOS IDs, installer, repository, data dir |
 | Data | `%APPDATA%\Perch`; 19 existing threads verified after migration |
 | Remote | same-Wi-Fi QR, relay, pair-by-link, moves, PWA |
@@ -34,7 +35,6 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | --- | --- | --- |
 | LSP / DAP | TypeScript/JavaScript/JSON LSP is bridged through `typescript-language-server`: diagnostics, definition, references, hover, symbols. DAP and other language servers are not wired. | `lsp` host tool; see `src/main/services/lsp.ts`. |
 | AST editing outside JS/TS/HTML/CSS | `ast_grep`/`ast_edit` cover JavaScript, TypeScript, TSX, HTML and CSS | Python and other languages use Pi `grep`/`edit` plus the Python kernel. |
-| Web search | No built-in `web_search` | Deliberately not added; use a chosen extension/provider. |
 | Native subagent panel | The previous in-process `task` frames are gone | `task` now creates normal Perch worker threads; the tree is the subagent UI. |
 | Provider credentials | Previous credentials are not imported | Reconnect a provider once in Settings. |
 | Previous-engine tooling | Hashes/hashline edits, summarized reads, Rust tool core | Not ported. |
@@ -49,7 +49,8 @@ node scripts/pi-engine-selftest.mjs    "PERCH PI OK", 3 messages
 node scripts/pi-durable-selftest.mjs   commit + reopen "PERCH DURABLE OK"
 python + notebook host tools           "PYTHON APP DONE", "NOTEBOOK APP DONE"
 ast_grep + ast_edit                    "AST APP DONE", "AST EDIT APP DONE"
-packaged Perch.exe                     Pi 1.5.2, Python + notebook tools, completed sessions
+web_search (SearXNG mock)              "WEB SEARCH APP DONE"
+packaged Perch.exe                     Pi 1.5.2, Python + notebook + AST tools, completed sessions
 ```
 
 

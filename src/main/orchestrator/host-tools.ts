@@ -134,6 +134,20 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "web_search",
+    label: "Web: search",
+    description:
+      "Search the web for current information. Returns titles, URLs and snippets. Requires a configured search provider (Brave, Tavily, SearXNG or Exa); set PERCH_SEARCH_PROVIDER and the matching credentials.",
+    parameters: object(
+      {
+        query: { type: "string" },
+        limit: { type: "number", description: "Maximum results, 1-10. Default 6." },
+      },
+      ["query"],
+    ),
+    loadMode: "discoverable",
+  },
+  {
     name: "python",
     label: "Python: persistent kernel",
     description:
