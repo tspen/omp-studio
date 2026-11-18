@@ -145,12 +145,12 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     name: "ast_grep",
     label: "AST: structural search",
     description:
-      "Search JavaScript, TypeScript, TSX, HTML, CSS and Python structurally with ast-grep patterns such as `console.log($A)` or `print($A)`. Python patterns support expressions, single statements, `$CAPTURE` and `$$$CAPTURES` in argument lists/statement bodies. Returns file, line, column, matched text and captures. Use before broad edits.",
+      "Search code structurally. Bundled engines cover JavaScript, TypeScript, TSX, HTML, CSS and Python, plus Go, Rust, Java, C/C++, C#, Ruby, PHP, Kotlin, Swift, Scala, Bash, Lua, Elixir, Haskell, SQL, YAML and JSON through the bundled ast-grep CLI. Python patterns support expressions, single statements, `$CAPTURE` and `$$$CAPTURES` in argument lists/statement bodies. Returns file, line, column, matched text and captures. Use before broad edits.",
     parameters: object(
       {
         pattern: { type: "string", description: "ast-grep pattern with optional $CAPTURE variables." },
         path: { type: "string", description: "File or directory, relative to the project. Defaults to the project root." },
-        lang: { type: "string", description: "Force a language: typescript, tsx, javascript, html, css or python." },
+        lang: { type: "string", description: "Force a language: typescript, tsx, javascript, html, css, python, go, rust, java, c, cpp, csharp, ruby, php, kotlin, swift, scala, bash, lua, elixir, haskell, sql, yaml or json." },
         limit: { type: "number", description: "Maximum matches. Default 100." },
       },
       ["pattern"],
@@ -161,13 +161,13 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     name: "ast_edit",
     label: "AST: structural rewrite",
     description:
-      "Rewrite JavaScript, TypeScript, TSX, HTML, CSS and Python structurally. The rewrite can reference captures with $CAPTURE. Use dryRun first to review changes.",
+      "Rewrite code structurally across the same bundled languages. The rewrite can reference captures with $CAPTURE. Use dryRun first to review changes.",
     parameters: object(
       {
         pattern: { type: "string", description: "ast-grep pattern with optional $CAPTURE variables." },
         rewrite: { type: "string", description: "Replacement text with $CAPTURE references." },
         path: { type: "string", description: "File or directory, relative to the project. Defaults to the project root." },
-        lang: { type: "string", description: "Force a language: typescript, tsx, javascript, html, css or python." },
+        lang: { type: "string", description: "Force a language: typescript, tsx, javascript, html, css, python, go, rust, java, c, cpp, csharp, ruby, php, kotlin, swift, scala, bash, lua, elixir, haskell, sql, yaml or json." },
         dryRun: { type: "boolean", description: "Report changes without writing files." },
         limit: { type: "number", description: "Maximum edits. Default 100." },
       },

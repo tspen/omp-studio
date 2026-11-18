@@ -62,7 +62,7 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
-  if (/edit app test/i.test(userText) && !/py ast edit app test/i.test(userText) && !hasToolResult) {
+  if (/edit app test/i.test(userText) && !/(?:py|go) ast edit app test/i.test(userText) && !hasToolResult) {
     const toolCall = { path: ".perch-read-edit-selftest.txt", edits: [{ oldText: "hello", newText: "hello world" }] };
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_edit_1", type: "function", function: { name: "edit", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
@@ -101,6 +101,24 @@ const server = createServer(async (request, response) => {
   if (/py ast edit app test/i.test(userText) && !hasToolResult) {
     const toolCall = { pattern: "print($A)", rewrite: "logger.info($A)", path: ".perch-python-ast-selftest.py", lang: "python" };
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_py_ast_edit_1", type: "function", function: { name: "ast_edit", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`);
+    response.write("data: [DONE]\n\n");
+    response.end();
+    return;
+  }
+  if (/go ast app test/i.test(userText) && !hasToolResult) {
+    const toolCall = { pattern: "println($A)", path: ".perch-go-ast-selftest.go", lang: "go" };
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_go_ast_grep_1", type: "function", function: { name: "ast_grep", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`);
+    response.write("data: [DONE]\n\n");
+    response.end();
+    return;
+  }
+  if (/go ast edit app test/i.test(userText) && !hasToolResult) {
+    const toolCall = { pattern: "println($A)", rewrite: "fmt.Println($A)", path: ".perch-go-ast-selftest.go", lang: "go" };
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_go_ast_edit_1", type: "function", function: { name: "ast_edit", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`);
     response.write("data: [DONE]\n\n");
@@ -151,7 +169,7 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
-  const reply = /py ast edit app test/i.test(userText) && hasToolResult ? "PY AST EDIT APP DONE" : /py ast app test/i.test(userText) && hasToolResult ? "PY AST APP DONE" : /read app test/i.test(userText) && hasToolResult ? "READ APP DONE" : /edit app test/i.test(userText) && hasToolResult ? "EDIT APP DONE" : /debug app test/i.test(userText) && hasToolResult ? "DEBUG APP DONE" : /web search app test/i.test(userText) && hasToolResult ? "WEB SEARCH APP DONE" : /ast edit app test/i.test(userText) && hasToolResult ? "AST EDIT APP DONE" : /ast app test/i.test(userText) && hasToolResult ? "AST APP DONE" : /python app test/i.test(userText) && hasToolResult ? "PYTHON APP DONE" : /notebook app test/i.test(userText) && hasToolResult ? "NOTEBOOK APP DONE" : /lsp app test/i.test(userText) && hasToolResult ? "LSP APP DONE" : /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
+  const reply = /go ast edit app test/i.test(userText) && hasToolResult ? "GO AST EDIT APP DONE" : /go ast app test/i.test(userText) && hasToolResult ? "GO AST APP DONE" : /py ast edit app test/i.test(userText) && hasToolResult ? "PY AST EDIT APP DONE" : /py ast app test/i.test(userText) && hasToolResult ? "PY AST APP DONE" : /read app test/i.test(userText) && hasToolResult ? "READ APP DONE" : /edit app test/i.test(userText) && hasToolResult ? "EDIT APP DONE" : /debug app test/i.test(userText) && hasToolResult ? "DEBUG APP DONE" : /web search app test/i.test(userText) && hasToolResult ? "WEB SEARCH APP DONE" : /ast edit app test/i.test(userText) && hasToolResult ? "AST EDIT APP DONE" : /ast app test/i.test(userText) && hasToolResult ? "AST APP DONE" : /python app test/i.test(userText) && hasToolResult ? "PYTHON APP DONE" : /notebook app test/i.test(userText) && hasToolResult ? "NOTEBOOK APP DONE" : /lsp app test/i.test(userText) && hasToolResult ? "LSP APP DONE" : /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: reply }, finish_reason: null }] })}\n\n`);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\n`);
   response.write("data: [DONE]\n\n");

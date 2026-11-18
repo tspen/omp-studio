@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Lang, parse } from "@ast-grep/napi";
+import { genericAstEdit, genericAstGrep, wantsCli } from "./ast-cli";
 import { pythonAstEdit, pythonAstGrep } from "./python-ast";
 
 const IGNORED_DIRECTORIES = new Set([
@@ -180,6 +181,7 @@ function matchDetails(root: string, file: string, node: any, pattern: string): A
 
 export async function astGrep(input: AstGrepInput): Promise<AstResult> {
   if (wantsPython(input)) return pythonAstGrep(input);
+  if (wantsCli(input)) return genericAstGrep(input);
   const pattern = String(input.pattern ?? "");
   if (!pattern.trim()) throw new Error("ast_grep needs a pattern");
   const root = resolve(input.cwd);
@@ -222,6 +224,7 @@ export async function astGrep(input: AstGrepInput): Promise<AstResult> {
 
 export async function astEdit(input: AstEditInput): Promise<AstEditResult> {
   if (wantsPython(input)) return pythonAstEdit(input);
+  if (wantsCli(input)) return genericAstEdit(input);
   const pattern = String(input.pattern ?? "");
   const rewrite = String(input.rewrite ?? "");
   if (!pattern.trim()) throw new Error("ast_edit needs a pattern");
