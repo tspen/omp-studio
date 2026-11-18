@@ -19,8 +19,21 @@ import { PiClient } from "./pi-client";
 import { PI_HOST_EXTENSION } from "./pi-extension";
 import { trace } from "../diagnostics";
 
-const ROOT_DENIED_TOOLS = ["bash", "read", "edit", "write", "grep", "find", "ls"];
-const PROJECT_ORCHESTRATOR_DENIED_TOOLS = ["edit", "write"];
+const ROOT_DENIED_TOOLS = [
+  "bash",
+  "read",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+  "python",
+  "notebook",
+  "ast_edit",
+  "launch",
+  "debug",
+];
+const PROJECT_ORCHESTRATOR_DENIED_TOOLS = ["edit", "write", "notebook", "ast_edit"];
 const AUTO_APPROVE_TOOLS = new Set(["read", "grep", "find", "ls"]);
 
 export interface PiSessionOptions {
