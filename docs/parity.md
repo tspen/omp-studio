@@ -21,7 +21,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Goal state | App-side create/pause/resume/drop, bounded auto-continuation (50 turns), token budget and `GOAL COMPLETE` detection |
 | Parallel tasks | `task` host tool fans out Perch worker threads and returns structured results |
 | Subagent panel | `task` workers appear in a dedicated **Subagents** section in the right rail, with status, model, branch and their full worker transcript |
-| Provider migration | `scripts/import-auth-db.mjs` imports API keys and OAuth credentials from a legacy SQLite auth store into Pi `auth.json` |
+| Provider migration | `scripts/import-auth-db.mjs` imports API keys and OAuth credentials from a legacy SQLite auth store into Pi `auth.json` (Node 24+) |
 | Tool core | Pi-native `read`, `edit`, `bash`, `grep`, `find` and `ls` replace the previous hashline/summarized-read/Rust implementation; user-visible tool cards and approvals are unchanged |
 | Python | Persistent Python 3 kernel per thread, reset, timeout; `PERCH_PYTHON` or PATH discovery |
 | Notebook | Read, edit and execute `.ipynb` cells through the persistent Python kernel |

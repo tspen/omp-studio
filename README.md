@@ -50,7 +50,7 @@ On first run Perch opens a setup wizard:
 2. **Pick models**. Root, worker and naming defaults are selected from the connected provider, with cost and quality hints.
 3. **Ready**. Notifications, auto-naming and an optional first project.
 
-Provider credentials are stored in the Perch data directory under `pi-agent/auth.json`; they are not sent to Perch. Existing credentials in a legacy SQLite auth store can be imported with `node scripts/import-auth-db.mjs --db <agent.db>`.
+Provider credentials are stored in the Perch data directory under `pi-agent/auth.json`; they are not sent to Perch. Existing credentials in a legacy SQLite auth store can be imported with `node scripts/import-auth-db.mjs --db <agent.db>` on Node 24+.
 
 ## Build a Windows installer
 
