@@ -35,6 +35,15 @@ const server = createServer(async (request, response) => {
     created: Math.floor(Date.now() / 1000),
     model: "mock-model",
   };
+  if (/lsp app test/i.test(userText) && !hasToolResult) {
+    const toolCall = { action: "diagnostics", path: "src/main/services/lsp.ts" };
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_lsp_1", type: "function", function: { name: "lsp", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`);
+    response.write("data: [DONE]\n\n");
+    response.end();
+    return;
+  }
   if (/task test/i.test(userText) && !hasToolResult) {
     const toolCall = { tasks: [{ brief: "Reply with WORKER OK", title: "Worker task" }] };
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_task_1", type: "function", function: { name: "task", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
@@ -52,7 +61,7 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
-  const reply = /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
+  const reply = /lsp app test/i.test(userText) && hasToolResult ? "LSP APP DONE" : /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: reply }, finish_reason: null }] })}\n\n`);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\n`);
   response.write("data: [DONE]\n\n");
@@ -62,5 +71,6 @@ const server = createServer(async (request, response) => {
 server.listen(port, "127.0.0.1", () => {
   console.log(`Perch mock provider listening on http://127.0.0.1:${port}/v1`);
 });
+
 
 
