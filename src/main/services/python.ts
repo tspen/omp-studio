@@ -127,6 +127,16 @@ export class PythonService {
     return this.kill(key);
   }
 
+  resetThread(threadId: string): number {
+    let stopped = 0;
+    for (const key of [...this.workers.keys()]) {
+      if (key === threadId || key.startsWith(`notebook:${threadId}:`)) {
+        if (this.kill(key)) stopped += 1;
+      }
+    }
+    return stopped;
+  }
+
   dispose(): void {
     for (const key of [...this.workers.keys()]) this.kill(key);
   }

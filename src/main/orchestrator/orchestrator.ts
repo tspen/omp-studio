@@ -54,6 +54,7 @@ import { trace } from "../diagnostics";
 import { lspRequest } from "../services/lsp";
 import { astEdit, astGrep } from "../services/ast";
 import { dapLaunch, dapRequest, disposeDap } from "../services/dap";
+import { disposeLsp } from "../services/lsp";
 import { webSearch } from "../services/web-search";
 import type { PythonService } from "../services/python";
 import { notebookRequest } from "../services/notebook";
@@ -1374,6 +1375,8 @@ export class Orchestrator extends EventEmitter {
     for (const timer of this.gitTimers.values()) clearTimeout(timer);
     for (const timer of this.autoContinueTimers.values()) clearTimeout(timer);
     disposeDap();
+    disposeLsp();
+    this.deps.python.dispose();
     await Promise.all([...this.sessions.values()].map((session) => session.dispose().catch(() => undefined)));
     this.sessions.clear();
   }
@@ -1539,6 +1542,7 @@ export class Orchestrator extends EventEmitter {
       }).catch(() => undefined);
     }
     disposeDap(threadId);
+    this.deps.python.resetThread(threadId);
     await session.dispose();
     this.store.finalizeRunningTools(threadId, "Stopped");
     this.updateStatus(threadId, "parked", "Parked");
