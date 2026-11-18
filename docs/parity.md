@@ -33,7 +33,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 
 | Gap | Impact | Notes |
 | --- | --- | --- |
-| LSP / DAP | TypeScript/JavaScript/JSON LSP is bridged through `typescript-language-server`: diagnostics, definition, references, hover, symbols. DAP and other language servers are not wired. | `lsp` host tool; see `src/main/services/lsp.ts`. |
+| LSP / DAP | TypeScript/JavaScript/JSON LSP is bundled. Python, Rust, Go, C/C++, Java, C#, Ruby and PHP use an installed language server or `PERCH_LSP_*` override. DAP is not wired. | `lsp` host tool; see `src/main/services/lsp.ts`. |
 | AST editing outside JS/TS/HTML/CSS | `ast_grep`/`ast_edit` cover JavaScript, TypeScript, TSX, HTML and CSS | Python and other languages use Pi `grep`/`edit` plus the Python kernel. |
 | Native subagent panel | The previous in-process `task` frames are gone | `task` now creates normal Perch worker threads; the tree is the subagent UI. |
 | Provider credentials | Previous credentials are not imported | Reconnect a provider once in Settings. |
@@ -50,6 +50,7 @@ node scripts/pi-durable-selftest.mjs   commit + reopen "PERCH DURABLE OK"
 python + notebook host tools           "PYTHON APP DONE", "NOTEBOOK APP DONE"
 ast_grep + ast_edit                    "AST APP DONE", "AST EDIT APP DONE"
 web_search (SearXNG mock)              "WEB SEARCH APP DONE"
+LSP TypeScript + external server       symbols from bundled TS and a fake Python server
 packaged Perch.exe                     Pi 1.5.2, Python + notebook + AST tools, completed sessions
 ```
 

@@ -10,7 +10,7 @@ Perch is the cockpit. Pi is the engine. There is no legacy engine runtime, no se
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
 - **Parallel tasks**: the `task` host tool fans out up to eight worker threads and returns structured results, so Pi agents get parallel task delegation without in-process subagents.
 - **Pi under the hood**: Perch launches the bundled `@earendil-works/pi-coding-agent` in `--mode rpc`, uses Pi sessions, tools, skills, provider auth and compaction. It does not reimplement the agent loop.
-- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP, AST, Python, notebook, web search and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are available without a separate agent engine; Python and Jupyter cells use a persistent kernel; `ast_grep`/`ast_edit` rewrite JS/TS/TSX/HTML/CSS structurally; `web_search` uses the provider you configure.
+- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP, AST, Python, notebook, web search and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are bundled; Python, Rust, Go, C/C++, Java, C#, Ruby and PHP use an installed language server or a `PERCH_LSP_*` override. Python and Jupyter cells use a persistent kernel; `ast_grep`/`ast_edit` rewrite JS/TS/TSX/HTML/CSS structurally; `web_search` uses the provider you configure.
 - **Explicit model selection**: Per-thread model and thinking level, plus role defaults for root/group/project/worker/naming/memory.
 - **Git-aware threads**: Project repositories, worker branches and worktrees, status, diffs, commit, merge and PR actions. Worktrees live outside the repository so unmerged work is not silently destroyed.
 - **Memory**: Per-node durable memory, visible and editable. Orchestrators write through `tree_memory_write`; completed thread outcomes are auto-captured as low-importance entries.
@@ -72,6 +72,10 @@ The NSIS installer is written to `dist/`. The Pi runtime is bundled from `node_m
 | Exa | `PERCH_SEARCH_PROVIDER=exa`, `PERCH_EXA_API_KEY` |
 
 Perch does not scrape a keyless search engine. Tool and extension packages can execute code; install only sources you trust.
+
+## Language servers
+
+TypeScript, JavaScript and JSON work out of the box. For other languages, install a server on `PATH` and Perch detects it: `pyright-langserver` or `pylsp` for Python, `rust-analyzer` for Rust, `gopls` for Go, `clangd` for C/C++, `jdtls` for Java, `csharp-ls` for C#, `ruby-lsp` for Ruby and `intelephense` for PHP. Override a command with `PERCH_LSP_PYTHON`, `PERCH_LSP_RUST`, `PERCH_LSP_GO`, `PERCH_LSP_CLANGD`, `PERCH_LSP_JAVA`, `PERCH_LSP_CSHARP`, `PERCH_LSP_RUBY` or `PERCH_LSP_PHP`.
 
 ## Remote, mobile and cloud
 

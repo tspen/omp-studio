@@ -1,7 +1,7 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 interface Pending {
   resolve: (value: any) => void;
@@ -9,7 +9,17 @@ interface Pending {
   timer: NodeJS.Timeout;
 }
 
+interface ServerSpec {
+  id: string;
+  command: string;
+  args: string[];
+  languageId: string;
+  electronNode?: boolean;
+  shell?: boolean;
+}
+
 interface LspServer {
+  key: string;
   process: ChildProcessWithoutNullStreams;
   root: string;
   pending: Map<number, Pending>;
@@ -41,8 +51,118 @@ function languageId(file: string): string {
     case ".js": return "javascript";
     case ".jsx": return "javascriptreact";
     case ".json": return "json";
+    case ".py": return "python";
+    case ".rs": return "rust";
+    case ".go": return "go";
+    case ".c":
+    case ".h": return "c";
+    case ".cc":
+    case ".cpp":
+    case ".cxx":
+    case ".hpp": return "cpp";
+    case ".java": return "java";
+    case ".cs": return "csharp";
+    case ".rb": return "ruby";
+    case ".php": return "php";
     default: return "plaintext";
   }
+}
+
+function splitCommand(value: string): string[] {
+  const parts: string[] = [];
+  const pattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  for (const match of value.matchAll(pattern)) parts.push(match[1] ?? match[2] ?? match[3]);
+  return parts;
+}
+
+function findCommand(command: string): string | null {
+  if (isAbsolute(command) && existsSync(command)) return command;
+  const result = spawnSync(process.platform === "win32" ? "where" : "which", [command], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (result.status !== 0) return null;
+  return result.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null;
+}
+
+function externalSpec(file: string): ServerSpec | null {
+  const extension = extname(file).toLowerCase();
+  const config: Record<string, { id: string; env: string; commands: Array<{ command: string; args: string[] }> }> = {
+    ".py": {
+      id: "python",
+      env: "PERCH_LSP_PYTHON",
+      commands: [
+        { command: "pyright-langserver", args: ["--stdio"] },
+        { command: "pylsp", args: [] },
+      ],
+    },
+    ".rs": { id: "rust", env: "PERCH_LSP_RUST", commands: [{ command: "rust-analyzer", args: [] }] },
+    ".go": { id: "go", env: "PERCH_LSP_GO", commands: [{ command: "gopls", args: ["serve"] }] },
+    ".c":
+      { id: "clangd", env: "PERCH_LSP_CLANGD", commands: [{ command: "clangd", args: [] }] },
+    ".h":
+      { id: "clangd", env: "PERCH_LSP_CLANGD", commands: [{ command: "clangd", args: [] }] },
+    ".cc":
+      { id: "clangd", env: "PERCH_LSP_CLANGD", commands: [{ command: "clangd", args: [] }] },
+    ".cpp":
+      { id: "clangd", env: "PERCH_LSP_CLANGD", commands: [{ command: "clangd", args: [] }] },
+    ".cxx":
+      { id: "clangd", env: "PERCH_LSP_CLANGD", commands: [{ command: "clangd", args: [] }] },
+    ".hpp":
+      { id: "clangd", env: "PERCH_LSP_CLANGD", commands: [{ command: "clangd", args: [] }] },
+    ".java": { id: "java", env: "PERCH_LSP_JAVA", commands: [{ command: "jdtls", args: [] }] },
+    ".cs": { id: "csharp", env: "PERCH_LSP_CSHARP", commands: [{ command: "csharp-ls", args: [] }] },
+    ".rb": { id: "ruby", env: "PERCH_LSP_RUBY", commands: [{ command: "ruby-lsp", args: [] }] },
+    ".php": { id: "php", env: "PERCH_LSP_PHP", commands: [{ command: "intelephense", args: ["--stdio"] }] },
+  };
+  const selected = config[extension];
+  if (!selected) return null;
+  const override = process.env[selected.env]?.trim();
+  if (override) {
+    const parts = splitCommand(override);
+    if (!parts.length) throw new Error(`${selected.env} is empty`);
+    const command = findCommand(parts[0]);
+    if (!command) throw new Error(`Language server command not found: ${parts[0]} (${selected.env})`);
+    return {
+      id: selected.id,
+      command,
+      args: parts.slice(1),
+      languageId: languageId(file),
+      shell: /\.(cmd|bat)$/i.test(command),
+    };
+  }
+  for (const candidate of selected.commands) {
+    const command = findCommand(candidate.command);
+    if (command) {
+      return {
+        id: selected.id,
+        command,
+        args: candidate.args,
+        languageId: languageId(file),
+        shell: /\.(cmd|bat)$/i.test(command),
+      };
+    }
+  }
+  throw new Error(
+    `No language server is available for ${extension}. Install ${selected.commands.map((candidate) => candidate.command).join(" or ")} or set ${selected.env}.`,
+  );
+}
+
+function specFor(file: string): ServerSpec {
+  const extension = extname(file).toLowerCase();
+  if ([".ts", ".tsx", ".js", ".jsx", ".json"].includes(extension)) {
+    if (!existsSync(cliPath())) throw new Error("TypeScript language server is not installed");
+    return {
+      id: "typescript",
+      command: process.execPath,
+      args: [cliPath(), "--stdio"],
+      languageId: languageId(file),
+      electronNode: true,
+    };
+  }
+  const external = externalSpec(file);
+  if (!external) throw new Error(`No language server is configured for ${extension || "this file"}`);
+  return external;
 }
 
 function send(server: LspServer, message: any): void {
@@ -67,16 +187,19 @@ function notify(server: LspServer, method: string, params: any): void {
   send(server, { jsonrpc: "2.0", method, params });
 }
 
-function start(root: string): LspServer {
-  const existing = servers.get(root);
+function start(spec: ServerSpec, root: string): LspServer {
+  const key = `${spec.id}:${root}`;
+  const existing = servers.get(key);
   if (existing && existing.process.exitCode === null) return existing;
-  const child = spawn(process.execPath, [cliPath(), "--stdio"], {
+  const child = spawn(spec.command, spec.args, {
     cwd: root,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    env: { ...process.env, ...(spec.electronNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}) },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
+    shell: spec.shell === true,
   });
   const server: LspServer = {
+    key,
     process: child,
     root,
     pending: new Map(),
@@ -86,7 +209,7 @@ function start(root: string): LspServer {
     buffer: Buffer.alloc(0),
     initialized: Promise.resolve(),
   };
-  servers.set(root, server);
+  servers.set(key, server);
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", () => undefined);
   child.stdout.on("data", (chunk: Buffer) => {
@@ -104,7 +227,11 @@ function start(root: string): LspServer {
       const body = server.buffer.subarray(headerEnd + 4, headerEnd + 4 + length).toString("utf8");
       server.buffer = server.buffer.subarray(headerEnd + 4 + length);
       let message: any;
-      try { message = JSON.parse(body); } catch { continue; }
+      try {
+        message = JSON.parse(body);
+      } catch {
+        continue;
+      }
       if (message.id && server.pending.has(message.id)) {
         const pending = server.pending.get(message.id)!;
         clearTimeout(pending.timer);
@@ -117,7 +244,7 @@ function start(root: string): LspServer {
     }
   });
   child.on("exit", () => {
-    servers.delete(root);
+    servers.delete(key);
     for (const pending of server.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error("LSP server exited"));
@@ -166,7 +293,7 @@ async function open(server: LspServer, file: string): Promise<string> {
 function location(server: LspServer, item: any): any {
   const uri = item.uri ?? item.targetUri ?? "";
   const range = item.range ?? item.targetSelectionRange ?? item.targetRange ?? {};
-  const file = uri.startsWith("file:") ? decodeURIComponent(new URL(uri).pathname).replace(/^\//, "").replaceAll("/", "\\") : uri;
+  const file = uri.startsWith("file:") ? fileURLToPath(uri) : uri;
   const path = file ? (isAbsolute(file) ? relative(server.root, file) : file) : "";
   return { path, range: { start: range.start, end: range.end } };
 }
@@ -181,8 +308,8 @@ export async function lspRequest(input: {
   const root = resolve(input.cwd);
   const file = isAbsolute(input.path) ? input.path : resolve(root, input.path);
   if (!existsSync(file)) throw new Error(`File not found: ${input.path}`);
-  if (!existsSync(cliPath())) throw new Error("TypeScript language server is not installed");
-  const server = start(root);
+  const spec = specFor(file);
+  const server = start(spec, root);
   await server.initialized;
   const uri = await open(server, file);
   const position = {
@@ -232,10 +359,11 @@ export async function lspRequest(input: {
 
 export function disposeLsp(): void {
   for (const server of servers.values()) {
-    try { server.process.kill("SIGTERM"); } catch { /* ignore */ }
+    try {
+      server.process.kill("SIGTERM");
+    } catch {
+      /* ignore */
+    }
   }
   servers.clear();
 }
-
-
-

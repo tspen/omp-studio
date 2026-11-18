@@ -87,7 +87,7 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     name: "lsp",
     label: "LSP: code intelligence",
     description:
-      "Query the project language server for TypeScript/JavaScript/JSON: diagnostics, definitions, references, hover and document symbols. Use before editing or renaming. 1-based line and character.",
+      "Query the project language server: diagnostics, definitions, references, hover and document symbols. TypeScript/JavaScript/JSON are bundled. Python, Rust, Go, C/C++, Java, C#, Ruby and PHP use an installed server or PERCH_LSP_* override. 1-based line and character.",
     parameters: object(
       {
         action: { type: "string", enum: ["diagnostics", "definition", "references", "hover", "symbols"] },
