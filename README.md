@@ -107,34 +107,26 @@ frames and never sees prompts or files. No inbound runner port, no managed relay
   `android/` and `ios/`. `npm run mobile:android` builds a debug APK.
 - Other machines: run `docker run -d --restart unless-stopped -p 43120:43120 -v
   omp-data:/data ghcr.io/tspen/omp-runner:latest` and paste the pairing link from
-  its logs under **Advanced settings**. See [`runner/README.md`](runner/README.md).
+  its logs under **More options**. See [`runner/README.md`](runner/README.md).
 - Self-hosted encrypted relay source and security model: [`relay/README.md`](relay/README.md).
 - Sessions move as portable bundles (workspace + OMP session + chat) at turn
   boundaries. The source is retained for rollback. Repeats to the same target are
   **warm**: the target keeps the workspace, and only changed files plus the
   session are sent (74 MB cold → 51 KB warm; 7.1 s → 207 ms measured).
-- Automatic placement: pick a registered target, give consent, and idle worker
-  sessions move there without per-session prompts. Running turns are never
-  interrupted. Prompts, stop, continue and compact are proxied to the target and
-  the desktop mirrors status and messages.
 - Push notifications (VAPID Web Push) for approvals, waiting/error sessions and
-  reply requests, with notification-click deep links; per-target cost/token meter.
+  reply requests, with notification-click deep links.
 - Live pause/resume: freeze the OMP process tree and resume the same in-flight
   turn; exposed in desktop and PWA, proxied for placed sessions.
-- Memory checkpoint: Docker/CRIU checkpoint of the Linux runner container
-  (process tree + memory) with restore on the same host. Cross-host memory
-  migration is **out of v1**; export/import bundles remain experimental. Same-host
-  restore and cold/warm moves are the supported paths.
 - Everything the runner creates is garbage-collected: startup plus every five
   minutes, with `Maintenance → Clean up now`, `npm run runner:gc`,
   `npm run runner:quota` and `POST /api/maintenance/sweep`.
 
 Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
 15 ms; cold move of a 74 MB workspace 7.1 s, the same repeat move warm in 207 ms
-(51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push and the cost meter
-reads `GET /api/usage`. Relay traffic is end-to-end encrypted (17 sessions
-loaded through the relay in the checks). The remaining optional track is signed
-iOS; cross-host memory migration is deferred beyond v1.
+(51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push. Relay traffic is
+end-to-end encrypted (17 sessions loaded through the relay in the checks). The
+remaining optional track is signed iOS; cross-host memory migration is deferred
+beyond v1.
 Full evidence and gaps are in
 [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 

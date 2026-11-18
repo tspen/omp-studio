@@ -68,15 +68,14 @@ Deliberately not pursued after user review: plan mode, lifecycle hooks, and a se
 ## Remote execution
 
 The remote/mobile runner is implemented: token/QR pairing, HTTP/WebSocket API,
-PWA, Android/iOS Capacitor projects, Docker runner, relay, push, cost meter,
-cold/warm moves, automatic placement, same-host pause/checkpoint and cleanup.
+PWA, Android/iOS Capacitor projects, Docker runner, relay, push, cold/warm moves,
+same-host pause/resume and cleanup.
 See [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md)
 for verified evidence and performance.
 
-V1 scope decision: same-host pause/resume and Docker/CRIU checkpoint are
-supported; **cross-host memory migration is out of v1** and deferred. Cross-host
-handoff uses cold or warm moves at turn boundaries. Signed iOS device builds
-require Apple credentials.
+V1 scope decision: same-host pause/resume is supported; **cross-host memory
+migration is out of v1** and deferred. Cross-host handoff uses cold or warm moves
+at turn boundaries. Signed iOS device builds require Apple credentials.
 
 Design details remain in
 [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md)

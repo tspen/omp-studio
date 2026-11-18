@@ -21,9 +21,8 @@ import type { MobileService } from "./services/mobile";
 import type { PluginService } from "./services/plugins";
 import type { RemoteService } from "./services/remote";
 import type { RelayService } from "./services/relay";
-import type { CheckpointService } from "./services/checkpoint";
-import { collectGarbage } from "./services/maintenance";
 import type { Store } from "./services/store";
+import { collectGarbage } from "./services/maintenance";
 import { trace } from "./diagnostics";
 import { audit, readAudit } from "./audit";
 import type { TerminalService } from "./services/terminal";
@@ -55,7 +54,6 @@ export interface IpcContext {
   plugins: PluginService;
   remote: RemoteService;
   relay: RelayService;
-  checkpoint: CheckpointService;
   usage: UsageService;
   broadcast: (event: AppEvent) => void;
   openBrowser: (url: string) => void;
@@ -65,7 +63,7 @@ export interface IpcContext {
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, plugins, remote, relay, checkpoint, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
+  const { store, orchestrator, environments, models, providers, settings, git, artifacts, notifications, terminal, pty, workspace, pr, deploy, exporter, oauth, mobile, plugins, remote, relay, share, sites, browser, engine, usage, broadcast, openBrowser, popOutBrowser, popOutPane, getPaneData } = context;
 
   ipcMain.handle("state:get", () => orchestrator.snapshot());
   ipcMain.handle("thread:messages", (_event, threadId: string) => {
@@ -466,20 +464,10 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("remote:target:remove", (_event, id: string) => remote.removeTarget(id));
   ipcMain.handle("remote:target:test", (_event, id: string) => remote.testTarget(id));
   ipcMain.handle("remote:move", (_event, threadId: string, targetId: string, mode?: "wait" | "stop") => remote.moveThread(threadId, targetId, mode));
-  ipcMain.handle("remote:place", (_event, force?: boolean, threadId?: string) => remote.placeIdleSessions(!!force, threadId));
-  ipcMain.handle("remote:last-placement", () => remote.lastPlacement());
-  ipcMain.handle("remote:target-usage", (_event, id: string) => remote.targetUsage(id));
   ipcMain.handle("relay:info", () => relay.info());
   ipcMain.handle("relay:configure", (_event, input) => relay.configure(input));
   ipcMain.handle("relay:start", () => relay.start());
   ipcMain.handle("relay:stop", () => relay.stop());
-  ipcMain.handle("checkpoint:info", () => checkpoint.info());
-  ipcMain.handle("checkpoint:configure", (_event, input) => checkpoint.configure(input));
-  ipcMain.handle("checkpoint:create", (_event, name?: string) => checkpoint.create(name));
-  ipcMain.handle("checkpoint:restore", (_event, name: string) => checkpoint.restore(name));
-  ipcMain.handle("checkpoint:delete", (_event, name: string) => checkpoint.remove(name));
-  ipcMain.handle("checkpoint:export", (_event, name?: string) => checkpoint.exportBundle(name));
-  ipcMain.handle("checkpoint:import", (_event, bundle: string, name?: string) => checkpoint.importBundle(bundle, name));
   ipcMain.handle("remote:export", (_event, threadId: string) => remote.exportThreadBundle(threadId));
   ipcMain.handle("remote:import", (_event, bundle: string) => remote.importThreadBundle(bundle));
   ipcMain.handle("remote:sync", () => remote.syncRemoteThreads());

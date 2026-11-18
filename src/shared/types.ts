@@ -429,26 +429,7 @@ export interface RemoteTarget {
   latencyMs?: number;
   lastSeen?: number;
   error?: string;
-  cost?: number;
-  tokens?: number;
-  usageAt?: number;
   createdAt: number;
-}
-
-export interface CheckpointInfo {
-  configured: boolean;
-  running: boolean;
-  url: string;
-  container: string;
-  checkpoints: string[];
-  bundles: Array<{ name: string; path: string }>;
-  error?: string;
-}
-
-export interface CheckpointInput {
-  url: string;
-  container: string;
-  token: string;
 }
 
 export interface RelayInfo {
@@ -480,22 +461,11 @@ export interface RemoteUsage {
   threads: Array<{ id: string; title: string; nodeId: string; status: string; cost: number; tokens: number }>;
 }
 
-export interface TargetUsage extends RemoteUsage {
-  target: RemoteTarget;
-}
-
 export interface RemoteTargetInput {
   name: string;
   url: string;
   token: string;
   kind?: "paired" | "docker";
-}
-
-export interface PlacementPolicy {
-  enabled: boolean;
-  targetId: string;
-  idleSeconds: number;
-  consent: boolean;
 }
 
 export type MoveMode = "wait" | "stop";
@@ -517,13 +487,6 @@ export interface MoveResult {
   filesDeleted: number;
   filesUnchanged: number;
   bytesSent: number;
-}
-
-export interface PlacementResult {
-  at: number;
-  placed: Array<{ threadId: string; targetId: string; remoteThreadId: string; remoteNodeId: string; ms: number; warm: boolean; filesWritten: number; filesUnchanged: number; bytesSent: number }>;
-  skipped: string[];
-  target?: { id: string; name: string; status: string };
 }
 
 export interface MaintenanceReport {
@@ -599,9 +562,7 @@ export interface AppSettings {
   autoCheckpoints: boolean;
   remote: { enabled: boolean; port: number; host: string; keepRunning: boolean };
   remoteTargets: RemoteTarget[];
-  remotePlacement: PlacementPolicy;
   remoteRelay: { enabled: boolean; url: string; room: string };
-  remoteCheckpoint: { url: string; container: string };
   computerUse: boolean;
   autoFixCi: boolean;
   advisor: boolean;
@@ -1170,20 +1131,10 @@ export interface OmpStudioApi {
   removeRemoteTarget(id: string): Promise<RemoteTarget[]>;
   testRemoteTarget(id: string): Promise<RemoteTarget[]>;
   moveThreadToTarget(threadId: string, targetId: string, mode?: MoveMode): Promise<MoveOutcome>;
-  placeIdleSessions(force?: boolean, threadId?: string): Promise<PlacementResult>;
-  targetUsage(targetId: string): Promise<TargetUsage>;
   relayInfo(): Promise<RelayInfo>;
   configureRelay(input: RelayInput): Promise<RelayInfo>;
   startRelay(): Promise<RelayInfo>;
   stopRelay(): Promise<RelayInfo>;
-  runnerCheckpointInfo(): Promise<CheckpointInfo>;
-  configureRunnerCheckpoint(input: CheckpointInput): Promise<CheckpointInfo>;
-  createRunnerCheckpoint(name?: string): Promise<CheckpointInfo>;
-  restoreRunnerCheckpoint(name: string): Promise<CheckpointInfo>;
-  deleteRunnerCheckpoint(name: string): Promise<CheckpointInfo>;
-  exportRunnerCheckpoint(name?: string): Promise<{ bundle: string; bytes: number }>;
-  importRunnerCheckpoint(bundle: string, name?: string): Promise<{ container: string; id: string }>;
-  lastPlacement(): Promise<PlacementResult | null>;
   exportThreadBundle(threadId: string): Promise<{ name: string; bundle: string }>;
   importThreadBundle(bundle: string): Promise<{ threadId: string; nodeId: string }>;
   syncRemoteSessions(): Promise<void>;

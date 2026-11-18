@@ -2,7 +2,7 @@
 
 Date: 2026-11-17
 
-Status: **partially implemented**. Remote server, pairing, PWA, Android/iOS projects, cold move, target registry, Docker/VPS runner and self-cleaning GC ship in this tree. See [`remote-implementation-status.md`](remote-implementation-status.md) for verified evidence and remaining gaps (iOS signing, warm/live moves, automatic placement, push).
+Status: **partially implemented**. Remote server, pairing, PWA, Android/iOS projects, cold move, target registry, Docker/VPS runner and self-cleaning GC ship in this tree. See [`remote-implementation-status.md`](remote-implementation-status.md) for verified evidence and remaining gaps (iOS signing, warm/live moves, push).
 
 Goals:
 
@@ -55,7 +55,7 @@ Modes:
 
 The runner never needs an inbound port. It dials out and authenticates with a device key.
 
-### 2. Target registry and placement
+### 2. Target registry and moves
 
 An `ExecutionTarget`:
 
@@ -67,13 +67,13 @@ caps, reachability: tailscale | self-hosted-relay | cloudflare-tunnel | embedded
 costPerHourUsd, idlePolicy, region, ownerControlled
 ```
 
-Placement is automatic:
+Moves are explicit in v1:
 
-- each node/session has a preferred target; cloud is default once a user-owned target is paired and consented;
+- each node/session can have a preferred target; local is the default;
 - constraints: repo, OS/toolchain, GPU, allowed secrets, network policy, cost, data residency;
 - fallback: preferred -> local -> fail with a reason;
-- no per-worker placement dialog;
-- agents get `runtime_list`, `runtime_status`, `session_place`, `session_move`, `session_checkpoint`; moves that spend money or change data residency require consent.
+- no per-worker move dialog; the user picks a session and a machine when they want to move it;
+- agents get `runtime_list`, `runtime_status`, `session_move`; moves that spend money or change data residency require consent.
 
 ### 3. Portable session bundle
 
@@ -103,7 +103,7 @@ No managed OMP relay and no public quick tunnels in production.
 
 ### 5. Clients
 
-- Desktop app: target switcher, automatic placement, move, pairing, same tree.
+- Desktop app: target switcher, move, pairing, same tree.
 - **PWA first** for phone: installable, Web Push, QR pairing, session cards, chat, approvals, diff, terminal, screenshots.
 - CLI later.
 - Push payloads contain only IDs and a nonce; content is fetched over E2E after unlock.
@@ -222,17 +222,17 @@ Secrets are never in the bundle; the target injects its own.
 
 **Many PCs?** Each is a target. A sleeping laptop's sessions show offline; move them to an always-on target when it wakes. This is why the default is an always-on user-owned target.
 
-**Do I pick a place per agent?** No. Placement is automatic; you set defaults and guardrails once.
+**Do I pick a place per agent?** No. Sessions stay local until you explicitly move one.
 
-**Implemented today?** Partly: the remote server, PWA, Android build, cold move, target registry, Docker runner and GC are implemented. Warm/live moves, automatic placement and push are not. See [`remote-implementation-status.md`](remote-implementation-status.md).
+**Implemented today?** Partly: the remote server, PWA, Android build, cold move, target registry, Docker runner and GC are implemented. Warm/live moves and push are not. See [`remote-implementation-status.md`](remote-implementation-status.md).
 
 ## Phases
 
 **Phase 1 (2-4 weeks):** core extraction; `omp-runner` local/VPS; Tailscale/self-hosted relay; QR pairing; PWA; cold move; GC and quotas; performance gates.
 
-**Phase 2 (2-3 weeks):** user-owned cloud default (VPS Docker); automatic placement; push; cost meter; move UI.
+**Phase 2 (2-3 weeks):** user-owned cloud default (VPS Docker); push; move UI.
 
-**Phase 3 (3-5 weeks):** warm moves; tree-level placement policy; team targets.
+**Phase 3 (3-5 weeks):** warm moves; tree-level move policy; team targets.
 
 **Not in v1:** managed sandbox services, managed relay, live migration, native mobile, Kubernetes, multi-region scheduling.
 

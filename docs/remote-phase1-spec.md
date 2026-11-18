@@ -8,7 +8,7 @@ Locked decisions from the architecture review:
 - Tailscale first, self-hosted relay second, Cloudflare Tunnel + Access third. E2E encryption regardless.
 - Docker/VPS is the default cloud target. No managed provider is required.
 - Cloud becomes the default only after a user-owned target is paired and consent is given.
-- Placement is automatic; no per-session "pick a place" dialog.
+- Moves are explicit; automatic placement is out of v1.
 - Cold move at turn boundaries only; no live migration.
 - PWA first for mobile.
 - No proprietary managed sandbox adapter. Docker/VPS is the only sandbox target in v1.
@@ -33,7 +33,7 @@ src/core/
   checkpoints.ts
   permissions.ts
   audit.ts
-  target.ts           # execution targets and placement
+  target.ts           # execution targets and moves
   bundle.ts           # session export/import
   policy.ts
 ```
@@ -123,7 +123,7 @@ Cloudflare Tunnel path: QR contains the Access-protected URL plus the same pairi
 
 ```
 bundle/
-  manifest.json        # schema, sessionId, tree node, model, effort, policy, placement
+  manifest.json        # schema, sessionId, tree node, model, effort, policy
   workspace.bundle     # git bundle of the branch/commit
   untracked.tar        # untracked + deleted files, no ignored caches unless requested
   omp-session/         # JSONL session files
@@ -179,20 +179,6 @@ interface ExecutionTarget {
 }
 ```
 
-Placement policy (automatic):
-
-```ts
-interface PlacementPolicy {
-  defaultTargetId: string | null;      // cloud after pairing + consent
-  fallbackTargetId: string | null;     // local
-  maxCostPerHourUsd?: number;
-  allowedRegions?: string[];
-  dataResidency: "any" | "user-owned" | "local-only";
-  requireSecretsLocally: boolean;
-  agentCanMove: boolean;
-}
-```
-
 Scheduler picks a target by: explicit node override -> policy constraints -> default target -> fallback. No dialog per worker.
 
 ## 7. Agent and tree tools
@@ -201,11 +187,9 @@ Host tools:
 
 - `runtime_list` — available targets, status, capabilities, cost.
 - `runtime_status` — one target's load and sessions.
-- `session_place` — create a new worker on a named target, if policy allows.
-- `session_move` — cold-move a session to another target, if policy allows.
-- `session_checkpoint` — explicit checkpoint before a risky operation.
+- `session_move` — cold-move a session to another target.
 
-Policy guard: moves that change `dataResidency`, cross a cost cap, or use a non-user-owned provider require user consent. Everything else is automatic.
+Policy guard: moves that change `dataResidency`, cross a cost cap, or use a non-user-owned provider require user consent.
 
 The tree keeps its typed envelopes; moving a session does not change parent/child relationships.
 
@@ -234,7 +218,7 @@ Web Push payloads contain only `sessionId`, `kind` and a nonce; the app fetches 
 - No host mounts into agent sandboxes; Docker socket only in the runner control process.
 - Signed runner releases; pinned image digests.
 - Snapshots encrypted at rest; explicit retention/deletion.
-- Audit entries for pairing, placement, moves, approvals and revocations.
+- Audit entries for pairing, moves, approvals and revocations.
 - Lethal trifecta: never combine private code, untrusted content and unrestricted egress in one context.
 
 ## 10. Frictionless setup
@@ -308,7 +292,6 @@ Mechanisms: prebuilt runner image, warm pool, persistent volume first, bare repo
 4. **Tailscale path** — PWA loads over `tailscale serve`, chat + approval works.
 5. **Self-hosted relay** — runner dials out, phone PWA pairs, no inbound port on runner.
 6. **Cold move** — create session on target A, checkpoint, export bundle, import on target B, resume from same conversation state; git diff matches.
-7. **Placement** — default target applied automatically to a new worker; budget/data-residency guard blocks an invalid move.
-8. **Performance and cleanup gates** - measure start/reconnect/move, run GC dry-run, verify no orphaned managed resources after terminate, crash, and move.
+7. **Performance and cleanup gates** - measure start/reconnect/move, run GC dry-run, verify no orphaned managed resources after terminate, crash, and move.
 
 Out of scope: live migration, managed relay, native mobile, Kubernetes, multi-region scheduling.

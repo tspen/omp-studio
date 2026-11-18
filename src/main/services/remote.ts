@@ -8,7 +8,7 @@ import JSZip from "jszip";
 import { WebSocketServer, type WebSocket } from "ws";
 import webpush from "web-push";
 import { app } from "electron";
-import type { AppEvent, ChatMessage, MoveMode, MoveOutcome, MoveResult, PlacementPolicy, PlacementResult, RemoteInfo, RemoteUsage, TargetUsage, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
+import type { AppEvent, ChatMessage, MoveMode, MoveOutcome, MoveResult, RemoteInfo, RemoteUsage, RemoteTarget, RemoteTargetInput, Thread, TreeNode } from "../../shared/types";
 import type { Orchestrator } from "../orchestrator/orchestrator";
 import { collectGarbage } from "./maintenance";
 import { newId, type Store } from "./store";
@@ -34,7 +34,6 @@ export class RemoteService {
   private port = 0;
   private host = "";
   private lastError: string | undefined;
-  private placementReport: PlacementResult | null = null;
   private fileHashes = new Map<string, { mtimeMs: number; size: number; hash: string }>();
   private pendingMoves = new Map<string, string>();
   private moving = new Set<string>();
@@ -245,89 +244,6 @@ export class RemoteService {
     return this.importBundle(bundle);
   }
 
-  placementPolicy(): PlacementPolicy {
-    return this.store.settings.remotePlacement ?? { enabled: false, targetId: "", idleSeconds: 60, consent: false };
-  }
-
-  /**
-   * Automatic placement: pick idle worker sessions and cold-move them to the
-   * selected user-owned runner. No per-session prompt. `force` is the explicit
-   * "Place now" action and skips the idle timer and auto-enable checks.
-   */
-  async placeIdleSessions(force = false, onlyThreadId?: string): Promise<PlacementResult> {
-    const policy = this.placementPolicy();
-    const result: PlacementResult = { at: Date.now(), placed: [], skipped: [] };
-    this.placementReport = result;
-    if (!force && (!policy.enabled || !policy.consent)) {
-      result.skipped.push(policy.enabled ? "consent missing" : "automatic placement disabled");
-      return result;
-    }
-    if (!policy.targetId) {
-      result.skipped.push("no target selected");
-      return result;
-    }
-    const target = this.listTargets().find((item) => item.id === policy.targetId);
-    if (!target) {
-      result.skipped.push("selected target no longer exists");
-      return result;
-    }
-    const token = this.targetToken(target.id);
-    if (!token) {
-      result.skipped.push("target token missing");
-      return result;
-    }
-    try {
-      const latency = await this.probe(target.url, token);
-      this.saveTargets(this.listTargets().map((item) => (item.id === target.id ? { ...item, status: "online", latencyMs: latency, lastSeen: Date.now(), error: undefined } : item)));
-      result.target = { id: target.id, name: target.name, status: "online" };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.saveTargets(this.listTargets().map((item) => (item.id === target.id ? { ...item, status: "offline", error: message } : item)));
-      result.skipped.push(`target offline: ${message}`);
-      return result;
-    }
-
-    const now = Date.now();
-    const idleMs = Math.max(5, policy.idleSeconds || 60) * 1000;
-    const candidates = this.store.threads.filter((thread) => {
-      if (onlyThreadId && thread.id !== onlyThreadId) return false;
-      if (thread.targetId || thread.archived) return false;
-      if (thread.kind !== "worker") return false;
-      if (!["idle", "parked", "completed", "error", "cancelled"].includes(thread.status)) return false;
-      if (!force && now - (thread.lastActivityAt || thread.updatedAt) < idleMs) return false;
-      return this.store.getChat(thread.id).length > 0;
-    });
-    if (!candidates.length) {
-      result.skipped.push("no idle worker sessions with history");
-      return result;
-    }
-    const limit = force ? 5 : 2;
-    for (const thread of candidates.sort((a, b) => a.lastActivityAt - b.lastActivityAt).slice(0, limit)) {
-      const started = Date.now();
-      try {
-        const moved = await this.moveThread(thread.id, target.id);
-        if ("queued" in moved) continue;
-        const updated = this.store.updateThread(thread.id, {
-          targetId: target.id,
-          remoteThreadId: moved.threadId,
-          remoteNodeId: moved.nodeId,
-          movedAt: Date.now(),
-          status: "parked",
-          statusMessage: `Placed on ${target.name}`,
-        });
-        this.orchestrator.notify({ type: "thread:updated", payload: updated });
-        result.placed.push({ threadId: thread.id, targetId: target.id, remoteThreadId: moved.threadId, remoteNodeId: moved.nodeId, ms: Date.now() - started, warm: moved.warm, filesWritten: moved.filesWritten, filesUnchanged: moved.filesUnchanged, bytesSent: moved.bytesSent });
-      } catch (error) {
-        result.skipped.push(`${thread.title}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-    return result;
-  }
-
-  lastPlacement(): PlacementResult | null {
-    return this.placementReport;
-  }
-
   /** Send stop/continue/compact or a prompt to a thread that lives on a target. */
   async proxyThreadAction(threadId: string, action: "send" | "stop" | "continue" | "compact" | "pause" | "resume", payload?: { text?: string }): Promise<boolean> {
     const thread = this.store.getThread(threadId);
@@ -445,20 +361,6 @@ export class RemoteService {
       totalTokens: threads.reduce((sum, thread) => sum + thread.tokens, 0),
       threads,
     };
-  }
-
-  async targetUsage(targetId: string): Promise<TargetUsage> {
-    const target = this.listTargets().find((item) => item.id === targetId);
-    if (!target) throw new Error("Target not found");
-    const response = await fetch(`${target.url}/api/usage`, {
-      headers: { authorization: `Bearer ${this.targetToken(targetId)}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) throw new Error(`Target usage failed with HTTP ${response.status}`);
-    const usage = (await response.json()) as RemoteUsage;
-    const updated: RemoteTarget = { ...target, cost: usage.totalCost, tokens: usage.totalTokens, usageAt: usage.generatedAt, lastSeen: Date.now() };
-    this.saveTargets(this.listTargets().map((item) => (item.id === targetId ? updated : item)));
-    return { ...usage, target: updated };
   }
 
   pushPublicKey(): { publicKey: string } {

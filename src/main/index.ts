@@ -27,7 +27,6 @@ import { MobileService } from "./services/mobile";
 import { PluginService } from "./services/plugins";
 import { collectGarbage } from "./services/maintenance";
 import { RelayService } from "./services/relay";
-import { CheckpointService } from "./services/checkpoint";
 import { RemoteService } from "./services/remote";
 import { Store } from "./services/store";
 import { TerminalService } from "./services/terminal";
@@ -662,7 +661,6 @@ async function bootstrap(): Promise<void> {
   remote = remoteService;
   const relayService = new RelayService(dataStore);
   relay = relayService;
-  const checkpointService = new CheckpointService(dataStore);
   if (dataStore.settings.remoteRelay?.enabled || process.env.OMP_RELAY_URL) {
     await relayService.start().catch((error) => trace("relay-start-failed", error instanceof Error ? error.message : String(error)));
   }
@@ -678,10 +676,6 @@ async function bootstrap(): Promise<void> {
     void maintenance().catch(() => undefined);
   }, 5 * 60_000);
   gcTimer.unref();
-  const placementTimer = setInterval(() => {
-    void remoteService.placeIdleSessions().catch(() => undefined);
-  }, 20_000);
-  placementTimer.unref();
   const syncTimer = setInterval(() => {
     void remoteService.syncRemoteThreads().catch(() => undefined);
     void remoteService.processPendingMoves().catch(() => undefined);
@@ -689,7 +683,6 @@ async function bootstrap(): Promise<void> {
   syncTimer.unref();
   app.on("before-quit", () => {
     clearInterval(gcTimer);
-    clearInterval(placementTimer);
     clearInterval(syncTimer);
   });
   if (dataStore.settings.remote.enabled !== false) {
@@ -720,7 +713,6 @@ async function bootstrap(): Promise<void> {
     plugins,
     remote: remoteService,
     relay: relayService,
-    checkpoint: checkpointService,
     share: shareService,
     sites: siteService,
     browser: browserController!,

@@ -1,6 +1,6 @@
 # Remote execution implementation status
 
-Date: 2026-11-17
+Date: 2026-11-18
 
 This is the implementation record for the remote/mobile/cloud work. It lists what
 ships, how it was verified, the measured performance, and the remaining gaps.
@@ -10,14 +10,8 @@ ships, how it was verified, the measured performance, and the remaining gaps.
 Cross-host **memory** migration is **out of v1**. Supported v1 paths are:
 
 - same-host pause/resume,
-- same-host Docker/CRIU checkpoint + restore,
 - cold and warm moves at turn boundaries,
-- relay/Tailscale access, PWA/Android, push, cost meter and self-cleaning.
-
-Cross-host checkpoint export/import remains in the code as experimental and is
-not part of the v1 guarantee. Docker/CRIU does not reconnect live Electron/OMP
-pipes on another host, so a durable cross-host handoff needs CRIU-native
-migration with pipe reconnection rather than Docker checkpoints.
+- relay access, PWA/Android, push and self-cleaning.
 
 ## What ships
 
@@ -29,17 +23,14 @@ migration with pipe reconnection rather than Docker checkpoints.
 | Mobile app | `mobile/` React PWA: pair screen, session list with Live/All filters, chat with tool blocks, approvals, inbox, settings, installable manifest + service worker. WebSocket with 3 s reconnect plus 4 s HTTP polling fallback. |
 | Android | Capacitor project in `android/`; cleartext allowed for LAN/Tailscale dev; `app-debug.apk` builds and runs. |
 | iOS | Capacitor project in `ios/`; ATS and local-network entries added; build/sign requires macOS (see CI workflow). |
-| Desktop UI | Settings → Remote: enable, QR pairing, one-command relay, move/pair another machine, and an Advanced disclosure for network, token, cleanup and targets. |
+| Desktop UI | Settings → Remote: one **Use your phone** card with QR pairing, a **Your machines** card only when targets exist, and a collapsed **More options** disclosure for relay, server, adding machines and cleanup. |
 | Cold move | Export zip (manifest + workspace + OMP session + chat) and import on the same or another runner. A running session offers **Move after turn** (queued automatically at the next boundary) or **Stop & move**. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
 | Warm move | Targets keep the workspace in place under an origin key (`.omp-origin.json` + `.omp-manifest.json`). Before export the source reads the target manifest, hashes the workspace, sends only changed files, and lists deletions. The target applies the delta to the existing workspace and creates only a new session thread. Reuses the target node and orchestrator. |
-| Automatic placement | `remotePlacement` policy: enabled + explicit consent + selected target + idle threshold. A scheduler checks every 20 seconds, picks idle worker sessions with history, cold-moves at most two per pass, never interrupts a running turn, releases the local OMP session, and records `targetId`, `remoteThreadId`, `remoteNodeId`, `movedAt`. Settings shows policy, "Place idle sessions now", and the last automatic placement. `placeIdleSessions(force, threadId)` is also available over IPC for scoped placement. |
 | Remote control | Prompts, stop, continue and compact on a placed session are proxied to its target over the target API; the desktop mirrors target status, new messages, cost, tokens and model every 8 seconds and keeps local chat in sync. |
 | Docker/VPS runner | `runner/Dockerfile`, `runner/docker-compose.yml`, `runner/entrypoint.sh`, `runner/README.md`. Headless Electron (`OMP_HEADLESS=1`) under Xvfb, data on a labeled volume, loopback port by default, healthcheck, no public exposure. |
 | Self-cleaning | `src/main/services/maintenance.ts` + `src/cli/runner.ts` (`gc`, `quota`, `bench`). Startup sweep and 5-minute interval; `Maintenance → Clean up now/Preview` in Settings; `POST /api/maintenance/sweep`. |
 | Push notifications | VAPID keys stored as secrets; `GET /api/push/key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`. Push fires on approval requests, waiting/error status, and reply-required envelopes even when no WebSocket is connected. PWA service worker shows the notification and opens `/?thread=<id>` on click. |
-| Cost meter | `GET /api/usage` aggregates thread cost/tokens; `targetUsage` fetches it, records cost/tokens/usageAt on the target and mirrors cost/tokens for placed sessions. Settings shows placed-session cost and a per-target meter refresh. |
 | Self-hosted relay | `relay/server.mjs` is a stateless WebSocket relay. Runner dials out, clients connect to a room, frames are AES-256-GCM encrypted with HKDF-SHA256, and the relay only routes ciphertext. Serves the PWA, enforces room tokens, frame/client limits and reaps empty rooms. Dockerfile/compose and cleanup/security notes in `relay/`. |
-| Memory checkpoint | `runner/checkpoint-agent.mjs` drives Docker Engine checkpoints (CRIU) for the Linux runner container. Checkpoint stores the full process tree/memory and stops the container; restore starts it from the image and the same in-flight turn continues. Same-host checkpoint/restore is v1. Export bundles checkpoint images + metadata + `/data` archive and import recreates a container; that cross-host path is **experimental and out of v1**. Settings exposes agent URL/container/token, checkpoint/restore/delete and the experimental bundle tools. Requires Docker experimental, CRIU 4.x, host networking. |
 | Live pause/resume | Threads have `pauseThread`/`resumeThread` on the runner and `POST /api/threads/:id/{pause,resume}`. The OMP process tree is suspended (SIGSTOP or `NtSuspendProcess` on Windows) and resumed (SIGCONT/`NtResumeProcess`), preserving memory and the in-flight turn. Desktop and PWA expose Pause/Resume; placed sessions proxy the action to their target. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
 
@@ -98,22 +89,6 @@ gc sweep: 49 ms, reclaimed 147 KB across 2 items
 sessions: 17 -> 17 after cleanup
 ```
 
-Automatic placement (fresh profile, policy enabled with consent, 5-second idle
-threshold, no manual "Place" call):
-
-```
-imported session thr_31756e9f6a034b2f (15 messages) at 1794894437597
-moved at 1794894459349 -> 21.75 s later (scheduler runs every 20 s)
-local thread: targetId=tgt_216fe5ee02b44f98
-              remoteThreadId=thr_c9792f7c4a4142be
-              remoteNodeId=prj_36eb855ee42a42e6
-              status=idle, messages=15
-target /api/state: threads=3 nodes=2
-target message threadIds rewritten to the target thread id
-forced scoped placement: 68 ms
-desktop proxy stop: ok
-```
-
 Target message id remap check after rebuilding the image:
 
 ```
@@ -155,18 +130,6 @@ the production path uses normal HTTPS. PWA Settings shows Notifications,
 Enable/Send test, and the notification click deep link opens
 `/?thread=thr_291d0ea8d7614744` with 15 messages.
 
-Cost meter (`GET /api/usage` and desktop `targetUsage`):
-
-```
-runner: cost=$4.192741758000002 tokens=315,891,093 threads=17
-desktop target meter: $4.192741758 / 315,891,093 tok / 17 sessions
-top: Mission Control $0.2605 · 10,253,024 tok
-     slow-cricket   $1.7140 · 132,585,462 tok
-```
-
-Settings renders `Cost meter`, `Placed sessions: $...`, and a per-target
-`Costs` refresh.
-
 Self-hosted encrypted relay:
 
 ```
@@ -199,48 +162,6 @@ OMP threads: 0 Suspended, 64 Unknown, 10 EventPairLow
 ```
 
 The process keeps its memory and in-flight turn; only execution is frozen.
-
-Memory checkpoint/restore (Docker CRIU, same host):
-
-```
-counter container before checkpoint: 6
-checkpoint cp-app -> container Exited (137)
-restore -> Up, counter = 7, then 8   (memory preserved, not reset)
-runner container: 3 threads / 2 nodes, state IDs unchanged
-checkpoint runner-live -> Exited (137)
-restore -> Up 6s (healthy), health 200, threads 3, nodes 2
-in-flight thread status after restore: starting / "Starting OMP..."
-checkpoint agent: authenticated API, unauth -> 401
-```
-
-Verified with Docker experimental mode and CRIU 4.3 on WSL. Docker cannot
-restore published port mappings with CRIU, so the checkpoint overlay switches
-the runner to host networking. `/etc/criu/runc.conf` must contain `file-locks`
-for Electron/OMP containers.
-
-Cross-daemon handoff (two dockerd instances, separate data roots, same kernel):
-
-```
-source counter before: 1
-export bundle: 2.4 MB (checkpoint images + container metadata + /data archive)
-import on second daemon: ok, container created + restored
-after: 2, then 3          (memory preserved across daemons)
-```
-
-Runner cross-host restore was attempted on a **real second Ubuntu 22.04 WSL
-host** with a matching Docker 29.9.3/runc 1.5.3, CRIU 4.3, `/var/lib/docker`,
-volume name, image digest and architecture. The checkpoint bundle and `/data`
-archive imported, but start failed:
-
-```
-OCI runtime restore failed: criu failed: type RESTORE errno 0
-checkpoint descriptors.json: ["/dev/null","pipe:[834954]","pipe:[834955]"]
-```
-
-The live runner checkpoint contains pipe inodes from Electron/OMP stdio. Docker
-does not remap those pipes on another host, so the memory image cannot be
-restored there. Stateless cross-daemon handoff works; runner handoff needs
-CRIU-native migration with pipe reconnection.
 
 GC CLI on the real data directory (216 MB):
 
