@@ -18,6 +18,7 @@ import { ShareService } from "./services/share";
 import { SiteService } from "./services/sites";
 import { PtyService } from "./services/pty";
 import { WorkspaceService } from "./services/workspace";
+import { PythonService } from "./services/python";
 import { PrService } from "./services/pr";
 import { DeployService } from "./services/deploy";
 import { ComputerService } from "./services/computer";
@@ -45,6 +46,7 @@ let share: ShareService | null = null;
 let sites: SiteService | null = null;
 let store: Store | null = null;
 let terminals: PtyService | null = null;
+let pythonService: PythonService | null = null;
 let remote: RemoteService | null = null;
 let relay: RelayService | null = null;
 let isQuitting = false;
@@ -609,6 +611,8 @@ async function bootstrap(): Promise<void> {
   });
   terminals = pty;
   const workspace = new WorkspaceService(dataStore);
+  const python = new PythonService();
+  pythonService = python;
   const pr = new PrService();
   const deploy = new DeployService(dataStore);
   const computer = new ComputerService(dataStore.artifactsDir);
@@ -646,6 +650,7 @@ async function bootstrap(): Promise<void> {
     browser: browserController,
     pty,
     workspace,
+    python,
     deploy,
     computer,
     mobile,
@@ -814,6 +819,7 @@ app.on("before-quit", () => {
   void remote?.stop().catch(() => undefined);
   void relay?.stop(false).catch(() => undefined);
   terminals?.disposeAll();
+  pythonService?.dispose();
   void orchestrator?.shutdown().catch(() => undefined);
   notifications?.destroy();
   store?.flush();

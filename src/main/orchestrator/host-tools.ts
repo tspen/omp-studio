@@ -100,6 +100,37 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "python",
+    label: "Python: persistent kernel",
+    description:
+      "Execute Python 3 code in a persistent interpreter for this thread. Variables, imports and definitions persist across calls. Set reset to start a clean kernel. Use bash for shell commands.",
+    parameters: object({
+      code: { type: "string" },
+      reset: { type: "boolean" },
+      timeoutMs: { type: "number" },
+    }),
+    loadMode: "essential",
+  },
+  {
+    name: "notebook",
+    label: "Notebook: Jupyter cells",
+    description:
+      "Read, edit and execute Jupyter notebooks (.ipynb). Execution uses the thread's persistent Python kernel, so imports and variables carry across cells and calls. Cell indices are 0-based.",
+    parameters: object(
+      {
+        action: { type: "string", enum: ["read", "execute", "insert", "update", "delete", "clear"] },
+        path: { type: "string", description: "Notebook path, absolute or relative to the project." },
+        index: { type: "number", description: "0-based cell index." },
+        source: { type: "string", description: "Cell source for insert or update." },
+        cellType: { type: "string", enum: ["code", "markdown", "raw"] },
+        save: { type: "boolean", description: "Write changes back to the notebook. Default true." },
+        timeoutMs: { type: "number" },
+      },
+      ["action", "path"],
+    ),
+    loadMode: "essential",
+  },
+  {
     name: "task",
     label: "Task: parallel workers",
     description:

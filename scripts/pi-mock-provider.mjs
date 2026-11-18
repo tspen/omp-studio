@@ -53,6 +53,24 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
+  if (/python app test/i.test(userText) && !hasToolResult) {
+    const toolCall = { code: "print(6 * 7)" };
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_python_1", type: "function", function: { name: "python", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`);
+    response.write("data: [DONE]\n\n");
+    response.end();
+    return;
+  }
+  if (/notebook app test/i.test(userText) && !hasToolResult) {
+    const toolCall = { action: "read", path: ".perch-selftest.ipynb" };
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_notebook_1", type: "function", function: { name: "notebook", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`);
+    response.write("data: [DONE]\n\n");
+    response.end();
+    return;
+  }
   if (/host tool test/i.test(userText) && !hasToolResult) {
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_host_1", type: "function", function: { name: "tree_list", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: "{}" } }] }, finish_reason: null }] })}\n\n`);
@@ -61,7 +79,7 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
-  const reply = /lsp app test/i.test(userText) && hasToolResult ? "LSP APP DONE" : /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
+  const reply = /python app test/i.test(userText) && hasToolResult ? "PYTHON APP DONE" : /notebook app test/i.test(userText) && hasToolResult ? "NOTEBOOK APP DONE" : /lsp app test/i.test(userText) && hasToolResult ? "LSP APP DONE" : /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: reply }, finish_reason: null }] })}\n\n`);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\n`);
   response.write("data: [DONE]\n\n");

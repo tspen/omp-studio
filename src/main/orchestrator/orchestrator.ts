@@ -52,6 +52,8 @@ import type { Store } from "../services/store";
 import { newId } from "../services/store";
 import { trace } from "../diagnostics";
 import { lspRequest } from "../services/lsp";
+import type { PythonService } from "../services/python";
+import { notebookRequest } from "../services/notebook";
 import { audit } from "../audit";
 
 const WORKER_RESUME_PROMPT =
@@ -69,6 +71,7 @@ export interface OrchestratorDeps {
   browser: BrowserController;
   pty: PtyService;
   workspace: WorkspaceService;
+  python: PythonService;
   deploy: DeployService;
   computer: ComputerService;
   mobile: MobileService;
@@ -2100,6 +2103,49 @@ export class Orchestrator extends EventEmitter {
             line: context.args.line == null ? undefined : Number(context.args.line),
             character: context.args.character == null ? undefined : Number(context.args.character),
           });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            details: { action: context.args.action, result },
+          };
+        }
+        case "python": {
+          if (context.args.reset) {
+            const reset = this.deps.python.reset(context.thread.id);
+            return textResult(reset ? "Python kernel reset." : "No Python kernel was running.");
+          }
+          const result = await this.deps.python.execute(
+            context.thread.id,
+            context.cwd,
+            String(context.args.code ?? ""),
+            Number(context.args.timeoutMs) || 30_000,
+          );
+          const output = [
+            result.stdout ? `stdout:\n${result.stdout}` : "",
+            result.stderr ? `stderr:\n${result.stderr}` : "",
+            result.result ? `result: ${result.result}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+          return {
+            content: [{ type: "text", text: output || "Python completed with no output." }],
+            details: { stdout: result.stdout, stderr: result.stderr, result: result.result },
+          };
+        }
+        case "notebook": {
+          const result = await notebookRequest(
+            {
+              action: context.args.action,
+              cwd: context.cwd,
+              path: String(context.args.path ?? ""),
+              index: context.args.index == null ? undefined : Number(context.args.index),
+              source: typeof context.args.source === "string" ? context.args.source : undefined,
+              cellType: context.args.cellType,
+              save: context.args.save !== false,
+              timeoutMs: context.args.timeoutMs == null ? undefined : Number(context.args.timeoutMs),
+              threadId: context.thread.id,
+            },
+            this.deps.python,
+          );
           return {
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             details: { action: context.args.action, result },

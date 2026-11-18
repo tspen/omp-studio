@@ -2,7 +2,7 @@
 
 A Windows cockpit for the [Pi coding agent](https://pi.dev), built around a **tree of orchestrators**. The main chat is an orchestrator; it delegates down to groups, projects and worker threads, and every child sends typed messages back up.
 
-Perch is the cockpit. Pi is the engine. There is no separate agent runtime, no hosted service in the path.
+Perch is the cockpit. Pi is the engine. There is no legacy engine runtime, no separate engine download, and no hosted service in the path.
 
 ## What is in the box
 
@@ -10,7 +10,7 @@ Perch is the cockpit. Pi is the engine. There is no separate agent runtime, no h
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
 - **Parallel tasks**: the `task` host tool fans out up to eight worker threads and returns structured results, so Pi agents get parallel task delegation without in-process subagents.
 - **Pi under the hood**: Perch launches the bundled `@earendil-works/pi-coding-agent` in `--mode rpc`, uses Pi sessions, tools, skills, provider auth and compaction. It does not reimplement the agent loop.
-- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are available without a separate agent engine.
+- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP, Python, notebook and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are available without a separate agent engine; Python and Jupyter cells use a persistent kernel.
 - **Explicit model selection**: Per-thread model and thinking level, plus role defaults for root/group/project/worker/naming/memory.
 - **Git-aware threads**: Project repositories, worker branches and worktrees, status, diffs, commit, merge and PR actions. Worktrees live outside the repository so unmerged work is not silently destroyed.
 - **Memory**: Per-node durable memory, visible and editable. Orchestrators write through `tree_memory_write`; completed thread outcomes are auto-captured as low-importance entries.
@@ -30,12 +30,12 @@ Perch is the cockpit. Pi is the engine. There is no separate agent runtime, no h
 - **Sandbox and audit**: command denylist enforced in app terminals and dev servers, path/network policy injected into agent guidance, and a JSONL audit trail.
 - **Budgets**: app-level and per-node USD budgets with warn-only or pause-new-work enforcement.
 - **File checkpoints**: a shadow git commit snapshots the checkout before each prompt. Restore code only, or code plus conversation, from Thread history.
-- **Engine parity**: Pi Durable is an experimental opt-in harness, not the default. See [`docs/parity.md`](docs/parity.md) and [`docs/pi-durable.md`](docs/pi-durable.md).
+- **Engine parity**: Pi Durable was spiked and is not exposed as an engine mode; the default remains the Pi coding agent over RPC. See [`docs/parity.md`](docs/parity.md) and [`docs/pi-durable.md`](docs/pi-durable.md).
 - **Remote and mobile**: same-Wi-Fi QR pairing, an installable PWA, an encrypted self-hosted relay for away-from-home use, and session moves between machines.
 
 ## Requirements
 
-Windows 10/11 x64, Node.js 22+ (built with Node 24), and git. Pi is installed as an npm dependency; no separate engine download is required.
+Windows 10/11 x64, Node.js 22+ (built with Node 24), and git. Pi is installed as an npm dependency; no separate engine download is required. Python 3 is optional and enables the `python` and `notebook` tools; set `PERCH_PYTHON` if it is not on PATH.
 
 ## Run it
 

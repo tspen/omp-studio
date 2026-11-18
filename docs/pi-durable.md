@@ -2,7 +2,7 @@
 
 Perch v1 uses the **Pi coding agent** (`@earendil-works/pi-coding-agent`) over its RPC mode. Pi Durable is a separate experimental harness package (`@earendil-works/pi-durable`) with its own conversation/task/storage model.
 
-We shipped both packages and verified Pi Durable end to end in a standalone spike.
+Both packages are installed, and Pi Durable was verified end to end in a standalone spike.
 
 ## What was verified
 
@@ -74,5 +74,5 @@ It should become the default only after:
 3. kill-mid-turn tests pass for model, bash and host-tool calls,
 4. packaged performance stays within the existing gates.
 
-Until then, Pi Durable stays an opt-in engine experiment.
+Until then, Perch does not expose a Pi Durable engine mode. The spike remains a standalone script (`scripts/pi-durable-selftest.mjs`) so the option can be re-evaluated without shipping an unstable second engine.
 
