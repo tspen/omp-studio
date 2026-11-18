@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Dependencies first so source edits do not invalidate the install layer.
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund \
+RUN npm ci --legacy-peer-deps --no-audit --no-fund \
  && node node_modules/electron/install.js \
  && (npm rebuild node-pty --no-audit --no-fund || echo "node-pty unavailable; terminals disabled")
 
