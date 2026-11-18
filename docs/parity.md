@@ -26,7 +26,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Web search | Configurable `web_search` host tool: Brave, Tavily, SearXNG or Exa; disabled until a provider is configured |
 | Debugging | `launch`/`debug` DAP host tools for breakpoints, stepping, threads, stack, scopes, variables and evaluate; adapters come from PATH or `PERCH_DAP_<LANGUAGE>` |
 | Rebrand | Perch window, tray, PWA, Android/iOS IDs, installer, repository, data dir |
-| Brand audit | No OMP runtime, path, label, env var, image or ID remains in source, docs, installer or app data |
+| Brand audit | No legacy engine runtime, path, label, env var, image or ID remains in source, docs, installer or app data |
 | Data | `%APPDATA%\Perch`; 19 existing threads verified; historical transcript paths rebranded |
 | Remote | same-Wi-Fi QR, relay, pair-by-link, moves, PWA |
 | Packaging | `dist/Perch-0.1.0-x64.exe`; packaged Pi session verified with a mock provider |
