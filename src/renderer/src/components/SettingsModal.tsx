@@ -73,7 +73,7 @@ export function SettingsModal() {
             <div className="settings-brand-icon"><Settings2 size={16} /></div>
             <div>
               <strong>Settings</strong>
-              <span>{node?.name ?? "OMP Studio"}</span>
+              <span>{node?.name ?? "Perch"}</span>
             </div>
           </div>
           <nav>
@@ -86,7 +86,7 @@ export function SettingsModal() {
             ))}
           </nav>
           <div className="settings-nav-foot">
-            <span>{state.engine?.version ? `OMP ${state.engine.version}` : "OMP not detected"}</span>
+            <span>{state.engine?.version ? `Pi ${state.engine.version}` : "Pi not detected"}</span>
             <span>{state.models.length} models</span>
           </div>
         </aside>
@@ -130,7 +130,7 @@ function settingsBlurb(tab: string): string {
     case "usage":
       return "Provider windows, token/cost totals, budgets and auto-resume behavior.";
     case "tools":
-      return "Enable OMP tools and decide how they are approved. Host tree tools are always available to orchestrators.";
+      return "Enable Pi tools and decide how they are approved. Host tree tools are always available to orchestrators.";
     case "memory":
       return "Memory at this level. Orchestrators write here when they decide something is durable.";
     case "environments":
@@ -150,9 +150,9 @@ function settingsBlurb(tab: string): string {
     case "notifications":
       return "Windows toasts, tray badge, and which events are worth interrupting you.";
     case "engine":
-      return "The bundled OMP runtime, its version, and updates.";
+      return "The bundled Pi runtime, its version, and updates.";
     case "advanced":
-      return "The full OMP config surface, generated from omp config list.";
+      return "The Pi settings surface, backed by pi-agent/settings.json.";
     default:
       return "";
   }
@@ -224,7 +224,7 @@ function GeneralTab() {
         <Row label="Workspace root" hint="New projects and groups are created as folders named after them here. Existing nodes keep their paths.">
           <div className="inline-actions">
             <input value={settings.workspaceRoot ?? ""} onChange={(event) => update({ workspaceRoot: event.target.value })} placeholder="C:\\Users\\you\\code" />
-            <Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) update({ workspaceRoot: picked }); }}><Folder size={13} /> Browse</Button>
+            <Button size="sm" variant="soft" onClick={async () => { const picked = await window.perch.pickDirectory(); if (picked) update({ workspaceRoot: picked }); }}><Folder size={13} /> Browse</Button>
           </div>
         </Row>
         <Row label="Default tool approval" hint="YOLO auto-approves every tool call, including shell and destructive commands. Applies to new nodes and sessions; change one node from the chat toolbar.">
@@ -236,7 +236,7 @@ function GeneralTab() {
             </Select>
             <Button size="sm" variant="soft" onClick={async () => {
               const mode = (settings.defaultApprovalMode ?? "yolo") as ApprovalMode;
-              for (const item of state.snapshot?.nodes ?? []) await window.omp.setNodeApproval(item.id, mode);
+              for (const item of state.snapshot?.nodes ?? []) await window.perch.setNodeApproval(item.id, mode);
               await state.refresh();
             }}>Apply to all</Button>
           </div>
@@ -256,13 +256,13 @@ function GeneralTab() {
         <Row label="Status check interval" hint="Minutes between Mission Control status requests to child orchestrators. 0 disables them.">
           <input className="num-input" type="number" min={0} value={settings.statusCheckIntervalMin ?? 15} onChange={(event) => update({ statusCheckIntervalMin: Number(event.target.value) })} />
         </Row>
-        <Row label="Max concurrent OMP sessions" hint="Idle sessions are parked to stay under this cap.">
+        <Row label="Max concurrent Pi sessions" hint="Idle sessions are parked to stay under this cap.">
           <input className="num-input" type="number" min={1} max={32} value={settings.maxConcurrentThreads} onChange={(event) => update({ maxConcurrentThreads: Number(event.target.value) })} />
         </Row>
-        <Row label="Auto-compact context" hint="OMP summarizes older history as the context window fills, including mid-turn. Applies to running sessions immediately.">
+        <Row label="Auto-compact context" hint="Pi summarizes older history as the context window fills, including mid-turn. Applies to running sessions immediately.">
           <Toggle checked={settings.contextCompaction !== false} onChange={(value) => update({ contextCompaction: value })} />
         </Row>
-        <Row label="Background compact idle sessions" hint="When a session has been idle for a couple of minutes and its context is above the threshold, OMP summarizes it in the background. Sessions are never stopped and only one compacts at a time.">
+        <Row label="Background compact idle sessions" hint="When a session has been idle for a couple of minutes and its context is above the threshold, Pi summarizes it in the background. Sessions are never stopped and only one compacts at a time.">
           <Toggle checked={settings.idleCompaction !== false} onChange={(value) => update({ idleCompaction: value })} />
         </Row>
         <Row label="Idle compaction threshold" hint="Percent of the context window that triggers background compaction.">
@@ -301,7 +301,7 @@ function GeneralTab() {
         </Row>
       </Section>
 
-      <Section title="This node" subtitle="Applies to the selected project or group." right={<div className="inline-actions"><Badge tone={node.type === "root" ? "accent" : node.type === "group" ? "blue" : "green"}>{node.type}</Badge><Button size="sm" variant="soft" disabled={!name.trim()} onClick={() => void window.omp.updateNode(node.id, { name, path }).then(() => state.refresh())}><Save size={13} /> Save node</Button></div>}>
+      <Section title="This node" subtitle="Applies to the selected project or group." right={<div className="inline-actions"><Badge tone={node.type === "root" ? "accent" : node.type === "group" ? "blue" : "green"}>{node.type}</Badge><Button size="sm" variant="soft" disabled={!name.trim()} onClick={() => void window.perch.updateNode(node.id, { name, path }).then(() => state.refresh())}><Save size={13} /> Save node</Button></div>}>
         <Row label="Name">
           <div className="inline-actions">
             <input value={name} onChange={(event) => setName(event.target.value)} />
@@ -310,12 +310,12 @@ function GeneralTab() {
         <Row label="Path" hint="Projects use this repo path; groups use a workspace directory.">
           <div className="inline-actions">
             <input value={path} onChange={(event) => setPath(event.target.value)} />
-            <Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) setPath(picked); }}><Folder size={13} /> Browse</Button>
+            <Button size="sm" variant="soft" onClick={async () => { const picked = await window.perch.pickDirectory(); if (picked) setPath(picked); }}><Folder size={13} /> Browse</Button>
           </div>
         </Row>
         {node.type !== "root" ? (
         <Row label="Parent" hint="Move this node under another group or the root. Existing child nodes move with it.">
-          <Select value={node.parentId ?? ""} onChange={(value) => void window.omp.updateNode(node.id, { parentId: value || null }).then(() => state.refresh())}>
+          <Select value={node.parentId ?? ""} onChange={(value) => void window.perch.updateNode(node.id, { parentId: value || null }).then(() => state.refresh())}>
             {(state.snapshot?.nodes ?? []).filter((candidate) => candidate.type !== "project" && candidate.id !== node.id).map((candidate) => (
               <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
             ))}
@@ -326,7 +326,7 @@ function GeneralTab() {
           <span className="mono muted">{state.models.find((model) => model.selector === node.model)?.name ?? node.model}</span>
         </Row>
         <Row label="Git isolation">
-          <Select value={node.gitMode} onChange={(value) => void window.omp.updateNode(node.id, { gitMode: value as any }).then(() => state.refresh())}>
+          <Select value={node.gitMode} onChange={(value) => void window.perch.updateNode(node.id, { gitMode: value as any }).then(() => state.refresh())}>
             <option value="auto">Auto (orchestrator decides)</option>
             <option value="shared">Shared checkout</option>
             <option value="branch">Branch per worker</option>
@@ -334,22 +334,22 @@ function GeneralTab() {
           </Select>
         </Row>
         <Row label="Tool approval">
-          <Select value={node.approvalMode} onChange={(value) => void window.omp.updateNode(node.id, { approvalMode: value as any }).then(() => state.refresh())}>
+          <Select value={node.approvalMode} onChange={(value) => void window.perch.updateNode(node.id, { approvalMode: value as any }).then(() => state.refresh())}>
             <option value="always-ask">Always ask</option>
             <option value="write">Auto-approve writes</option>
             <option value="yolo">Yolo</option>
           </Select>
         </Row>
         <Row label="Node budget (USD)" hint="Overrides the app budget for this subtree. 0 uses the app budget.">
-          <input className="num-input" type="number" min={0} step={1} value={node.budgetUsd ?? ""} onChange={(event) => void window.omp.updateNode(node.id, { budgetUsd: event.target.value ? Number(event.target.value) : undefined }).then(() => state.refresh())} />
+          <input className="num-input" type="number" min={0} step={1} value={node.budgetUsd ?? ""} onChange={(event) => void window.perch.updateNode(node.id, { budgetUsd: event.target.value ? Number(event.target.value) : undefined }).then(() => state.refresh())} />
         </Row>
         <Row label="Mute this node" hint="Suppresses toasts, not the in-app inbox.">
-          <Toggle checked={node.muted} onChange={(value) => void window.omp.updateNode(node.id, { muted: value }).then(() => state.refresh())} />
+          <Toggle checked={node.muted} onChange={(value) => void window.perch.updateNode(node.id, { muted: value }).then(() => state.refresh())} />
         </Row>
         <Row label="Delete node" hint="Removes app state and child threads. Repository files and branches are left in place.">
           <Button size="sm" variant="danger" disabled={node.type === "root"} onClick={async () => {
             if (!confirm(`Delete ${node.name} and its child threads? Files stay on disk.`)) return;
-            await window.omp.deleteNode(node.id);
+            await window.perch.deleteNode(node.id);
             await state.refresh();
             await state.selectRoot();
             state.setOverlay("none");
@@ -426,8 +426,8 @@ function ModelsTab() {
         </div>
       ) : null}
       <Section title="Artificial Analysis" subtitle="Independent benchmark scores used to order models and choose sane defaults.">
-        <Row label="Catalog" hint={`${state.models.length} models available through OMP. ${aaCount} have AA scores.`}>
-          <Button size="sm" variant="soft" onClick={() => void state.refreshModels()}><RefreshCw size={13} /> Refresh OMP catalog</Button>
+        <Row label="Catalog" hint={`${state.models.length} models available through Pi. ${aaCount} have AA scores.`}>
+          <Button size="sm" variant="soft" onClick={() => void state.refreshModels()}><RefreshCw size={13} /> Refresh Pi catalog</Button>
         </Row>
         <Row label="AA data" hint={settings.models.lastAAUpdate ? `Last updated ${new Date(settings.models.lastAAUpdate).toLocaleString()} · source ${settings.models.aaSource ?? "unknown"}` : "Not fetched yet. The public leaderboard is fetched daily."}>
           <Button size="sm" variant="primary" onClick={() => void state.refreshAA()}><Download size={13} /> Refresh now</Button>
@@ -471,7 +471,7 @@ function UsageTab() {
           <Toggle checked={settings.usage.autoContinueOnReset} onChange={(value) => state.updateSettings({ settings: { usage: { ...settings.usage, autoContinueOnReset: value } } })} />
         </Row>
       </Section>
-      <Section title="Provider windows" subtitle="Read from `omp usage --json`.">
+      <Section title="Provider windows" subtitle="Read from the provider usage reported by Pi sessions.">
         {usage.providers.length ? usage.providers.map((provider) => {
           const windows = ((provider.metadata?.limits ?? []) as Array<{ id?: string; label?: string; used?: number; limit?: number; remaining?: number; unit?: string; status?: string; resetsAt?: number }>);
           return (
@@ -511,19 +511,19 @@ function ToolsTab() {
   const [loading, setLoading] = useState(true);
   const [skillForm, setSkillForm] = useState<{ name: string; description: string; body: string } | null>(null);
   const [skillEdit, setSkillEdit] = useState<{ path: string; content: string } | null>(null);
-  const refreshSkills = async () => setSkills(await window.omp.listSkills());
+  const refreshSkills = async () => setSkills(await window.perch.listSkills());
   useEffect(() => {
-    void Promise.all([window.omp.listTools(), window.omp.listSkills(), window.omp.listMcpServers()])
+    void Promise.all([window.perch.listTools(), window.perch.listSkills(), window.perch.listMcpServers()])
       .then(([toolList, skillList, mcpList]) => { setTools(toolList); setSkills(skillList); setMcps(mcpList); })
       .finally(() => setLoading(false));
   }, []);
   const filtered = tools.filter((tool) => !query || tool.name.toLowerCase().includes(query.toLowerCase()) || tool.group.toLowerCase().includes(query.toLowerCase()));
   const groups = [...new Set(filtered.map((tool) => tool.group))];
-  const refresh = async () => setTools(await window.omp.listTools());
+  const refresh = async () => setTools(await window.perch.listTools());
   if (loading) return <div className="settings-loading"><Spinner /> Loading tool surface…</div>;
   return (
     <>
-      <Section title="OMP tools" subtitle="Writes OMP's own tool settings. Changes apply to newly started sessions." right={<input className="settings-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter tools…" />}>
+      <Section title="Pi tools" subtitle="Writes Pi's own tool settings. Changes apply to newly started sessions." right={<input className="settings-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter tools…" />}>
         {groups.map((group) => (
           <div key={group} className="tool-group">
             <div className="tool-group-label">{group}</div>
@@ -542,12 +542,12 @@ function ToolsTab() {
                     <Badge tone="green">always on</Badge>
                   ) : (
                     <>
-                      <Select value={tool.approval} onChange={async (value) => { await window.omp.setTool(tool.name, tool.enabled, value as ToolApproval); await refresh(); }}>
+                      <Select value={tool.approval} onChange={async (value) => { await window.perch.setTool(tool.name, tool.enabled, value as ToolApproval); await refresh(); }}>
                         <option value="allow">allow</option>
                         <option value="prompt">prompt</option>
                         <option value="deny">deny</option>
                       </Select>
-                      <Toggle checked={tool.enabled} onChange={async (value) => { await window.omp.setTool(tool.name, value, tool.approval); await refresh(); }} />
+                      <Toggle checked={tool.enabled} onChange={async (value) => { await window.perch.setTool(tool.name, value, tool.approval); await refresh(); }} />
                     </>
                   )}
                 </div>
@@ -556,7 +556,7 @@ function ToolsTab() {
           </div>
         ))}
       </Section>
-      <Section title="Skills" subtitle="Discovered from OMP and Claude skill directories. OMP skills are editable here." right={<Button size="sm" variant="soft" onClick={() => setSkillForm({ name: "", description: "", body: "" })}><Plus size={12} /> New skill</Button>}>
+      <Section title="Skills" subtitle="Discovered from Pi and Claude skill directories. Pi skills are editable here." right={<Button size="sm" variant="soft" onClick={() => setSkillForm({ name: "", description: "", body: "" })}><Plus size={12} /> New skill</Button>}>
         {skillForm ? (
           <div className="skill-form">
             <input value={skillForm.name} onChange={(event) => setSkillForm({ ...skillForm, name: event.target.value })} placeholder="Skill name" />
@@ -564,7 +564,7 @@ function ToolsTab() {
             <textarea value={skillForm.body} onChange={(event) => setSkillForm({ ...skillForm, body: event.target.value })} placeholder="Instructions the agent should follow when this skill applies." />
             <div className="inline-actions">
               <Button size="sm" variant="primary" disabled={!skillForm.name.trim()} onClick={async () => {
-                await window.omp.createSkill(skillForm);
+                await window.perch.createSkill(skillForm);
                 setSkillForm(null);
                 await refreshSkills();
                 state.pushToast({ kind: "success", title: "Skill created" });
@@ -579,7 +579,7 @@ function ToolsTab() {
             <textarea className="skill-editor" value={skillEdit.content} onChange={(event) => setSkillEdit({ ...skillEdit, content: event.target.value })} />
             <div className="inline-actions">
               <Button size="sm" variant="primary" onClick={async () => {
-                await window.omp.saveSkill(skillEdit.path, skillEdit.content);
+                await window.perch.saveSkill(skillEdit.path, skillEdit.content);
                 setSkillEdit(null);
                 await refreshSkills();
                 state.pushToast({ kind: "success", title: "Skill saved" });
@@ -594,12 +594,12 @@ function ToolsTab() {
             <div className="inline-actions">
               <Badge tone="blue">{skill.source}</Badge>
               <Button size="sm" variant="ghost" onClick={async () => {
-                const skillFile = await window.omp.readSkill(skill.path);
+                const skillFile = await window.perch.readSkill(skill.path);
                 setSkillEdit({ path: skill.path, content: skillFile.content });
               }}>Edit</Button>
               <IconButton icon={<Trash2 size={12} />} label="Delete skill" onClick={async () => {
                 if (!confirm(`Delete skill ${skill.name}?`)) return;
-                await window.omp.deleteSkill(skill.path);
+                await window.perch.deleteSkill(skill.path);
                 await refreshSkills();
               }} />
             </div>
@@ -659,7 +659,7 @@ function MemoryTab() {
           <input className="num-input" type="number" min={100} value={state.snapshot?.settings.memory.maxEntries ?? 2000} onChange={(event) => state.updateSettings({ settings: { memory: { ...state.snapshot!.settings.memory, maxEntries: Number(event.target.value) } } })} />
         </Row>
         <Row label="Consolidate" hint="Merge near-duplicate entries at this level.">
-          <Button size="sm" variant="soft" onClick={async () => { await window.omp.consolidateMemory(node.id); await state.loadMemory(node.id); }}>Consolidate</Button>
+          <Button size="sm" variant="soft" onClick={async () => { await window.perch.consolidateMemory(node.id); await state.loadMemory(node.id); }}>Consolidate</Button>
         </Row>
       </Section>
     </>
@@ -687,7 +687,7 @@ function EnvironmentsTab() {
         setDraft(env);
       }}><Plus size={13} /> New</Button>}>
         <Row label="Environment for this node" hint={assign ? `Inherited: ${assign.name}` : "Falls back to the first environment."}>
-          <Select value={node.environmentId ?? ""} onChange={(value) => void window.omp.updateNode(node.id, { environmentId: value || undefined }).then(() => state.refresh())}>
+          <Select value={node.environmentId ?? ""} onChange={(value) => void window.perch.updateNode(node.id, { environmentId: value || undefined }).then(() => state.refresh())}>
             <option value="">Inherit / default</option>
             {envs.map((env) => <option key={env.id} value={env.id}>{env.name}</option>)}
           </Select>
@@ -704,13 +704,13 @@ function EnvironmentsTab() {
       </Section>
       {draft ? (
         <Section title={draft.name || "Environment"} subtitle="Secrets are stored with Windows DPAPI via Electron safeStorage." right={<div className="inline-actions">
-          <Button size="sm" variant="soft" onClick={async () => { const result = await window.omp.testEnvironment(draft.id); state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Environment ready" : "Environment failed", body: result.output.slice(0, 500) }); }}>Test</Button>
-          <Button size="sm" variant="primary" onClick={async () => { await window.omp.saveEnvironment(draft); await state.refresh(); state.pushToast({ kind: "success", title: "Environment saved", body: draft.name }); }}><Save size={13} /> Save</Button>
-          <Button size="sm" variant="danger" onClick={async () => { if (confirm(`Delete ${draft.name}?`)) { await window.omp.deleteEnvironment(draft.id); setSelected(null); await state.refresh(); } }}><Trash2 size={13} /></Button>
+          <Button size="sm" variant="soft" onClick={async () => { const result = await window.perch.testEnvironment(draft.id); state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Environment ready" : "Environment failed", body: result.output.slice(0, 500) }); }}>Test</Button>
+          <Button size="sm" variant="primary" onClick={async () => { await window.perch.saveEnvironment(draft); await state.refresh(); state.pushToast({ kind: "success", title: "Environment saved", body: draft.name }); }}><Save size={13} /> Save</Button>
+          <Button size="sm" variant="danger" onClick={async () => { if (confirm(`Delete ${draft.name}?`)) { await window.perch.deleteEnvironment(draft.id); setSelected(null); await state.refresh(); } }}><Trash2 size={13} /></Button>
         </div>}>
           <Row label="Name"><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Row>
           <Row label="Working directory" hint="Leave blank to use the project/thread directory.">
-            <div className="inline-actions"><input value={draft.cwd ?? ""} onChange={(event) => setDraft({ ...draft, cwd: event.target.value })} placeholder="Project directory" /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) setDraft({ ...draft, cwd: picked }); }}><Folder size={13} /></Button></div>
+            <div className="inline-actions"><input value={draft.cwd ?? ""} onChange={(event) => setDraft({ ...draft, cwd: event.target.value })} placeholder="Project directory" /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.perch.pickDirectory(); if (picked) setDraft({ ...draft, cwd: picked }); }}><Folder size={13} /></Button></div>
           </Row>
           <Row label="Inherit process environment" hint="Start from the app's environment variables."><Toggle checked={draft.inheritEnv} onChange={(value) => setDraft({ ...draft, inheritEnv: value })} /></Row>
           <Row label="Shell" hint="Defaults to cmd.exe on Windows."><input value={draft.shell ?? ""} onChange={(event) => setDraft({ ...draft, shell: event.target.value })} placeholder="cmd.exe" /></Row>
@@ -767,7 +767,7 @@ function GitTab() {
       <Row label="Branch prefix" hint="Worker branches are <prefix>/<slug>-<id>."><input value={settings.git.branchPrefix} onChange={(event) => state.updateSettings({ settings: { git: { ...settings.git, branchPrefix: event.target.value } } })} /></Row>
       <Row label="Automatically commit" hint="Off by default; workers leave diffs for the orchestrator."><Toggle checked={settings.git.autoCommit} onChange={(value) => state.updateSettings({ settings: { git: { ...settings.git, autoCommit: value } } })} /></Row>
       <Row label="Automatically merge" hint="Off by default. The orchestrator can merge a completed worker branch, but auto-merge is risky."><Toggle checked={settings.git.autoMerge} onChange={(value) => state.updateSettings({ settings: { git: { ...settings.git, autoMerge: value } } })} /></Row>
-      <div className="aa-note">Worktrees live under the OMP Studio data directory, not inside the repository. Removing a thread does not delete its branch, so unmerged work is never silently lost.</div>
+      <div className="aa-note">Worktrees live under the Perch data directory, not inside the repository. Removing a thread does not delete its branch, so unmerged work is never silently lost.</div>
     </Section>
   );
 }
@@ -806,26 +806,26 @@ function EngineTab() {
   const settings = state.snapshot?.settings;
   return (
     <>
-      <Section title="OMP runtime" subtitle="OMP Studio launches and supervises the real omp.exe. The installer bundles a Windows x64 build.">
+      <Section title="Pi runtime" subtitle="Perch launches the bundled Pi coding agent over RPC. No separate engine download is needed.">
         <Row label="Status"><Badge tone={engine?.found ? "green" : "red"}>{engine?.found ? "ready" : "not found"}</Badge></Row>
         <Row label="Version"><span className="mono">{engine?.version ?? "—"}</span></Row>
         <Row label="Path"><span className="mono muted">{engine?.path ?? "—"}</span></Row>
         <Row label="Source"><span>{engine?.source ?? "—"}</span></Row>
         <Row label="Custom engine path" hint="Optional. Restart after changing. Blank uses the bundled/installed engine.">
-          <input defaultValue={settings?.enginePath ?? ""} onBlur={(event) => state.updateSettings({ settings: { enginePath: event.target.value } })} placeholder="C:\\path\\to\\omp.exe" />
+          <input defaultValue={settings?.enginePath ?? ""} onBlur={(event) => state.updateSettings({ settings: { enginePath: event.target.value } })} placeholder="node_modules/@earendil-works/pi-coding-agent/dist/cli.js" />
         </Row>
         {engine?.downloading ? <Row label="Download"><div className="download-bar"><i style={{ width: `${engine.progress ?? 0}%` }} /><span>{engine.progress ?? 0}%</span></div></Row> : null}
-        <Row label="Install / update" hint="Downloads the latest omp-windows-x64.exe from GitHub releases.">
-          <Button size="sm" variant="primary" disabled={engine?.downloading} onClick={() => void window.omp.downloadEngine().then(() => state.refresh())}><Download size={13} /> Download OMP</Button>
+        <Row label="Install / update" hint="Pi ships as an npm dependency; reinstall Perch to repair it.">
+          <Button size="sm" variant="primary" disabled={engine?.downloading} onClick={() => void window.perch.downloadEngine().then(() => state.refresh())}><Download size={13} /> Recheck engine</Button>
         </Row>
         <Row label="Restart app" hint="Required after changing the engine or some global settings.">
-          <Button size="sm" variant="soft" onClick={() => void window.omp.restartApp()}><RefreshCw size={13} /> Restart</Button>
+          <Button size="sm" variant="soft" onClick={() => void window.perch.restartApp()}><RefreshCw size={13} /> Restart</Button>
         </Row>
-        <Row label="Open config file" hint="The raw OMP config YAML is also editable from Advanced.">
-          <Button size="sm" variant="soft" onClick={() => state.ompConfig?.path && void window.omp.openPath(state.ompConfig.path)}>Open config</Button>
+        <Row label="Open config file" hint="The raw Pi config YAML is also editable from Advanced.">
+          <Button size="sm" variant="soft" onClick={() => state.ompConfig?.path && void window.perch.openPath(state.ompConfig.path)}>Open config</Button>
         </Row>
       </Section>
-      <Section title="OMP config" subtitle="The advanced tab exposes the full config surface.">
+      <Section title="Pi config" subtitle="The advanced tab exposes the full config surface.">
         <Row label="Config file"><span className="mono muted">{state.ompConfig?.path ?? "—"}</span></Row>
         <Row label="Entries"><span>{state.ompConfig?.entries.length ?? 0}</span></Row>
         <Row label="Refresh"><Button size="sm" variant="soft" onClick={() => void state.refreshConfig()}><RefreshCw size={13} /> Reload</Button></Row>
@@ -841,12 +841,12 @@ function AdvancedTab() {
   const [group, setGroup] = useState("all");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   useEffect(() => { if (!config?.entries.length) void state.refreshConfig(); }, []);
-  if (!config) return <div className="settings-loading"><Spinner /> Loading OMP config…</div>;
+  if (!config) return <div className="settings-loading"><Spinner /> Loading Pi config…</div>;
   const groups = [...new Set(config.entries.map((entry) => entry.group))].sort();
   const entries = config.entries.filter((entry) => (group === "all" || entry.group === group) && (!query || entry.key.toLowerCase().includes(query.toLowerCase()) || entry.description.toLowerCase().includes(query.toLowerCase())));
   return (
     <>
-      <Section title="OMP configuration" subtitle={`Generated from omp config list · ${config.entries.length} settings. Changes are written to the real OMP config.`} right={<div className="inline-actions"><input className="settings-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search settings…" /><Button size="sm" variant="soft" onClick={() => void state.refreshConfig()}><RefreshCw size={13} /></Button></div>}>
+      <Section title="Pi configuration" subtitle={`Generated from pi-agent/settings.json · ${config.entries.length} settings. Changes are written to the real Pi config.`} right={<div className="inline-actions"><input className="settings-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search settings…" /><Button size="sm" variant="soft" onClick={() => void state.refreshConfig()}><RefreshCw size={13} /></Button></div>}>
         <div className="config-groups">
           <button type="button" className={cx(group === "all" && "active")} onClick={() => setGroup("all")}>all</button>
           {groups.map((item) => <button key={item} type="button" className={cx(group === item && "active")} onClick={() => setGroup(item)}>{item}</button>)}
@@ -854,9 +854,9 @@ function AdvancedTab() {
         <div className="config-list">
           {entries.slice(0, 160).map((entry) => (
             <ConfigRow key={entry.key} entry={entry} draft={drafts[entry.key]} setDraft={(value) => setDrafts({ ...drafts, [entry.key]: value })} onSave={async (value) => {
-              await window.omp.setOmpConfig(entry.key, value);
+              await window.perch.setOmpConfig(entry.key, value);
               await state.refreshConfig();
-            }} onReset={async () => { await window.omp.resetOmpConfig(entry.key); await state.refreshConfig(); }} />
+            }} onReset={async () => { await window.perch.resetOmpConfig(entry.key); await state.refreshConfig(); }} />
           ))}
           {entries.length > 160 ? <p className="muted">Showing 160 of {entries.length}. Use search or a group filter.</p> : null}
         </div>
@@ -918,15 +918,15 @@ function ConnectorsTab() {
   const [mcps, setMcps] = useState<McpServerInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
-    void window.omp.connectorSecrets().then(setSecrets);
-    void window.omp.listMcpServers().then(setMcps);
+    void window.perch.connectorSecrets().then(setSecrets);
+    void window.perch.listMcpServers().then(setMcps);
   }, []);
   if (!settings) return null;
   const cf = settings.connectors?.cloudflare ?? { mcp: false };
   const update = (patch: any) => state.updateSettings({ settings: { connectors: { ...settings.connectors, ...patch } } });
   const save = async (key: string) => {
     const value = drafts[key] ?? "";
-    const next = await window.omp.setConnectorSecret(key, value);
+    const next = await window.perch.setConnectorSecret(key, value);
     setSecrets(next);
     setDrafts((items) => ({ ...items, [key]: "" }));
     state.pushToast({ kind: "success", title: "Credential saved", body: key });
@@ -934,7 +934,7 @@ function ConnectorsTab() {
   const test = async (provider: string) => {
     setBusy(provider);
     try {
-      const result = await window.omp.testConnector(provider);
+      const result = await window.perch.testConnector(provider);
       setResults((items) => ({ ...items, [provider]: `${result.ok ? "OK" : "Failed"}: ${result.output}` }));
     } finally {
       setBusy(null);
@@ -954,9 +954,9 @@ function ConnectorsTab() {
             <Button size="sm" variant="outline" disabled={busy === `oauth-${provider}`} onClick={async () => {
               setBusy(`oauth-${provider}`);
               try {
-                const result = await window.omp.connectOAuth(provider);
+                const result = await window.perch.connectOAuth(provider);
                 setResults((items) => ({ ...items, [provider]: `${result.ok ? "OK" : "Failed"}: ${result.output}` }));
-                setSecrets(await window.omp.connectorSecrets());
+                setSecrets(await window.perch.connectorSecrets());
               } catch (error) {
                 setResults((items) => ({ ...items, [provider]: `Failed: ${String(error)}` }));
               } finally {
@@ -981,15 +981,15 @@ function ConnectorsTab() {
   return (
     <>
       <Section title="Cloudflare" subtitle="Use the Cloudflare API MCP for account-wide work, and a token for Pages deployments from Sites." right={<Badge tone={cf.mcp ? "green" : "neutral"}>{cf.mcp ? "MCP added" : "MCP not added"}</Badge>}>
-        <Row label="Cloudflare MCP" hint="Adds https://mcp.cloudflare.com/mcp to ~/.omp/agent/mcp.json. OMP prompts for Cloudflare OAuth on first use.">
+        <Row label="Cloudflare MCP" hint="Adds https://mcp.cloudflare.com/mcp to pi-agent/mcp.json. Pi prompts for Cloudflare OAuth on first use.">
           <div className="inline-actions">
             <Button size="sm" variant="primary" onClick={async () => {
-              const result = await window.omp.addCloudflareMcp();
+              const result = await window.perch.addCloudflareMcp();
               setMcps(result.servers);
               state.pushToast({ kind: "success", title: "Cloudflare MCP added", body: result.path });
               await state.refresh();
             }}><Plus size={12} /> Add Cloudflare MCP</Button>
-            <Button size="sm" variant="soft" onClick={async () => { setMcps(await window.omp.listMcpServers()); }}><RefreshCw size={12} /> Refresh</Button>
+            <Button size="sm" variant="soft" onClick={async () => { setMcps(await window.perch.listMcpServers()); }}><RefreshCw size={12} /> Refresh</Button>
           </div>
         </Row>
         {mcps.filter((mcp) => /cloudflare/i.test(mcp.name)).map((mcp) => (
@@ -1012,7 +1012,7 @@ function ConnectorsTab() {
       </Section>
       <Section title="Slack" subtitle="OAuth bot token or incoming webhook for automation and CI summaries.">
         {oauthFields("slack", "Slack")}
-        {credential("slack", "slack.webhook", "Webhook URL", "https://hooks.slack.com/...", "Messages are posted as OMP Studio.")}
+        {credential("slack", "slack.webhook", "Webhook URL", "https://hooks.slack.com/...", "Messages are posted as Perch.")}
       </Section>
       <Section title="Linear" subtitle="OAuth app or API key for issue creation and project context.">
         {oauthFields("linear", "Linear")}
@@ -1022,9 +1022,9 @@ function ConnectorsTab() {
         {oauthFields("figma", "Figma")}
         {credential("figma", "figma.token", "Personal access token", "figd_...", "Used by agents through the browser and connectors.")}
       </Section>
-      <Section title="MCP servers" subtitle="Remote and local MCP servers discovered from ~/.omp/agent/mcp.json." right={<Button size="sm" variant="soft" onClick={async () => {
-        const result = await window.omp.importAgentConfigs();
-        setMcps(await window.omp.listMcpServers());
+      <Section title="MCP servers" subtitle="Remote and local MCP servers discovered from pi-agent/mcp.json." right={<Button size="sm" variant="soft" onClick={async () => {
+        const result = await window.perch.importAgentConfigs();
+        setMcps(await window.perch.listMcpServers());
         state.pushToast({ kind: "success", title: "Imported agent configs", body: result.imported.length ? result.imported.join(", ") : "No MCP servers found to import." });
       }}><Download size={12} /> Import from Claude/Codex</Button>}>
         {mcps.length ? mcps.map((mcp) => (
@@ -1032,7 +1032,7 @@ function ConnectorsTab() {
             <div><strong>{mcp.name}</strong><span>{mcp.url || mcp.command || mcp.source}</span></div>
             <div className="inline-actions">
               <Badge tone={mcp.enabled ? "green" : "neutral"}>{mcp.enabled ? "enabled" : "disabled"}</Badge>
-              <IconButton icon={<Trash2 size={12} />} label="Remove MCP server" onClick={async () => { setMcps(await window.omp.removeMcpServer(mcp.name)); }} />
+              <IconButton icon={<Trash2 size={12} />} label="Remove MCP server" onClick={async () => { setMcps(await window.perch.removeMcpServer(mcp.name)); }} />
             </div>
           </div>
         )) : <p className="muted">No MCP servers configured.</p>}
@@ -1049,14 +1049,14 @@ function AutomationsTab() {
   const [intervalMin, setIntervalMin] = useState(60);
   const [nodeId, setNodeId] = useState("");
   const projects = (state.snapshot?.nodes ?? []).filter((node) => node.type === "project");
-  const load = async () => setItems(await window.omp.listAutomations());
+  const load = async () => setItems(await window.perch.listAutomations());
   useEffect(() => {
     void load();
     if (!nodeId && projects[0]) setNodeId(projects[0].id);
   }, [projects.length]);
   const save = async () => {
     if (!name.trim() || !prompt.trim() || !nodeId) return;
-    await window.omp.saveAutomation({ name, prompt, intervalMin, nodeId });
+    await window.perch.saveAutomation({ name, prompt, intervalMin, nodeId });
     setName("");
     setPrompt("");
     await load();
@@ -1085,9 +1085,9 @@ function AutomationsTab() {
             </div>
             <div className="inline-actions">
               {item.lastThreadId ? <Button size="sm" variant="ghost" onClick={() => void state.selectThread(item.lastThreadId!, item.nodeId)}>Open thread</Button> : null}
-              <Button size="sm" variant="soft" onClick={async () => { await window.omp.runAutomation(item.id); await load(); }}><Play size={12} /> Run now</Button>
-              <Toggle checked={item.enabled} onChange={async (value) => { await window.omp.saveAutomation({ ...item, enabled: value }); await load(); }} />
-              <IconButton icon={<Trash2 size={13} />} label="Delete automation" onClick={async () => { await window.omp.deleteAutomation(item.id); await load(); }} />
+              <Button size="sm" variant="soft" onClick={async () => { await window.perch.runAutomation(item.id); await load(); }}><Play size={12} /> Run now</Button>
+              <Toggle checked={item.enabled} onChange={async (value) => { await window.perch.saveAutomation({ ...item, enabled: value }); await load(); }} />
+              <IconButton icon={<Trash2 size={13} />} label="Delete automation" onClick={async () => { await window.perch.deleteAutomation(item.id); await load(); }} />
             </div>
           </div>
         ))}
@@ -1116,7 +1116,7 @@ function SandboxTab() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [rulePattern, setRulePattern] = useState("");
   const [ruleAction, setRuleAction] = useState<"allow" | "ask" | "deny">("ask");
-  const load = async () => setEntries(await window.omp.listAudit(200));
+  const load = async () => setEntries(await window.perch.listAudit(200));
   useEffect(() => { void load(); }, []);
   if (!settings) return null;
   const sandbox = settings.sandbox ?? { enabled: false, allowedPaths: [], deniedCommands: [], allowNetwork: true };
@@ -1185,12 +1185,12 @@ function PluginsTab() {
   const [previews, setPreviews] = useState<PluginPreview[]>([]);
   const [selected, setSelected] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const load = async () => setInstalled(await window.omp.listPlugins());
+  const load = async () => setInstalled(await window.perch.listPlugins());
   useEffect(() => { void load(); }, []);
   const preview = async () => {
     setBusy("preview");
     try {
-      const list = await window.omp.previewPlugin(source);
+      const list = await window.perch.previewPlugin(source);
       setPreviews(list);
       setSelected(list.length === 1 ? list[0].name : "");
       if (!list.length) state.pushToast({ kind: "warning", title: "No plugins found", body: "Check the repository or folder." });
@@ -1203,7 +1203,7 @@ function PluginsTab() {
   const install = async () => {
     setBusy("install");
     try {
-      const plugin = await window.omp.installPlugin(source, selected || undefined);
+      const plugin = await window.perch.installPlugin(source, selected || undefined);
       state.pushToast({ kind: "success", title: "Plugin installed", body: `${plugin.name}: ${plugin.skills.length} skills, ${plugin.mcpServers.length} MCP servers` });
       setPreviews([]);
       setSource("");
@@ -1251,7 +1251,7 @@ function PluginsTab() {
             </div>
             <Button size="sm" variant="danger" onClick={async () => {
               if (!confirm(`Remove ${plugin.name} and its installed skills/MCP entries?`)) return;
-              await window.omp.removePlugin(plugin.name);
+              await window.perch.removePlugin(plugin.name);
               await load();
             }}>Remove</Button>
           </div>
@@ -1273,9 +1273,9 @@ function RemoteTab() {
   const [showToken, setShowToken] = useState(false);
   const [report, setReport] = useState<MaintenanceReport | null>(null);
   const [targets, setTargets] = useState<RemoteTarget[]>([]);
-  const load = async () => setInfo(await window.omp.remoteInfo());
+  const load = async () => setInfo(await window.perch.remoteInfo());
   const refreshTargets = async () => {
-    setTargets(await window.omp.listRemoteTargets().catch(() => []));
+    setTargets(await window.perch.listRemoteTargets().catch(() => []));
   };
   useEffect(() => { void load(); }, []);
   useEffect(() => { void refreshTargets(); }, []);
@@ -1284,9 +1284,9 @@ function RemoteTab() {
   const apply = async (patch: Partial<typeof remote>) => {
     setBusy("apply");
     try {
-      await window.omp.stopRemote();
+      await window.perch.stopRemote();
       await state.updateSettings({ settings: { remote: { ...remote, ...patch } } });
-      const next = await window.omp.startRemote();
+      const next = await window.perch.startRemote();
       setInfo(next);
     } catch (error) {
       state.pushToast({ kind: "error", title: "Could not apply remote settings", body: String(error) });
@@ -1299,11 +1299,11 @@ function RemoteTab() {
   const enable = async () => {
     setBusy("power");
     try {
-      let next = await window.omp.startRemote();
+      let next = await window.perch.startRemote();
       if (next.urls[0]?.includes("127.0.0.1")) {
-        await window.omp.stopRemote();
+        await window.perch.stopRemote();
         await state.updateSettings({ settings: { remote: { ...remote, host: "0.0.0.0" } } });
-        next = await window.omp.startRemote();
+        next = await window.perch.startRemote();
       }
       setInfo(next);
     } catch (error) {
@@ -1315,7 +1315,7 @@ function RemoteTab() {
   const disable = async () => {
     setBusy("power");
     try {
-      setInfo(await window.omp.stopRemote());
+      setInfo(await window.perch.stopRemote());
     } catch (error) {
       state.pushToast({ kind: "error", title: "Could not stop remote access", body: String(error) });
     } finally {
@@ -1334,7 +1334,7 @@ function RemoteTab() {
             {info.qr ? <img src={info.qr} alt="Phone pairing QR" /> : null}
             <div className="remote-pair-text">
               <strong>Scan with your phone camera</strong>
-              <span>Point the camera at the code. OMP opens and installs itself.</span>
+              <span>Point the camera at the code. Pi opens and installs itself.</span>
               <div className="inline-actions">
                 <Button size="sm" variant="soft" disabled={!link} onClick={() => { void navigator.clipboard.writeText(link); state.pushToast({ kind: "info", title: "Link copied" }); }}><Copy size={12} /> Copy link</Button>
                 <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void disable()}>{busy === "power" ? <Spinner /> : <Power size={12} />} Turn off</Button>
@@ -1373,7 +1373,7 @@ function RemoteTab() {
           {info?.urls.length ? (
             <Row label="Addresses">
               <div className="remote-urls">
-                {info.urls.map((url) => <button key={url} type="button" className="remote-url" onClick={() => void window.omp.openExternal(url)}>{url}</button>)}
+                {info.urls.map((url) => <button key={url} type="button" className="remote-url" onClick={() => void window.perch.openExternal(url)}>{url}</button>)}
               </div>
             </Row>
           ) : null}
@@ -1385,21 +1385,21 @@ function RemoteTab() {
                 <Button size="sm" variant="outline" disabled={busy !== null} onClick={async () => {
                   if (!confirm("Rotate the token? Every paired phone will be disconnected.")) return;
                   setBusy("rotate");
-                  try { setInfo(await window.omp.rotateRemoteToken()); state.pushToast({ kind: "success", title: "Token rotated" }); } finally { setBusy(null); }
+                  try { setInfo(await window.perch.rotateRemoteToken()); state.pushToast({ kind: "success", title: "Token rotated" }); } finally { setBusy(null); }
                 }}>Rotate</Button>
               </div>
             </Row>
           ) : null}
         </Section>
-        <Section title="Cleanup" subtitle="Prunes sessions, workspaces, worktrees, share bundles, artifacts and logs inside the OMP data directory.">
+        <Section title="Cleanup" subtitle="Prunes sessions, workspaces, worktrees, share bundles, artifacts and logs inside the Pi data directory.">
           <div className="inline-actions">
             <Button size="sm" variant="soft" disabled={busy !== null} onClick={async () => {
               setBusy("sweep");
-              try { setReport(await window.omp.maintenanceSweep(false)); } catch (error) { state.pushToast({ kind: "error", title: "Cleanup failed", body: String(error) }); } finally { setBusy(null); }
+              try { setReport(await window.perch.maintenanceSweep(false)); } catch (error) { state.pushToast({ kind: "error", title: "Cleanup failed", body: String(error) }); } finally { setBusy(null); }
             }}>{busy === "sweep" ? <Spinner /> : <Trash2 size={12} />} Clean up now</Button>
             <Button size="sm" variant="ghost" disabled={busy !== null} onClick={async () => {
               setBusy("preview");
-              try { setReport(await window.omp.maintenanceSweep(true)); } finally { setBusy(null); }
+              try { setReport(await window.perch.maintenanceSweep(true)); } finally { setBusy(null); }
             }}>Preview</Button>
           </div>
           {report ? (
@@ -1420,7 +1420,7 @@ function RelaySettings() {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ url: "", room: "", token: "", secret: "" });
   useEffect(() => {
-    void window.omp.relayInfo().then((next: RelayInfo) => {
+    void window.perch.relayInfo().then((next: RelayInfo) => {
       setInfo(next);
       setForm({ url: next.url, room: next.room, token: "", secret: "" });
     }).catch(() => undefined);
@@ -1428,7 +1428,7 @@ function RelaySettings() {
   const save = async (enabled: boolean) => {
     setBusy(true);
     try {
-      const next = await window.omp.configureRelay({ enabled, url: form.url, room: form.room, token: form.token, secret: form.secret });
+      const next = await window.perch.configureRelay({ enabled, url: form.url, room: form.room, token: form.token, secret: form.secret });
       setInfo(next);
       setForm({ url: next.url, room: next.room, token: "", secret: "" });
     } catch (error) {
@@ -1459,11 +1459,11 @@ function RelaySettings() {
         <div className="remote-qr">
           {info.qr ? <img src={info.qr} alt="Relay pairing QR" /> : null}
           <div>
-            <strong>Scan once to use OMP anywhere</strong>
+            <strong>Scan once to use Pi anywhere</strong>
             <span>Room {info.room} · {info.clients} client(s). Prompts and files stay encrypted; the relay sees ciphertext only.</span>
             <div className="inline-actions">
               {info.link ? <Button size="sm" variant="soft" onClick={() => { void navigator.clipboard.writeText(info.link!); state.pushToast({ kind: "info", title: "Relay link copied" }); }}><Copy size={12} /> Copy link</Button> : null}
-              {info.link ? <Button size="sm" variant="ghost" onClick={() => void window.omp.openExternal(info!.link!)}><ExternalLink size={12} /> Open</Button> : null}
+              {info.link ? <Button size="sm" variant="ghost" onClick={() => void window.perch.openExternal(info!.link!)}><ExternalLink size={12} /> Open</Button> : null}
             </div>
           </div>
         </div>
@@ -1487,7 +1487,7 @@ function MachinesCard({ targets, onChange }: { targets: RemoteTarget[]; onChange
     setBusy("move");
     setResult("");
     try {
-      const moved = await window.omp.moveThreadToTarget(threadId, target.id, mode);
+      const moved = await window.perch.moveThreadToTarget(threadId, target.id, mode);
       if ("queued" in moved) {
         setResult(moved.message);
       } else {
@@ -1511,11 +1511,11 @@ function MachinesCard({ targets, onChange }: { targets: RemoteTarget[]; onChange
             <div className="inline-actions">
               <Button size="sm" variant="ghost" disabled={busy !== null} onClick={async () => {
                 setBusy(item.id);
-                try { onChange(await window.omp.testRemoteTarget(item.id)); } finally { setBusy(null); }
+                try { onChange(await window.perch.testRemoteTarget(item.id)); } finally { setBusy(null); }
               }}>Test</Button>
               <Button size="sm" variant="outline" disabled={busy !== null} onClick={async () => {
                 if (!confirm(`Remove ${item.name}? The token is deleted from this device.`)) return;
-                onChange(await window.omp.removeRemoteTarget(item.id));
+                onChange(await window.perch.removeRemoteTarget(item.id));
               }}>Remove</Button>
             </div>
           </div>
@@ -1561,7 +1561,7 @@ function PairMachine({ targets, onChange }: { targets: RemoteTarget[]; onChange:
         <Button size="sm" variant="soft" disabled={busy || !pairLink.trim()} onClick={async () => {
           setBusy(true);
           try {
-            const paired = await window.omp.pairRemoteTarget(pairLink);
+            const paired = await window.perch.pairRemoteTarget(pairLink);
             onChange(paired.targets);
             setPairLink("");
             state.pushToast({ kind: "success", title: "Machine added", body: paired.target.name });

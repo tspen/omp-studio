@@ -76,7 +76,7 @@ export function BrowserPanel() {
   const pick = async () => {
     setPicking(true);
     try {
-      const picked = await window.omp.pickBrowserElement();
+      const picked = await window.perch.pickBrowserElement();
       if (!picked) {
         state.pushToast({ kind: "info", title: "Element pick cancelled" });
         return;
@@ -93,13 +93,13 @@ export function BrowserPanel() {
 
   const visualDiff = async () => {
     try {
-      const shot = await window.omp.captureBrowser();
+      const shot = await window.perch.captureBrowser();
       if (!baseline) {
         setBaseline(shot);
         state.pushToast({ kind: "info", title: "Baseline captured", body: "Change the page, then use visual diff again." });
         return;
       }
-      const result = await window.omp.compareBrowserScreenshots(baseline, shot);
+      const result = await window.perch.compareBrowserScreenshots(baseline, shot);
       setBaseline(shot);
       state.openPreview({ title: "Visual diff", kind: "image", content: "", path: result.path });
       state.pushToast({ kind: "info", title: "Visual diff", body: `${result.percent}% changed · ${result.diffPixels} pixels` });
@@ -129,7 +129,7 @@ export function BrowserPanel() {
         <IconButton icon={<MousePointer2 size={14} />} label={picking ? "Click an element in the page" : "Pick element"} disabled={picking || state.browserMinimized} onClick={() => void pick()} />
         <IconButton icon={<TerminalSquare size={14} />} label="Console and network" disabled={state.browserMinimized} onClick={() => { setDevtools((value) => !value); void state.loadBrowserDevtools(); }} />
         <IconButton icon={<GitCompare size={14} />} label={baseline ? "Compare with baseline screenshot" : "Capture baseline screenshot"} disabled={state.browserMinimized} onClick={() => void visualDiff()} />
-        <IconButton icon={<Maximize2 size={14} />} label="Pop out browser" disabled={state.browserMinimized} onClick={() => void window.omp.popOutBrowser(address)} />
+        <IconButton icon={<Maximize2 size={14} />} label="Pop out browser" disabled={state.browserMinimized} onClick={() => void window.perch.popOutBrowser(address)} />
         {!state.browserMinimized ? (
           <select className="browser-device" value={device} onChange={(event) => setDevice(event.target.value)} title="Preview viewport">
             {devices.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}

@@ -35,7 +35,7 @@ export function App() {
     const apply = () => {
       const resolved = theme === "system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
       document.documentElement.dataset.theme = resolved;
-      void window.omp.setWindowTheme(resolved);
+      void window.perch.setWindowTheme(resolved);
     };
     apply();
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -66,8 +66,8 @@ export function App() {
     return (
       <div className="boot">
         <Logo size={44} />
-        <h1>OMP Studio</h1>
-        <p>Bringing up the tree and the OMP engine…</p>
+        <h1>Perch</h1>
+        <p>Bringing up the tree and the Pi engine…</p>
         <div className="boot-bar"><i /></div>
       </div>
     );
@@ -105,7 +105,7 @@ export function App() {
       </div>
       <div className="statusbar">
         <div className="statusbar-left">
-          <span className="statusbar-item"><span className={cx("engine-dot", state.engine?.found ? "ok" : "bad")} /> {state.engine?.found ? `OMP ${state.engine.version}` : "OMP not found"}</span>
+          <span className="statusbar-item"><span className={cx("engine-dot", state.engine?.found ? "ok" : "bad")} /> {state.engine?.found ? `Pi ${state.engine.version}` : "Pi not found"}</span>
           <span className="statusbar-item">{groups} groups · {projects} projects · {running} running · {waiting} waiting</span>
           <span className="statusbar-item">{formatNumber(state.snapshot.usage.totalTokens)} tokens · {formatCost(state.snapshot.usage.totalCost)} metered{state.snapshot.usage.referenceCost ? ` · ${formatCost(state.snapshot.usage.referenceCost)} included ref` : ""}</span>
         </div>
@@ -141,7 +141,7 @@ function Splitter({ pane }: { pane: "sidebar" | "right" | "browser" }) {
       document.body.classList.remove("resizing");
       const widths = useApp.getState().paneWidths;
       const settings = useApp.getState().snapshot?.settings;
-      if (settings) void window.omp.updateSettings({ settings: { ui: { ...settings.ui, sidebarWidth: widths.sidebar, rightWidth: widths.right } } });
+      if (settings) void window.perch.updateSettings({ settings: { ui: { ...settings.ui, sidebarWidth: widths.sidebar, rightWidth: widths.right } } });
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -155,7 +155,7 @@ function TitleBar({ unread, running, waiting }: { unread: number; running: numbe
     <header className="titlebar">
       <div className="titlebar-left">
         <div className="titlebar-logo"><Logo size={20} /></div>
-        <span className="titlebar-name">OMP Studio</span>
+        <span className="titlebar-name">Perch</span>
         <span className="titlebar-sep" />
         <span className="titlebar-context">{state.snapshot?.nodes.find((node) => node.type === "root")?.name ?? "Mission Control"}</span>
       </div>

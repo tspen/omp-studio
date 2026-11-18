@@ -25,16 +25,16 @@ export function XtermView({ sessionId }: { sessionId: string }) {
     const refit = () => {
       try {
         fit.fit();
-        void window.omp.resizePty(sessionId, term.cols, term.rows);
+        void window.perch.resizePty(sessionId, term.cols, term.rows);
       } catch {
         /* hidden */
       }
     };
     requestAnimationFrame(refit);
     const onData = term.onData((data) => {
-      void window.omp.writePty(sessionId, data).catch(() => undefined);
+      void window.perch.writePty(sessionId, data).catch(() => undefined);
     });
-    void window.omp.readPty(sessionId).then((text: string) => {
+    void window.perch.readPty(sessionId).then((text: string) => {
       if (text) term.write(text.slice(-200_000));
       term.scrollToBottom();
     });

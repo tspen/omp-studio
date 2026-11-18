@@ -251,7 +251,7 @@ function NewNodeModal() {
         </div>
         <Field label="Name" hint="Leave blank to auto-name from the brief or first child."><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder={type === "group" ? "Auto-name group" : "Auto-name project"} /></Field>
         <Field label="Path" hint={type === "group" ? "Optional workspace directory for the group orchestrator. Defaults to a folder named after the group under your workspace root." : "Repository path. Defaults to a folder named after the project under your workspace root; browse to use an existing repository."}>
-          <div className="inline-actions"><input value={effectivePath} onChange={(event) => { setPathTouched(true); setPath(event.target.value); }} placeholder={name.trim() ? suggestedPath : "Type a name for a default folder, or browse"} /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) { setPathTouched(true); setPath(picked); } }}><Folder size={13} /> Browse</Button></div>
+          <div className="inline-actions"><input value={effectivePath} onChange={(event) => { setPathTouched(true); setPath(event.target.value); }} placeholder={name.trim() ? suggestedPath : "Type a name for a default folder, or browse"} /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.perch.pickDirectory(); if (picked) { setPathTouched(true); setPath(picked); } }}><Folder size={13} /> Browse</Button></div>
         </Field>
         {type === "project" ? (
           <label className="inline-check"><input type="checkbox" checked={gitInit} onChange={(event) => setGitInit(event.target.checked)} /> Initialize a git repository if needed</label>
@@ -261,7 +261,7 @@ function NewNodeModal() {
           value={model}
           onChange={setModel}
           role={type === "group" ? "group" : "project"}
-          hint="Defaults to your project model. Search the full OMP catalog."
+          hint="Defaults to your project model. Search the full Pi catalog."
         />
         <Field label="Brief" hint="Optional. Sent to the new orchestrator as its first task.">
           <textarea rows={5} value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="What should this group/project own? Constraints, definition of done, first milestone…" />
@@ -393,7 +393,7 @@ function ArtifactsModal() {
       <div className="artifact-grid">
         {state.artifacts.map((artifact) => (
           <button key={artifact.id} type="button" className="artifact-card" onClick={async () => {
-            const full = await window.omp.readArtifact(artifact.id);
+            const full = await window.perch.readArtifact(artifact.id);
             const image = isImage(full.path ?? artifact.name);
             state.openPreview({
               title: artifact.name,
@@ -434,7 +434,7 @@ function SitesModal() {
     if (!name.trim() || !nodeId) return;
     setBusy("create");
     try {
-      const site = await window.omp.createSite({ name: name.trim(), nodeId, path: path.trim() || "." });
+      const site = await window.perch.createSite({ name: name.trim(), nodeId, path: path.trim() || "." });
       await state.publishSite(site.id);
       setName("");
       await state.loadSites();
@@ -459,7 +459,7 @@ function SitesModal() {
   const deploy = async (id: string, provider: "cloudflare" | "github-pages") => {
     setBusy(`${id}-${provider}`);
     try {
-      const deployment = await window.omp.deploySite(id, provider);
+      const deployment = await window.perch.deploySite(id, provider);
       state.pushToast({
         kind: "success",
         title: provider === "cloudflare" ? "Deployed to Cloudflare Pages" : "Deployed to GitHub Pages",
@@ -484,7 +484,7 @@ function SitesModal() {
           <div className="inline-actions">
             <input value={path} onChange={(event) => setPath(event.target.value)} />
             <IconButton icon={<Folder size={14} />} label="Pick folder" onClick={async () => {
-              const picked = await window.omp.pickDirectory();
+              const picked = await window.perch.pickDirectory();
               if (picked) {
                 setPath(picked);
                 if (!name.trim()) setName(picked.split(/[\\/]/).filter(Boolean).pop() ?? "Site");
@@ -537,7 +537,7 @@ function SitesModal() {
                 <Button size="sm" variant="soft" disabled={!site.url} onClick={() => { const link = site.accessToken ? `${site.url}?t=${site.accessToken}` : site.url; void navigator.clipboard.writeText(link); state.pushToast({ kind: "info", title: site.accessToken ? "Protected URL copied" : "URL copied", body: link }); }}><Copy size={12} /> Copy</Button>
                 <Button size="sm" variant="soft" disabled={busy === site.id} onClick={() => void republish(site.id)}>{busy === site.id ? <Spinner /> : <Share2 size={12} />} Publish</Button>
                 <IconButton icon={site.accessToken ? <Lock size={13} /> : <Unlock size={13} />} label={site.accessToken ? "Remove access token" : "Protect with an access token"} onClick={async () => {
-                  await window.omp.setSiteAccess(site.id, !site.accessToken);
+                  await window.perch.setSiteAccess(site.id, !site.accessToken);
                   await state.loadSites();
                   state.pushToast({ kind: "info", title: site.accessToken ? "Site is public" : "Site protected", body: site.accessToken ? "Anyone on this machine can open it." : "Share the copy link, which includes the token." });
                 }} />
@@ -547,7 +547,7 @@ function SitesModal() {
                   if (!domain) return;
                   setBusy(`${site.id}-domain`);
                   try {
-                    const result = await window.omp.addSiteDomain(site.id, domain.trim());
+                    const result = await window.perch.addSiteDomain(site.id, domain.trim());
                     state.pushToast({ kind: "success", title: "Domain added", body: result.output });
                   } catch (error) {
                     state.pushToast({ kind: "error", title: "Could not add domain", body: String(error) });
@@ -562,7 +562,7 @@ function SitesModal() {
                   if (!emails) return;
                   setBusy(`${site.id}-access`);
                   try {
-                    const result = await window.omp.configureCloudflareAccess(site.id, domain.trim(), emails.split(",").map((email) => email.trim()).filter(Boolean));
+                    const result = await window.perch.configureCloudflareAccess(site.id, domain.trim(), emails.split(",").map((email) => email.trim()).filter(Boolean));
                     state.pushToast({ kind: "success", title: "Cloudflare Access configured", body: result.output });
                   } catch (error) {
                     state.pushToast({ kind: "error", title: "Cloudflare Access failed", body: String(error) });
@@ -625,7 +625,7 @@ function CommandRuns() {
           <span>$</span>
           <input value={command} onChange={(event) => setCommand(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && command.trim()) { void state.runTerminal(command); setCommand(""); } }} placeholder="npm test" />
           <Button size="sm" variant="primary" disabled={!command.trim()} onClick={() => { void state.runTerminal(command); setCommand(""); }}><Play size={13} /> Run</Button>
-          {run?.status === "running" ? <Button size="sm" variant="ghost" onClick={() => void window.omp.killTerminal(run.id)}><Square size={12} /> Stop</Button> : null}
+          {run?.status === "running" ? <Button size="sm" variant="ghost" onClick={() => void window.perch.killTerminal(run.id)}><Square size={12} /> Stop</Button> : null}
         </div>
       </div>
     </div>
@@ -643,9 +643,9 @@ function DevicesModal() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = async () => {
-    setStatus(await window.omp.mobileStatus());
-    setDevices(await window.omp.listMobileDevices());
-    setAvds(await window.omp.listAvds());
+    setStatus(await window.perch.mobileStatus());
+    setDevices(await window.perch.listMobileDevices());
+    setAvds(await window.perch.listAvds());
   };
   useEffect(() => { void load(); }, []);
   useEffect(() => {
@@ -655,7 +655,7 @@ function DevicesModal() {
   const shoot = async () => {
     setBusy("shot");
     try {
-      const result = await window.omp.mobileScreenshot(serial || undefined);
+      const result = await window.perch.mobileScreenshot(serial || undefined);
       setShot(result.path);
     } catch (error) {
       state.pushToast({ kind: "error", title: "Screenshot failed", body: String(error) });
@@ -671,7 +671,7 @@ function DevicesModal() {
     const x = Math.round(((event.clientX - rect.left) / rect.width) * image.naturalWidth);
     const y = Math.round(((event.clientY - rect.top) / rect.height) * image.naturalHeight);
     try {
-      await window.omp.mobileTap(serial || undefined, x, y);
+      await window.perch.mobileTap(serial || undefined, x, y);
       await new Promise((resolve) => setTimeout(resolve, 400));
       await shoot();
     } catch (error) {
@@ -687,7 +687,7 @@ function DevicesModal() {
           <Smartphone size={26} />
           <strong>adb not found</strong>
           <p>Install Android platform-tools and add them to PATH to control emulators and devices.</p>
-          <Button size="sm" variant="soft" onClick={() => void window.omp.openExternal("https://developer.android.com/tools/releases/platform-tools")}><ExternalLink size={12} /> Download platform-tools</Button>
+          <Button size="sm" variant="soft" onClick={() => void window.perch.openExternal("https://developer.android.com/tools/releases/platform-tools")}><ExternalLink size={12} /> Download platform-tools</Button>
           <Button size="sm" variant="ghost" onClick={() => void load()}><RefreshCw size={12} /> Check again</Button>
         </div>
       ) : null}
@@ -709,7 +709,7 @@ function DevicesModal() {
                 <Button size="sm" variant="ghost" disabled={busy === avd} onClick={async () => {
                   setBusy(avd);
                   try {
-                    await window.omp.startAvd(avd);
+                    await window.perch.startAvd(avd);
                     state.pushToast({ kind: "info", title: "Emulator starting", body: avd });
                     setTimeout(() => void load(), 12_000);
                   } finally {
@@ -725,9 +725,9 @@ function DevicesModal() {
               <span>{serial || "No device selected"}</span>
               <Button size="sm" variant="soft" disabled={!serial || busy === "shot"} onClick={() => void shoot()}>{busy === "shot" ? <Spinner /> : <Smartphone size={12} />} Screenshot</Button>
               <input className="device-text" value={text} onChange={(event) => setText(event.target.value)} placeholder="Type text or a keyevent" />
-              <Button size="sm" variant="ghost" disabled={!text} onClick={async () => { await window.omp.mobileText(serial || undefined, text); setText(""); await new Promise((r) => setTimeout(r, 400)); await shoot(); }}>Type</Button>
-              <Button size="sm" variant="ghost" disabled={!text} onClick={async () => { await window.omp.mobileKey(serial || undefined, text); setText(""); await new Promise((r) => setTimeout(r, 400)); await shoot(); }}>Key</Button>
-              <Button size="sm" variant="ghost" onClick={async () => { await window.omp.mobileKey(serial || undefined, "KEYCODE_BACK"); }}>Back</Button>
+              <Button size="sm" variant="ghost" disabled={!text} onClick={async () => { await window.perch.mobileText(serial || undefined, text); setText(""); await new Promise((r) => setTimeout(r, 400)); await shoot(); }}>Type</Button>
+              <Button size="sm" variant="ghost" disabled={!text} onClick={async () => { await window.perch.mobileKey(serial || undefined, text); setText(""); await new Promise((r) => setTimeout(r, 400)); await shoot(); }}>Key</Button>
+              <Button size="sm" variant="ghost" onClick={async () => { await window.perch.mobileKey(serial || undefined, "KEYCODE_BACK"); }}>Back</Button>
             </div>
             {shot ? (
               <img className="device-shot" src={fileUrl(shot)} alt="Android device" onClick={(event) => void tapAt(event)} title="Click to tap at this point" />
@@ -761,13 +761,13 @@ function ContextModal() {
     const timer = setTimeout(async () => {
       try {
         if (tab === "files") {
-          const result = await window.omp.listWorkspaceFiles({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
+          const result = await window.perch.listWorkspaceFiles({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
           if (!cancelled) setFiles(result);
         } else if (tab === "symbols") {
-          const result = await window.omp.searchWorkspaceSymbols({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
+          const result = await window.perch.searchWorkspaceSymbols({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
           if (!cancelled) setSymbols(result);
         } else if (query.trim().length >= 2) {
-          const result = await window.omp.searchWorkspaceContent({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
+          const result = await window.perch.searchWorkspaceContent({ nodeId: node?.id, threadId: thread?.id, query, limit: 100 });
           if (!cancelled) setMatches(result);
         } else if (!cancelled) {
           setMatches([]);
@@ -868,7 +868,7 @@ function ShareModal() {
       <div className="share-modal">
         <div className="share-url"><input readOnly value={state.share?.url ?? ""} /><Button size="sm" variant="soft" onClick={() => { if (state.share) { void navigator.clipboard.writeText(state.share.url); state.pushToast({ kind: "success", title: "Link copied" }); } }}><Copy size={13} /> Copy</Button></div>
         <div className="share-actions">
-          <Button variant="soft" onClick={() => state.share && void window.omp.openExternal(state.share.url)}><ExternalLink size={14} /> Open in browser</Button>
+          <Button variant="soft" onClick={() => state.share && void window.perch.openExternal(state.share.url)}><ExternalLink size={14} /> Open in browser</Button>
           <Button variant="danger" onClick={() => void state.stopShare()}><X size={14} /> Stop sharing</Button>
         </div>
         <p className="muted">Guests can read messages and tool activity, but cannot steer. The server binds to 127.0.0.1 and uses an unguessable token.</p>
@@ -886,7 +886,7 @@ function PreviewModal() {
       {preview.kind === "image" ? (
         <div className="preview-image-wrap">
           <img src={fileUrl(preview.path)} alt={preview.title} />
-          {preview.path ? <Button size="sm" variant="soft" onClick={() => void window.omp.openPath(preview.path!)}><ExternalLink size={13} /> Open file</Button> : null}
+          {preview.path ? <Button size="sm" variant="soft" onClick={() => void window.perch.openPath(preview.path!)}><ExternalLink size={13} /> Open file</Button> : null}
         </div>
       ) : preview.kind === "diff" ? (
         preview.review ? <DiffReview preview={preview} review={preview.review} /> : <DiffView text={preview.content} />
@@ -932,7 +932,7 @@ function DiffReview({ preview, review }: { preview: { content: string; path?: st
         "",
         "Address each comment in the working tree, keep the rest of the change intact, verify the result, then report what changed. Do not discard unrelated work.",
       ].join("\n");
-      await window.omp.send({ threadId, text: body });
+      await window.perch.send({ threadId, text: body });
       state.pushToast({ kind: "success", title: "Comments sent to agent", body: `${comments.length} comment(s) on ${review.path}` });
       state.setOverlay("none");
     } catch (error) {
@@ -978,7 +978,7 @@ function DiffReview({ preview, review }: { preview: { content: string; path?: st
                     setBusy(true);
                     try {
                       const patch = [...preamble, hunk.header, ...hunk.lines].join("\n") + "\n";
-                      const result = await window.omp.gitRejectHunk(review.nodeId, review.threadId ?? state.selectedThreadId ?? "", review.path, patch);
+                      const result = await window.perch.gitRejectHunk(review.nodeId, review.threadId ?? state.selectedThreadId ?? "", review.path, patch);
                       state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Hunk rejected" : "Could not reject hunk", body: result.output.slice(0, 300) });
                       if (result.ok) state.setOverlay("none");
                     } catch (error) {
@@ -1056,17 +1056,17 @@ function HistoryModal() {
   useEffect(() => {
     if (!thread) return;
     setLoading(true);
-    void window.omp.getThreadEntries(thread.id)
+    void window.perch.getThreadEntries(thread.id)
       .then(setEntries)
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
-    void window.omp.listCheckpoints(thread.id).then(setCheckpoints).catch(() => setCheckpoints([]));
+    void window.perch.listCheckpoints(thread.id).then(setCheckpoints).catch(() => setCheckpoints([]));
   }, [thread?.id]);
   if (!thread) return null;
   const restore = async (checkpoint: Checkpoint, mode: "code" | "both") => {
     if (!confirm(`Restore ${mode === "both" ? "code and conversation" : "code"} from "${checkpoint.label}"? Current uncommitted changes in this checkout are replaced.`)) return;
     try {
-      const result = await window.omp.restoreCheckpoint(checkpoint.id, mode);
+      const result = await window.perch.restoreCheckpoint(checkpoint.id, mode);
       await state.refresh();
       await state.loadMessages(thread.id);
       state.pushToast({ kind: "success", title: "Checkpoint restored", body: `${result.restored} files restored, ${result.removed} removed` });
@@ -1080,8 +1080,8 @@ function HistoryModal() {
         <div><strong>File checkpoints</strong><span>Automatic before each prompt, plus manual snapshots.</span></div>
         <Button size="sm" variant="soft" onClick={async () => {
           try {
-            await window.omp.createCheckpoint(thread.id, "Manual checkpoint");
-            setCheckpoints(await window.omp.listCheckpoints(thread.id));
+            await window.perch.createCheckpoint(thread.id, "Manual checkpoint");
+            setCheckpoints(await window.perch.listCheckpoints(thread.id));
             state.pushToast({ kind: "success", title: "Checkpoint created" });
           } catch (error) {
             state.pushToast({ kind: "error", title: "Checkpoint failed", body: String(error) });
@@ -1112,14 +1112,14 @@ function HistoryModal() {
               <p>{entry.text || "(no text)"}</p>
               <div className="history-actions">
                 <Button size="sm" variant="soft" onClick={async () => {
-                  await window.omp.forkThread(thread.id, entry.id);
+                  await window.perch.forkThread(thread.id, entry.id);
                   await state.refresh();
                   await state.loadMessages(thread.id);
                   state.setOverlay("none");
                   state.pushToast({ kind: "success", title: "Forked thread" });
                 }}>Fork from here</Button>
                 <Button size="sm" variant="ghost" onClick={async () => {
-                  await window.omp.navigateThread(thread.id, entry.id, false);
+                  await window.perch.navigateThread(thread.id, entry.id, false);
                   await state.refresh();
                   await state.loadMessages(thread.id);
                   state.setOverlay("none");
@@ -1144,7 +1144,7 @@ function GoalModal() {
   const refresh = async () => {
     if (!thread) return;
     try {
-      const result = await window.omp.goalThread(thread.id, "get");
+      const result = await window.perch.goalThread(thread.id, "get");
       setCurrent(result);
     } catch {
       setCurrent(null);
@@ -1154,12 +1154,12 @@ function GoalModal() {
   if (!thread) return null;
   const goal = current?.goal;
   const op = async (name: "create" | "resume" | "pause" | "drop") => {
-    const result = await window.omp.goalThread(thread.id, name, name === "create" ? objective : undefined, budget ? Number(budget) : undefined);
+    const result = await window.perch.goalThread(thread.id, name, name === "create" ? objective : undefined, budget ? Number(budget) : undefined);
     setCurrent(result);
     state.pushToast({ kind: "success", title: `Goal ${name}` });
   };
   return (
-    <Modal title="Goal mode" subtitle="A persistent objective with a token budget. OMP continues the thread until the goal completes or you pause it." onClose={() => state.setOverlay("none")} width={620}>
+    <Modal title="Goal mode" subtitle="A persistent objective with a token budget. Pi continues the thread until the goal completes or you pause it." onClose={() => state.setOverlay("none")} width={620}>
       <div className="goal-modal">
         {goal ? (
           <div className="goal-card">
@@ -1174,7 +1174,7 @@ function GoalModal() {
         ) : (
           <>
             <Field label="Objective"><textarea rows={4} value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="What should this thread keep working toward?" /></Field>
-            <Field label="Token budget" hint="Optional. OMP stops when the budget is exhausted."><input value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="e.g. 200000" /></Field>
+            <Field label="Token budget" hint="Optional. Pi stops when the budget is exhausted."><input value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="e.g. 200000" /></Field>
             <Button variant="primary" disabled={!objective.trim()} onClick={() => void op("create")}>Create goal</Button>
           </>
         )}

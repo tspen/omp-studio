@@ -56,7 +56,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
       return (
         <div className="fatal-screen">
           <div>
-            <h1>OMP Studio hit a UI error</h1>
+            <h1>Perch hit a UI error</h1>
             <p>The workspace and sessions are safe in the main process.</p>
             <pre>{this.state.error.stack ?? this.state.error.message}</pre>
             <button type="button" onClick={() => location.reload()}>Reload window</button>

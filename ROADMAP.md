@@ -1,4 +1,4 @@
-# OMP Studio roadmap
+# Perch roadmap
 
 Every item from the Windows coding-agent parity checklist is either implemented or explicitly excluded by a user decision. Android device control is local through adb; the remote runner and Android/iOS projects are implemented, while running iOS simulators and signing device builds still need macOS/Apple tooling.
 
@@ -55,7 +55,7 @@ Every item from the Windows coding-agent parity checklist is either implemented 
 
 ## Ecosystem gap analysis
 
-A 2026-11-17 deep dive comparing OMP Studio with Claude Code and the wider ecosystem is in [`docs/claude-code-gap-analysis.md`](docs/claude-code-gap-analysis.md).
+A 2026-11-17 deep dive comparing Perch with Claude Code and the wider ecosystem is in [`docs/claude-code-gap-analysis.md`](docs/claude-code-gap-analysis.md).
 
 Implemented from the analysis:
 
@@ -87,7 +87,7 @@ The user confirmed these exclusions on 2026-11-17:
 
 - **iOS simulator execution on Windows and signed device builds** - require macOS/Xcode and Apple credentials. The Capacitor iOS project and unsigned simulator CI build are included; Android simulators and devices are supported through adb, and the browser provides iPhone/Pixel/iPad viewport presets.
 - **Built-in code editor and side chats** - intentionally excluded product decisions.
-- **Kernel-level sandbox** - OMP runs under the Windows user account. The app enforces terminal command policy, path/network guidance in prompts, and an audit trail; it is not OS virtualization.
+- **Kernel-level sandbox** - Pi runs under the Windows user account. The app enforces terminal command policy, path/network guidance in prompts, and an audit trail; it is not OS virtualization.
 - **Semantic/embedding code index** - local file, symbol and text search are included; embeddings and cross-repository retrieval are not.
 
 

@@ -345,7 +345,7 @@ function ManualMessage({ thread }: { thread: Thread }) {
           variant="primary"
           disabled={!body.trim() || !subject.trim()}
           onClick={async () => {
-            await window.omp.sendEnvelope({ fromThreadId: thread.id, toThreadId: target, kind: kind as any, subject, body, requiresResponse: kind === "question" });
+            await window.perch.sendEnvelope({ fromThreadId: thread.id, toThreadId: target, kind: kind as any, subject, body, requiresResponse: kind === "question" });
             setBody("");
             setSubject("");
             await state.refresh();
@@ -374,8 +374,8 @@ function CiTab() {
     setLoading(true);
     try {
       const [status, runList] = await Promise.all([
-        window.omp.getPrStatus(node.id, thread?.id).catch((error: unknown) => ({ ok: false, error: String(error) }) as PrStatus),
-        window.omp.listCiRuns(node.id, thread?.id).catch(() => [] as CiRun[]),
+        window.perch.getPrStatus(node.id, thread?.id).catch((error: unknown) => ({ ok: false, error: String(error) }) as PrStatus),
+        window.perch.listCiRuns(node.id, thread?.id).catch(() => [] as CiRun[]),
       ]);
       setPr(status);
       setRuns(runList);
@@ -395,7 +395,7 @@ function CiTab() {
       const failedRun = runs.find((run) => /failure|timed_out|startup_failure/i.test(run.conclusion));
       let logText = "";
       if (failedRun) {
-        const result = await window.omp.getCiLogs(node.id, thread.id, failedRun.id);
+        const result = await window.perch.getCiLogs(node.id, thread.id, failedRun.id);
         logText = result.output.slice(-20_000);
       }
       const body = [
@@ -404,7 +404,7 @@ function CiTab() {
         failing.length ? `Failing checks:\n${failing.map((check) => `- ${check.name}: ${check.conclusion}`).join("\n")}` : "",
         logText ? `Recent failed logs:\n\n${logText}` : "",
       ].filter(Boolean).join("\n\n");
-      await window.omp.send({ threadId: thread.id, text: body });
+      await window.perch.send({ threadId: thread.id, text: body });
       state.pushToast({ kind: "success", title: "CI failure sent to agent", body: "The thread will investigate and fix it." });
     } catch (error) {
       state.pushToast({ kind: "error", title: "Could not start CI fix", body: String(error) });
@@ -441,12 +441,12 @@ function CiTab() {
               <div><span>Review</span><strong>{pr.reviewDecision ?? "none"}</strong></div>
             </div>
             <div className="inline-actions">
-              {pr.url ? <Button size="sm" variant="soft" onClick={() => void window.omp.openExternal(pr.url!)}><ExternalLink size={12} /> Open PR</Button> : null}
+              {pr.url ? <Button size="sm" variant="soft" onClick={() => void window.perch.openExternal(pr.url!)}><ExternalLink size={12} /> Open PR</Button> : null}
               <Button size="sm" variant="primary" disabled={busy !== null || pr.mergeable === "CONFLICTING"} onClick={async () => {
                 if (!pr.number) return;
                 setBusy("merge");
                 try {
-                  const result = await window.omp.mergePr(node!.id, thread?.id, pr.number);
+                  const result = await window.perch.mergePr(node!.id, thread?.id, pr.number);
                   state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "PR merged" : "Merge failed", body: result.output.slice(0, 300) });
                   await load();
                 } finally {
@@ -461,7 +461,7 @@ function CiTab() {
               <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Review comment for the PR" />
               <Button size="sm" variant="soft" disabled={!comment.trim() || !pr.number} onClick={async () => {
                 if (!pr.number) return;
-                const result = await window.omp.commentPr(node!.id, thread?.id, pr.number, comment);
+                const result = await window.perch.commentPr(node!.id, thread?.id, pr.number, comment);
                 state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Comment posted" : "Comment failed", body: result.output.slice(0, 200) });
                 if (result.ok) setComment("");
               }}>Comment</Button>
@@ -496,17 +496,17 @@ function CiTab() {
               <IconButton icon={<FileDiff size={12} />} label="Failed logs" onClick={async () => {
                 setBusy(`logs-${run.id}`);
                 try {
-                  const result = await window.omp.getCiLogs(node!.id, thread?.id, run.id);
+                  const result = await window.perch.getCiLogs(node!.id, thread?.id, run.id);
                   setLogs({ runId: run.id, text: result.output || result.output || "No logs." });
                 } finally {
                   setBusy(null);
                 }
               }} />
               <IconButton icon={<RefreshCw size={12} />} label="Re-run failed jobs" onClick={async () => {
-                const result = await window.omp.rerunCi(node!.id, thread?.id, run.id);
+                const result = await window.perch.rerunCi(node!.id, thread?.id, run.id);
                 state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Re-run requested" : "Re-run failed", body: result.output.slice(0, 200) });
               }} />
-              {run.url ? <IconButton icon={<ExternalLink size={12} />} label="Open run" onClick={() => void window.omp.openExternal(run.url!)} /> : null}
+              {run.url ? <IconButton icon={<ExternalLink size={12} />} label="Open run" onClick={() => void window.perch.openExternal(run.url!)} /> : null}
             </div>
           </div>
         ))}
@@ -536,7 +536,7 @@ function GitTab() {
   useEffect(() => {
     if (!node) return;
     setLoading(true);
-    void window.omp.getGitStatus(node.id, thread?.id)
+    void window.perch.getGitStatus(node.id, thread?.id)
       .then((value) => setStatus(value))
       .catch(() => setStatus(null))
       .finally(() => setLoading(false));
@@ -552,7 +552,7 @@ function GitTab() {
             <strong>{status?.isRepo ? status.branch ?? "repository" : "Not a git repository"}</strong>
             <span>{status?.root ?? node.repoPath ?? node.path}</span>
           </div>
-          <IconButton icon={<RefreshCw size={14} />} label="Refresh" onClick={async () => { setLoading(true); setStatus(await window.omp.getGitStatus(node.id, thread?.id)); setLoading(false); }} />
+          <IconButton icon={<RefreshCw size={14} />} label="Refresh" onClick={async () => { setLoading(true); setStatus(await window.perch.getGitStatus(node.id, thread?.id)); setLoading(false); }} />
         </div>
         {status?.isRepo ? (
           <>
@@ -564,7 +564,7 @@ function GitTab() {
             {status.lastCommit ? <div className="git-last"><GitCommitHorizontal size={12} /><span className="mono">{status.lastCommit.hash}</span>{status.lastCommit.subject}</div> : null}
             <div className="git-files">
               {files.map((file) => <GitFileRow key={file.path} file={file} onClick={async () => {
-                const value = await window.omp.getGitDiff(node.id, thread?.id, file.path);
+                const value = await window.perch.getGitDiff(node.id, thread?.id, file.path);
                 state.openPane("diff", { title: file.path, content: value || "No diff (untracked or binary file).", path: file.path, review: { nodeId: node.id, threadId: thread?.id, path: file.path } });
               }} />)}
               {!files.length ? <p className="rail-empty">Working tree clean.</p> : null}
@@ -574,9 +574,9 @@ function GitTab() {
                 <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Commit message" />
                 <Button size="sm" variant="primary" disabled={!message.trim() || busy} onClick={async () => {
                   setBusy(true);
-                  const result = await window.omp.gitCommit(node.id, thread?.id, message);
+                  const result = await window.perch.gitCommit(node.id, thread?.id, message);
                   state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Committed" : "Commit failed", body: result.output.slice(0, 300) });
-                  setStatus(await window.omp.getGitStatus(node.id, thread?.id));
+                  setStatus(await window.perch.getGitStatus(node.id, thread?.id));
                   setMessage("");
                   setBusy(false);
                 }}>Commit</Button>
@@ -586,14 +586,14 @@ function GitTab() {
               <div className="git-actions">
                 <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
                   setBusy(true);
-                  const result = await window.omp.gitMerge(node.id, thread.id);
+                  const result = await window.perch.gitMerge(node.id, thread.id);
                   state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Merged" : "Merge needs attention", body: result.conflicts.length ? result.conflicts.join(", ") : result.output.slice(0, 300) });
-                  setStatus(await window.omp.getGitStatus(node.id));
+                  setStatus(await window.perch.getGitStatus(node.id));
                   setBusy(false);
                 }}><GitMerge size={13} /> Merge branch</Button>
                 <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
                   setBusy(true);
-                  const result = await window.omp.gitCreatePr(node.id, thread.id, thread.title, "Created from OMP Studio.");
+                  const result = await window.perch.gitCreatePr(node.id, thread.id, thread.title, "Created from Perch.");
                   state.pushToast({ kind: result.ok ? "success" : "error", title: result.ok ? "Pull request created" : "PR failed", body: result.url ?? result.output.slice(0, 300) });
                   setBusy(false);
                 }}><GitPullRequest size={13} /> Create PR</Button>

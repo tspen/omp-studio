@@ -77,6 +77,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sandbox: { enabled: false, allowedPaths: [], deniedCommands: [], allowNetwork: true },
   permissions: { rules: [] },
   autoCheckpoints: true,
+  perchTools: {},
   remote: { enabled: true, port: 43120, host: "0.0.0.0", keepRunning: false },
   remoteTargets: [],
   remoteRelay: { enabled: false, url: "", room: "" },
@@ -166,7 +167,7 @@ export class Store {
   private chats = new Map<string, ChatMessage[]>();
 
   constructor(baseDir?: string) {
-    this.baseDir = baseDir ?? join(app.getPath("userData"), "omp-studio");
+    this.baseDir = baseDir ?? process.env.PERCH_USER_DATA ?? process.env.OMP_STUDIO_USER_DATA ?? join(app.getPath("appData"), "Perch");
     this.sessionsDir = join(this.baseDir, "sessions");
     this.worktreesDir = join(this.baseDir, "worktrees");
     this.artifactsDir = join(this.baseDir, "artifacts");
@@ -1042,6 +1043,7 @@ function compactValue(value: unknown, depth = 0): unknown {
 export function newId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
+
 
 
 

@@ -1,23 +1,17 @@
 import { app } from "electron";
-import { execFile, execFileSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import type { EngineStatus } from "../../shared/types";
 import type { Store } from "../services/store";
 
-const RELEASE_API = "https://api.github.com/repos/can1357/oh-my-pi/releases/latest";
-const FALLBACK_VERSION = "v18.22.0";
-const IS_WINDOWS = process.platform === "win32";
-const ENGINE_BIN = IS_WINDOWS ? "omp.exe" : "omp";
+const PI_PACKAGE = join("node_modules", "@earendil-works", "pi-coding-agent");
+const PI_CLI = join(PI_PACKAGE, "dist", "cli.js");
 
-function assetName(): string {
-  if (process.platform === "win32") return process.arch === "arm64" ? "omp-windows-arm64.exe" : "omp-windows-x64.exe";
-  if (process.platform === "darwin") return process.arch === "arm64" ? "omp-darwin-arm64" : "omp-darwin-x64";
-  return process.arch === "arm64" ? "omp-linux-arm64" : "omp-linux-x64";
-}
-
+/**
+ * Locates the bundled Pi coding agent. Pi is a Node package, so the engine
+ * "binary" is its CLI entry point; PiSession runs it with the Electron binary
+ * in ELECTRON_RUN_AS_NODE mode.
+ */
 export class EngineLocator {
   private store: Store;
   private status: EngineStatus = { found: false, downloading: false, checkedAt: 0 };
@@ -40,18 +34,15 @@ export class EngineLocator {
     if (this.store.settings.enginePath) {
       candidates.push({ path: this.store.settings.enginePath, source: "custom" });
     }
-    candidates.push({ path: join(process.resourcesPath, "omp", ENGINE_BIN), source: "bundled" });
-    candidates.push({ path: join(app.getAppPath(), "vendor", "omp", ENGINE_BIN), source: "bundled" });
-    candidates.push({ path: join(this.store.baseDir, "engine", ENGINE_BIN), source: "downloaded" });
-    const local = process.env.LOCALAPPDATA;
-    if (local) candidates.push({ path: join(local, "omp", ENGINE_BIN), source: "installed" });
-    const onPath = findOnPath(ENGINE_BIN);
-    if (onPath) candidates.push({ path: onPath, source: "installed" });
+    candidates.push({ path: join(app.getAppPath(), PI_CLI), source: "bundled" });
+    candidates.push({ path: join(process.resourcesPath, "app.asar.unpacked", PI_CLI), source: "bundled" });
+    candidates.push({ path: join(process.resourcesPath, "pi", "dist", "cli.js"), source: "bundled" });
+    candidates.push({ path: join(this.store.baseDir, "engine", "pi", "dist", "cli.js"), source: "downloaded" });
 
     for (const candidate of candidates) {
       if (!candidate.path || !existsSync(candidate.path)) continue;
       try {
-        const version = await this.version(candidate.path);
+        const version = this.version(candidate.path);
         this.status = {
           found: true,
           path: candidate.path,
@@ -70,124 +61,41 @@ export class EngineLocator {
     this.status = {
       found: false,
       downloading: false,
-      error: "OMP engine not found. Download it from Settings or install it with the OMP installer.",
+      error: "Pi engine not found. Reinstall Perch or point Engine path at @earendil-works/pi-coding-agent/dist/cli.js.",
       checkedAt: Date.now(),
     };
     this.store.setEngine(this.status);
     return this.status;
   }
 
-  private version(exe: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      execFile(exe, ["--version"], { timeout: 20_000, windowsHide: true }, (error, stdout) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        const value = stdout.trim().replace(/^omp\//, "");
-        resolve(value || "unknown");
-      });
-    });
+  private version(cliPath: string): string {
+    const packagePath = join(cliPath, "..", "..", "package.json");
+    if (!existsSync(packagePath)) return "unknown";
+    const pkg = JSON.parse(readFileSync(packagePath, "utf8")) as { version?: string };
+    return pkg.version || "unknown";
   }
 
   resolveForSpawn(): string {
     if (this.status.found && this.status.path) return this.status.path;
-    const fallback = this.status.path ?? join(this.store.baseDir, "engine", ENGINE_BIN);
-    if (existsSync(fallback)) return fallback;
-    const bundled = join(process.resourcesPath, "omp", ENGINE_BIN);
+    const bundled = join(app.getAppPath(), PI_CLI);
     if (existsSync(bundled)) return bundled;
-    const dev = join(app.getAppPath(), "vendor", "omp", ENGINE_BIN);
-    if (existsSync(dev)) return dev;
-    throw new Error("OMP engine is not available");
+    const unpacked = join(process.resourcesPath, "app.asar.unpacked", PI_CLI);
+    if (existsSync(unpacked)) return unpacked;
+    const resource = join(process.resourcesPath, "pi", "dist", "cli.js");
+    if (existsSync(resource)) return resource;
+    throw new Error("Pi engine is not available");
   }
 
   async download(): Promise<EngineStatus> {
-    if (this.status.downloading) return this.status;
-    const targetDir = join(this.store.baseDir, "engine");
-    mkdirSync(targetDir, { recursive: true });
-    const target = join(targetDir, ENGINE_BIN);
-    const partial = `${target}.part`;
-    this.setDownloading(true, 0);
-    try {
-      const assetUrl = await this.latestAsset();
-      const response = await fetch(assetUrl, {
-        headers: { "User-Agent": "OMP-Studio" },
-        redirect: "follow",
-      });
-      if (!response.ok || !response.body) throw new Error(`Download failed: HTTP ${response.status}`);
-      const total = Number(response.headers.get("content-length") || 0);
-      let received = 0;
-      const source = Readable.fromWeb(response.body as any);
-      source.on("data", (chunk: Buffer) => {
-        received += chunk.length;
-        if (total > 0) this.setDownloading(true, Math.min(99, Math.round((received / total) * 100)));
-      });
-      await pipeline(source, createWriteStream(partial));
-      if (existsSync(target)) unlinkSync(target);
-      const { renameSync } = await import("node:fs");
-      renameSync(partial, target);
-      const size = statSync(target).size;
-      if (size < 50 * 1024 * 1024) throw new Error("Downloaded engine looks incomplete");
-      const version = await this.version(target);
-      this.status = {
-        found: true,
-        path: target,
-        version,
-        source: "downloaded",
-        downloading: false,
-        progress: 100,
-        checkedAt: Date.now(),
-      };
-      this.store.setEngine(this.status);
-      this.onProgress?.(this.status);
-      return this.status;
-    } catch (error) {
-      try {
-        if (existsSync(partial)) unlinkSync(partial);
-      } catch {
-        /* ignore */
-      }
-      this.status = {
-        found: false,
-        downloading: false,
-        error: error instanceof Error ? error.message : String(error),
-        checkedAt: Date.now(),
-      };
-      this.store.setEngine(this.status);
-      this.onProgress?.(this.status);
-      return this.status;
-    }
-  }
-
-  private setDownloading(downloading: boolean, progress?: number): void {
-    this.status = { ...this.status, downloading, progress, error: undefined };
+    // Pi ships with the app as a dependency. There is no remote binary to fetch.
+    this.status = {
+      found: existsSync(this.resolveForSpawn()),
+      downloading: false,
+      error: "Pi is bundled with Perch; reinstall the app to repair it.",
+      checkedAt: Date.now(),
+    };
+    this.store.setEngine(this.status);
     this.onProgress?.(this.status);
-  }
-
-  private async latestAsset(): Promise<string> {
-    try {
-      const response = await fetch(RELEASE_API, {
-        headers: { "User-Agent": "OMP-Studio", Accept: "application/vnd.github+json" },
-      });
-      if (response.ok) {
-        const json = (await response.json()) as { assets?: Array<{ name: string; browser_download_url: string }> };
-        const asset = json.assets?.find((item) => item.name === assetName());
-        if (asset?.browser_download_url) return asset.browser_download_url;
-      }
-    } catch {
-      /* fall back */
-    }
-    return `https://github.com/can1357/oh-my-pi/releases/download/${FALLBACK_VERSION}/${assetName()}`;
+    return this.status;
   }
 }
-
-function findOnPath(command: string): string | undefined {
-  try {
-    const output = execFileSync(IS_WINDOWS ? "where.exe" : "which", [command], { encoding: "utf8", windowsHide: true, timeout: 5000 });
-    const first = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
-    return first || undefined;
-  } catch {
-    return undefined;
-  }
-}
-

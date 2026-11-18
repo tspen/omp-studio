@@ -1,5 +1,5 @@
-appId: com.ompstudio.app
-productName: OMP Studio
+appId: com.perch.app
+productName: Perch
 copyright: Copyright © 2026
 directories:
   output: dist
@@ -8,10 +8,6 @@ files:
   - out/**/*
   - package.json
 extraResources:
-  - from: vendor/omp
-    to: omp
-    filter:
-      - "**/*"
   - from: resources/icon.png
     to: icon.png
   - from: resources/icon.ico
@@ -19,6 +15,7 @@ extraResources:
 asar: true
 asarUnpack:
   - node_modules/node-pty/**
+  - node_modules/@earendil-works/**
 npmRebuild: false
 win:
   target:
@@ -33,4 +30,4 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: OMP Studio
+  shortcutName: Perch

@@ -333,7 +333,7 @@ export function Markdown({ children }: { children: string }) {
               onClick={(event) => {
                 if (!href || !/^https?:\/\//i.test(href)) return;
                 event.preventDefault();
-                void window.omp.openBrowser(href);
+                void window.perch.openBrowser(href);
               }}
             >
               {label}

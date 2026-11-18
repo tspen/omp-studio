@@ -7,7 +7,7 @@ Status: **partially implemented**. Remote server, pairing, PWA, Android/iOS proj
 Goals:
 
 - one session model that can run locally, on a spare PC, on a VPS, or in a self-hosted cloud sandbox;
-- reach it from the desktop app or phone anywhere, with no public exposure and no managed OMP relay;
+- reach it from the desktop app or phone anywhere, with no public exposure and no managed Pi relay;
 - move sessions between places at turn boundaries;
 - **frictionless setup and run-up**;
 - **fast** start, reconnect, move and cleanup;
@@ -15,7 +15,7 @@ Goals:
 
 ## Recommendation in one sentence
 
-Build **one OMP Runner**, register every place it can run as a **target**, move sessions as **portable bundles at turn boundaries**, and reach runners only through **networks the user controls** (a self-hosted relay, Cloudflare Tunnel + Access, or a private LAN). Default to a **user-owned cloud target** (VPS Docker runner); no proprietary managed sandbox is in the default path.
+Build **one Perch Runner**, register every place it can run as a **target**, move sessions as **portable bundles at turn boundaries**, and reach runners only through **networks the user controls** (a self-hosted relay, Cloudflare Tunnel + Access, or a private LAN). Default to a **user-owned cloud target** (VPS Docker runner); no proprietary managed sandbox is in the default path.
 
 ## What Codex Cloud validates
 
@@ -32,18 +32,18 @@ That is the bar: isolated workspace + setup phase + proxy + persistent task stat
 
 | Option | Open source | Runs on | Role |
 | --- | --- | --- | --- |
-| **OMP Runner (ours)** | Yes | Your PC/VPS | The thing we build. |
+| **Perch Runner (ours)** | Yes | Your PC/VPS | The thing we build. |
 | **Docker / Podman** | Yes | VPS, home server, local WSL2 | Default self-hosted cloud target. |
 | **Firecracker / CRIU** | Yes | Your hosts | Building blocks, not a product. |
 | **Managed sandbox clouds** | Varies | Third party | Not in v1; they put code on someone else's infrastructure. |
 
-No proprietary managed sandbox services, no OMP-hosted relay or compute.
+No proprietary managed sandbox services, no Pi-hosted relay or compute.
 
 ## Five components
 
-### 1. OMP Runner
+### 1. Perch Runner
 
-One executable/container that owns OMP, worktrees, PTY, browser, checkpoints, secrets, targets and the outbound link.
+One executable/container that owns Pi, worktrees, PTY, browser, checkpoints, secrets, targets and the outbound link.
 
 Modes:
 
@@ -80,7 +80,7 @@ Moves are explicit in v1:
 | Layer | Contents | Move method |
 | --- | --- | --- |
 | Workspace | branch/commit, untracked + deleted files | git delta/push + untracked tar, or persistent volume |
-| Agent state | OMP session JSONL, Store subset, goals/todos/memory refs | copy session dir + store snapshot |
+| Agent state | Pi session JSONL, Store subset, goals/todos/memory refs | copy session dir + store snapshot |
 | Runtime | shells, dev servers, processes | stop/restart; or whole-VM resume |
 
 Move qualities:
@@ -99,7 +99,7 @@ Use **git push to a bare repo on the target** plus a tar of untracked files inst
 
 **C. Cloudflare Tunnel + Access.** `cloudflared` outbound plus exact-email/SSO Access. Needs a domain/account; best for teams.
 
-No managed OMP relay and no public quick tunnels in production.
+No managed Pi relay and no public quick tunnels in production.
 
 ### 5. Clients
 
@@ -112,7 +112,7 @@ No managed OMP relay and no public quick tunnels in production.
 
 ### Local
 
-The app already bundles OMP. A local session must start with **zero configuration** and no container.
+The app already bundles Pi. A local session must start with **zero configuration** and no container.
 
 ### New PC or VPS
 
@@ -162,7 +162,7 @@ Performance budget:
 
 Mechanisms:
 
-- **Prebuilt runner image** with OMP, Node, Python, git, ripgrep and common tools; pinned digests; no build during setup.
+- **Prebuilt runner image** with Pi, Node, Python, git, ripgrep and common tools; pinned digests; no build during setup.
 - **Warm pool**: keep one idle runner container per active target, start sessions by cloning a prepared workspace.
 - **Persistent volume first**: a session normally stays on the same target; UI reconnects, it does not restart.
 - **Bare repo cache** on each target; hydrate via git fetch/push delta, not a full clone every time.
@@ -198,8 +198,8 @@ Cleanup is **label-scoped**, never global. The runner exposes `omp-runner gc --d
 
 1. Wait for a turn boundary and checkpoint.
 2. Build/refresh the bare repo on the target via git push; tar untracked/deleted files.
-3. Copy OMP session JSONL + Store subset.
-4. Validate checksum and OMP version.
+3. Copy Pi session JSONL + Store subset.
+4. Validate checksum and Pi version.
 5. Start the destination session; replay unacknowledged events.
 6. Mark source `moved`; keep its volume 24 h for rollback, then delete.
 7. Update `targetId` on the thread; emit `session.moved`.

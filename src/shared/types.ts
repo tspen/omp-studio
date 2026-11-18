@@ -560,6 +560,7 @@ export interface AppSettings {
   sandbox: { enabled: boolean; allowedPaths: string[]; deniedCommands: string[]; allowNetwork: boolean };
   permissions: { rules: PermissionRule[] };
   autoCheckpoints: boolean;
+  perchTools: Record<string, { enabled: boolean; approval: ToolApproval }>;
   remote: { enabled: boolean; port: number; host: string; keepRunning: boolean };
   remoteTargets: RemoteTarget[];
   remoteRelay: { enabled: boolean; url: string; room: string };
@@ -610,7 +611,7 @@ export interface ToolInfo {
   approval: ToolApproval;
   configKey?: string;
   group: string;
-  source: "omp" | "host";
+  source: "pi" | "host";
 }
 
 export interface SkillInfo {
@@ -1010,7 +1011,7 @@ export interface OnboardingPayload {
   };
 }
 
-export interface OmpStudioApi {
+export interface PerchApi {
   getSnapshot(): Promise<Snapshot>;
   getThreadMessages(threadId: string): Promise<ChatMessage[]>;
   getEnvelopes(filter?: { threadId?: string; nodeId?: string; traceId?: string; limit?: number }): Promise<Envelope[]>;
@@ -1206,6 +1207,8 @@ export interface OmpStudioApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
+
 
 
 

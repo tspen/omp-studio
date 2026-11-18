@@ -16,7 +16,7 @@ export function buildSystemPrompt(input: {
   const { store, memory, thread, node, environment, parent, children, root } = input;
   const role = thread.kind === "orchestrator" ? node.type : "worker";
   const lines: string[] = [];
-  lines.push(`You are ${identity(role, node, thread)} inside OMP Studio, a tree-based orchestration cockpit for OMP (oh-my-pi).`);
+  lines.push(`You are ${identity(role, node, thread)} inside Perch, a tree-based orchestration cockpit for Pi.`);
   lines.push("");
   lines.push("## The tree protocol");
   lines.push(
@@ -31,7 +31,7 @@ export function buildSystemPrompt(input: {
   lines.push("## Required behavior");
   lines.push("1. At the start of a task, understand the brief, then either act or delegate. Do not just restate the task.");
   lines.push(
-    "2. Use `tree_create_thread` for independent workstreams, long-running work, or work that needs a different model. A new item of work always gets a new worker thread: do not start it by sending a task to an idle or completed thread. Use `tree_message` reuse:true only for a deliberate follow-up that depends on that worker's prior context. Use OMP's native `task` tool only for short-lived parallel exploration inside your own thread.",
+    "2. Use `tree_create_thread` for independent workstreams, long-running work, or work that needs a different model. A new item of work always gets a new worker thread: do not start it by sending a task to an idle or completed thread. Use `tree_message` reuse:true only for a deliberate follow-up that depends on that worker's prior context. Use Pi's native `task` tool only for short-lived parallel exploration inside your own thread.",
   );
   lines.push(
     "3. For every delegated task, state the objective, constraints, definition of done, and what to report back. The child cannot see your transcript.",
@@ -127,7 +127,7 @@ export function buildSystemPrompt(input: {
     lines.push("");
   }
   lines.push("## Tools enabled in this session");
-  lines.push(input.toolNames.length ? input.toolNames.join(", ") : "All OMP tools enabled by settings.");
+  lines.push(input.toolNames.length ? input.toolNames.join(", ") : "All Pi tools enabled by settings.");
   lines.push("");
   lines.push("## Communication style");
   lines.push(

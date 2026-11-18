@@ -29,10 +29,10 @@ export class NotificationService {
     try {
       const icon = nativeImage.createFromPath(iconPath);
       this.tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 20, height: 20 }));
-      this.tray.setToolTip("OMP Studio");
+      this.tray.setToolTip("Perch");
       this.tray.setContextMenu(
         Menu.buildFromTemplate([
-          { label: "Open OMP Studio", click: () => this.onFocus?.() },
+          { label: "Open Perch", click: () => this.onFocus?.() },
           { type: "separator" },
           { label: "Quit", click: () => app.quit() },
         ]),
@@ -122,7 +122,7 @@ export class NotificationService {
   updateTray(): void {
     if (!this.tray) return;
     const unread = this.store.data.notifications.filter((n) => !n.read).length;
-    this.tray.setToolTip(unread ? `OMP Studio — ${unread} unread` : "OMP Studio");
+    this.tray.setToolTip(unread ? `Perch — ${unread} unread` : "Perch");
   }
 
   destroy(): void {
@@ -134,7 +134,7 @@ export class NotificationService {
     return {
       id: "tray",
       kind: "system",
-      title: "OMP Studio",
+      title: "Perch",
       body: "",
       read: true,
       createdAt: Date.now(),

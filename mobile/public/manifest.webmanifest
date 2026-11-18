@@ -1,7 +1,7 @@
 {
-  "name": "OMP Remote",
-  "short_name": "OMP",
-  "description": "Control OMP Studio sessions from your phone.",
+  "name": "Perch Remote",
+  "short_name": "Perch",
+  "description": "Control Perch sessions from your phone.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -17,3 +17,4 @@
     }
   ]
 }
+

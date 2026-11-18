@@ -392,7 +392,7 @@ export function registerIpc(context: IpcContext): void {
       if (provider === "slack") {
         const webhook = store.getSecret("slack.webhook");
         if (webhook) {
-          const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "OMP Studio connected." }), signal });
+          const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "Perch connected." }), signal });
           return { ok: response.ok, output: response.ok ? "Test message sent." : `Slack returned ${response.status}` };
         }
         const token = store.getSecret("slack.token");

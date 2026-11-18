@@ -92,7 +92,7 @@ export class OAuthService {
         const value = url.searchParams.get("code");
         const returnedState = url.searchParams.get("state");
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(
-          `<!doctype html><html><body style="font-family:system-ui;padding:40px"><h2>${error ? "Authorization failed" : "Connected"}</h2><p>${error ? error : "You can close this tab and return to OMP Studio."}</p></body></html>`,
+          `<!doctype html><html><body style="font-family:system-ui;padding:40px"><h2>${error ? "Authorization failed" : "Connected"}</h2><p>${error ? error : "You can close this tab and return to Perch."}</p></body></html>`,
         );
         clearTimeout(timer);
         server.close();

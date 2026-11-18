@@ -1,8 +1,8 @@
-import type { OmpStudioApi } from "../../shared/types";
+import type { PerchApi } from "../../shared/types";
 
 declare global {
   interface Window {
-    omp: OmpStudioApi;
+    perch: PerchApi;
   }
 }
 

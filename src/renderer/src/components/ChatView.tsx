@@ -51,8 +51,8 @@ export function ChatView() {
     return (
       <div className="chat">
         <div className="thread-empty">
-          <h3>Loading OMP Studio…</h3>
-          <p>Preparing the tree and the OMP engine.</p>
+          <h3>Loading Perch…</h3>
+          <p>Preparing the tree and the Pi engine.</p>
         </div>
       </div>
     );
@@ -71,7 +71,7 @@ export function ChatView() {
           <Button size="sm" variant="primary" disabled={state.sending || thread.status === "running" || thread.status === "starting"} onClick={() => void state.continueThread(thread.id)}>
             {state.sending ? <Spinner size={13} /> : <RotateCw size={13} />} Continue
           </Button>
-          <IconButton icon={<X size={14} />} label="Dismiss" onClick={() => void window.omp.updateThread(thread.id, { interrupted: false }).then(() => state.refresh())} />
+          <IconButton icon={<X size={14} />} label="Dismiss" onClick={() => void window.perch.updateThread(thread.id, { interrupted: false }).then(() => state.refresh())} />
         </div>
       ) : null}
       <Transcript key={thread.id} thread={thread} messages={messages} loading={state.loadingMessages && !messages.length} />
@@ -83,7 +83,7 @@ export function ChatView() {
             role={thread.kind === "orchestrator" ? (node.type === "root" ? "root" : node.type === "group" ? "group" : "project") : "worker"}
             onSelect={async (selector) => {
               setPickerOpen(false);
-              await window.omp.setThreadModel(thread.id, selector);
+              await window.perch.setThreadModel(thread.id, selector);
               await state.refresh();
               state.pushToast({ kind: "success", title: "Model changed", body: selector });
             }}
@@ -206,7 +206,7 @@ function ThreadHeader({
   const saveTitle = async () => {
     setEditing(false);
     if (title.trim() && title.trim() !== thread.title) {
-      await window.omp.updateThread(thread.id, { title: title.trim(), titleAuto: false });
+      await window.perch.updateThread(thread.id, { title: title.trim(), titleAuto: false });
       await state.refresh();
     }
   };
@@ -279,9 +279,9 @@ function ThreadHeader({
         <IconButton icon={<ListChecks size={15} />} label="Open tasks pane" onClick={() => state.openPane("tasks")} />
         <IconButton icon={<Minimize2 size={15} />} label="Compact context now" onClick={async () => {
           if (thread.status === "running" && !confirm("Manual compaction aborts the current turn. Continue?")) return;
-          state.pushToast({ kind: "info", title: "Compacting context", body: "OMP is summarizing older history." });
+          state.pushToast({ kind: "info", title: "Compacting context", body: "Pi is summarizing older history." });
           try {
-            await window.omp.compactThread(thread.id);
+            await window.perch.compactThread(thread.id);
             state.pushToast({ kind: "success", title: "Context compacted" });
             await state.refresh();
           } catch (error) {
@@ -291,7 +291,7 @@ function ThreadHeader({
         <IconButton icon={<History size={15} />} label="History, checkpoints, fork and rewind" onClick={() => state.setOverlay("history")} />
         <IconButton icon={<Save size={15} />} label="Create a file checkpoint" onClick={async () => {
           try {
-            await window.omp.createCheckpoint(thread.id, "Manual checkpoint");
+            await window.perch.createCheckpoint(thread.id, "Manual checkpoint");
             state.pushToast({ kind: "success", title: "Checkpoint created" });
           } catch (error) {
             state.pushToast({ kind: "error", title: "Checkpoint failed", body: String(error) });
@@ -300,18 +300,18 @@ function ThreadHeader({
         <IconButton icon={<Share2 size={15} />} label="Share this thread" onClick={() => void state.shareThread()} />
         <IconButton icon={<FileDown size={15} />} label="Export thread as PDF" onClick={async () => {
           try {
-            const result = await window.omp.exportThreadPdf(thread.id);
+            const result = await window.perch.exportThreadPdf(thread.id);
             state.pushToast({ kind: "success", title: "PDF exported", body: result.path });
-            await window.omp.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
+            await window.perch.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
           } catch (error) {
             state.pushToast({ kind: "error", title: "PDF export failed", body: String(error) });
           }
         }} />
         <IconButton icon={<FileText size={15} />} label="Export thread as Word document" onClick={async () => {
           try {
-            const result = await window.omp.exportThreadDocx(thread.id);
+            const result = await window.perch.exportThreadDocx(thread.id);
             state.pushToast({ kind: "success", title: "Word document exported", body: result.path });
-            await window.omp.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
+            await window.perch.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
           } catch (error) {
             state.pushToast({ kind: "error", title: "Word export failed", body: String(error) });
           }
@@ -319,7 +319,7 @@ function ThreadHeader({
         {thread.kind !== "orchestrator" ? (
           <IconButton icon={<Trash2 size={15} />} label="Delete thread" onClick={async () => {
             if (!confirm(`Delete thread "${thread.title}"? Its branch and files stay on disk.`)) return;
-            await window.omp.deleteThread(thread.id);
+            await window.perch.deleteThread(thread.id);
             await state.refresh();
             await state.selectNode(node.id);
           }} />
@@ -353,7 +353,7 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
             reader.onerror = () => reject(reader.error);
             reader.readAsDataURL(file);
           });
-          const saved = await window.omp.attachImage({ nodeId: node.id, threadId: thread.id, name: file.name, dataUrl });
+          const saved = await window.perch.attachImage({ nodeId: node.id, threadId: thread.id, name: file.name, dataUrl });
           parts.push(`Image: ${saved.path}`);
         } else if (file.size <= 200_000) {
           const text = await file.text();
@@ -438,7 +438,7 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
               <Sparkles size={13} />
               <span>{thread.model.name ?? thread.model.selector}</span>
             </button>
-            <Select value={thread.effort} onChange={(value) => void window.omp.setThreadEffort(thread.id, value).then(() => state.refresh())} className="effort-select">
+            <Select value={thread.effort} onChange={(value) => void window.perch.setThreadEffort(thread.id, value).then(() => state.refresh())} className="effort-select">
               {["off", ...efforts.filter((item) => item !== "off")].map((effort) => (
                 <option key={effort} value={effort}>{effort}</option>
               ))}
@@ -447,7 +447,7 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
               <Select
                 value={node.approvalMode}
                 className={node.approvalMode === "yolo" ? "approval-select approval-danger" : "approval-select"}
-                onChange={(value) => void window.omp.setNodeApproval(node.id, value as ApprovalMode).then(() => {
+                onChange={(value) => void window.perch.setNodeApproval(node.id, value as ApprovalMode).then(() => {
                   state.refresh();
                   state.pushToast({
                     kind: value === "yolo" ? "warning" : "info",
@@ -470,8 +470,8 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
                         {running ? (
               <Button size="sm" variant="ghost" onClick={async () => {
                 try {
-                  if (thread.paused) await window.omp.resumeThread(thread.id);
-                  else await window.omp.pauseThread(thread.id);
+                  if (thread.paused) await window.perch.resumeThread(thread.id);
+                  else await window.perch.pauseThread(thread.id);
                   await state.refresh();
                 } catch (error) {
                   state.pushToast({ kind: "error", title: "Pause failed", body: String(error) });

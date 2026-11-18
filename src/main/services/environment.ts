@@ -106,7 +106,7 @@ export class EnvironmentService {
         merged[item.key] = item.value;
       }
     }
-    merged.OMP_STUDIO_ENV_ID = env.id;
+    merged.PERCH_ENV_ID = env.id;
     return merged;
   }
 
@@ -114,7 +114,7 @@ export class EnvironmentService {
     const env = this.store.getEnvironment(id);
     if (!env) return { ok: false, output: "Environment not found" };
     const chunks: string[] = [];
-    const commands = [...env.setupCommands, `echo OMP Studio environment "${env.name}" is ready`];
+    const commands = [...env.setupCommands, `echo Perch environment "${env.name}" is ready`];
     const ok = await this.runCommands(env, commands, cwd, (text) => chunks.push(text));
     return { ok, output: chunks.join("") || "No commands configured." };
   }

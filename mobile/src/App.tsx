@@ -405,7 +405,7 @@ export function App() {
   return (
     <div className="app">
       <header className="top">
-        <div><strong>OMP Remote</strong><span>{connected ? "connected" : "offline"}{liveCount ? ` · ${liveCount} live` : ""}</span></div>
+        <div><strong>Perch Remote</strong><span>{connected ? "connected" : "offline"}{liveCount ? ` · ${liveCount} live` : ""}</span></div>
         <button className="icon" onClick={() => void connect()} aria-label="Refresh">⟳</button>
       </header>
       {error ? <div className="banner">{error}</div> : null}
@@ -480,8 +480,8 @@ export function App() {
 function PairScreen({ server, setServer, token, setToken, onConnect, error }: { server: string; setServer: (value: string) => void; token: string; setToken: (value: string) => void; onConnect: () => void; error: string }) {
   return (
     <div className="pair">
-      <div className="brand">OMP <span>Remote</span></div>
-      <p>Enter the runner URL and the pairing token shown in OMP Studio → Settings → Remote.</p>
+      <div className="brand">Pi <span>Remote</span></div>
+      <p>Enter the runner URL and the pairing token shown in Perch → Settings → Remote.</p>
       <label>Runner URL<input value={server} onChange={(event) => setServer(event.target.value)} placeholder="http://100.x.x.x:43120" autoCapitalize="none" /></label>
       <label>Pairing token<input value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste token" autoCapitalize="none" /></label>
       {error ? <div className="banner">{error}</div> : null}
@@ -608,7 +608,7 @@ function SettingsSheet({ server, setServer, token, setToken, relay, apiFetch, on
         {pushMessage ? <p className="hint">{pushMessage}</p> : null}
       </section>
       <button className="danger" onClick={() => { if (confirm("Forget this runner on this device?")) onForget(); }}>Forget this runner</button>
-      <p className="hint">The token is stored on this device. Rotate it in OMP Studio to revoke all devices.</p>
+      <p className="hint">The token is stored on this device. Rotate it in Perch to revoke all devices.</p>
     </main>
   );
 }

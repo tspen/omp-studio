@@ -147,7 +147,7 @@ interface AppState {
   selectRoot(): Promise<void>;
 }
 
-const api = () => window.omp;
+const api = () => window.perch;
 let initStarted = false;
 
 export const useApp = create<AppState>((set, get) => ({
@@ -220,7 +220,7 @@ export const useApp = create<AppState>((set, get) => ({
       api().onEvent((event) => get().handleEvent(event));
     } catch (error) {
       initStarted = false;
-      get().pushToast({ kind: "error", title: "Could not load OMP Studio", body: String(error) });
+      get().pushToast({ kind: "error", title: "Could not load Perch", body: String(error) });
     }
   },
 
@@ -658,7 +658,7 @@ export const useApp = create<AppState>((set, get) => ({
       const config = await api().getOmpConfig();
       set({ ompConfig: config });
     } catch (error) {
-      get().pushToast({ kind: "error", title: "Could not read OMP config", body: String(error) });
+      get().pushToast({ kind: "error", title: "Could not read Pi config", body: String(error) });
     }
   },
 

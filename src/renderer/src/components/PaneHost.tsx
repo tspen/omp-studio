@@ -14,7 +14,7 @@ const TABS: Array<{ kind: PaneKind; label: string; icon: React.ReactNode }> = [
 export function PaneHost() {
   const state = useApp();
   const popOut = () => {
-    void window.omp.popOutPane({
+    void window.perch.popOutPane({
       kind: state.paneTab,
       threadId: state.selectedThreadId ?? undefined,
       ...(state.paneTab === "diff" && state.paneDiff ? { diff: state.paneDiff } : {}),
@@ -104,7 +104,7 @@ function TasksPane() {
   const phases = thread?.todoPhases ?? [];
   if (!thread) return <Empty icon={<ListChecks size={20} />} title="No thread selected" body="Select a thread to see its task phases." />;
   if (!phases.length) {
-    return <Empty icon={<ListChecks size={20} />} title="No tasks yet" body="OMP todo phases for this thread appear here as the agent plans work." />;
+    return <Empty icon={<ListChecks size={20} />} title="No tasks yet" body="Pi todo phases for this thread appear here as the agent plans work." />;
   }
   return (
     <div className="pane-tasks">
@@ -137,7 +137,7 @@ export function PopoutPane({ kind, threadId }: { kind: PaneKind; threadId?: stri
 
   useEffect(() => {
     if (kind !== "diff") return;
-    void window.omp.getPaneData("diff").then((data: PaneDiff | null) => setDiff(data)).finally(() => setLoadingDiff(false));
+    void window.perch.getPaneData("diff").then((data: PaneDiff | null) => setDiff(data)).finally(() => setLoadingDiff(false));
   }, [kind]);
 
   useEffect(() => {
@@ -150,7 +150,7 @@ export function PopoutPane({ kind, threadId }: { kind: PaneKind; threadId?: stri
       <header className="popout-head">
         <span>{TABS.find((tab) => tab.kind === kind)?.label ?? "Pane"}</span>
         <span>{state.selectedThreadId ? truncate(state.snapshot?.threads.find((thread) => thread.id === state.selectedThreadId)?.title ?? "", 60) : ""}</span>
-        <button type="button" className="pane-host-link" onClick={() => void window.omp.closeWindow()}><X size={12} /> Close</button>
+        <button type="button" className="pane-host-link" onClick={() => void window.perch.closeWindow()}><X size={12} /> Close</button>
       </header>
       <div className="popout-body">
         {loadingDiff ? <div className="settings-loading">Loading diff…</div> : threadId && state.selectedThreadId !== threadId ? <div className="settings-loading">Loading thread…</div> : <PaneContent kind={kind} diff={diff} standalone />}

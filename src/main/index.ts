@@ -1,6 +1,6 @@
 import { app, BrowserWindow, nativeImage } from "electron";
 import { basename, join } from "node:path";
-import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { EngineLocator } from "./engine/engine-locator";
 import { registerIpc, type IpcContext } from "./ipc";
@@ -70,6 +70,49 @@ function logCrash(kind: string, error: unknown): void {
 process.on("uncaughtException", (error) => logCrash("uncaughtException", error));
 process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
 app.on("child-process-gone", (_event, details) => logCrash("child-process-gone", details));
+function rewriteStatePaths(file: string, legacy: string, target: string): void {
+  try {
+    const text = readFileSync(file, "utf8");
+    if (!text.includes("omp-studio")) return;
+    const rewrite = (value: unknown): unknown => {
+      if (typeof value === "string") return value.split(legacy).join(target).split(legacy.replaceAll("\\", "/")).join(target.replaceAll("\\", "/"));
+      if (Array.isArray(value)) return value.map(rewrite);
+      if (value && typeof value === "object") {
+        return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, rewrite(item)]));
+      }
+      return value;
+    };
+    writeFileSync(file, JSON.stringify(rewrite(JSON.parse(text)), null, 2), "utf8");
+  } catch {
+    /* path migration is best effort */
+  }
+}
+function migrateLegacyData(): void {
+  const appData = app.getPath("appData");
+  const legacy = join(appData, "omp-studio", "omp-studio");
+  const target = join(appData, "Perch");
+  const targetState = join(target, "state.json");
+  if (!existsSync(join(legacy, "state.json")) && !existsSync(targetState)) return;
+  if (existsSync(targetState)) {
+    rewriteStatePaths(targetState, legacy, target);
+    return;
+  }
+  try {
+    mkdirSync(target, { recursive: true });
+    for (const entry of readdirSync(legacy)) {
+      const source = join(legacy, entry);
+      const destination = join(target, entry);
+      if (existsSync(destination)) continue;
+      try {
+        renameSync(source, destination);
+      } catch {
+        cpSync(source, destination, { recursive: true });
+      }
+    }
+  } catch {
+    /* migration is best effort; the app can start with a fresh data directory */
+  }
+}
 if (process.env.OMP_STUDIO_USER_DATA) {
   mkdirSync(process.env.OMP_STUDIO_USER_DATA, { recursive: true });
   app.setPath("userData", process.env.OMP_STUDIO_USER_DATA);
@@ -84,7 +127,7 @@ function broadcast(event: AppEvent): void {
         trace("broadcast-send", { threadId: event.payload.threadId, blocks: event.payload.blocks.length, chars });
       }
     }
-    mainWindow.webContents.send("omp:event", event);
+    mainWindow.webContents.send("perch:event", event);
   }
   remote?.publish(event);
   relay?.publish(event);
@@ -165,7 +208,7 @@ async function runIntegration(
   if (!existsSync(join(projectPath, ".git"))) {
     git(["init"]);
     git(["add", "."]);
-    git(["-c", "user.email=studio@example.test", "-c", "user.name=OMP Studio", "commit", "-m", "Initial commit"]);
+    git(["-c", "user.email=studio@example.test", "-c", "user.name=Perch", "commit", "-m", "Initial commit"]);
   }
   const project = await orchestrator.createNode({
     parentId: rootNode.id,
@@ -216,7 +259,7 @@ async function runIntegration(
     "You are being tested. Use the tree tools, in order, without asking questions.",
     '1. Call tree_create_environment with name "Integration Env" and setupCommands ["echo setup-ok"].',
     '2. Call tree_list_environments and note the id of "Integration Env".',
-    '3. Call tree_create_node with type "project", name "Tool Project", gitInit true, environmentId set to that environment id, and brief "Reply with exactly TOOL_PROJECT_OK". Do not pass a path; let OMP Studio pick the default folder.',
+    '3. Call tree_create_node with type "project", name "Tool Project", gitInit true, environmentId set to that environment id, and brief "Reply with exactly TOOL_PROJECT_OK". Do not pass a path; let Perch pick the default folder.',
     `4. Call tree_create_node with type "group" and name ${JSON.stringify(toolGroupName)}.`,
     "5. Call tree_move_node to move the Tool Project node under the new group.",
     '6. Call tree_update_node on Tool Project with effort "high".',
@@ -269,7 +312,7 @@ async function runIntegration(
 }
 
 const BROWSER_TOOLBAR_HTML = `<!doctype html>
-<html><head><meta charset="utf-8"><title>OMP Browser</title>
+<html><head><meta charset="utf-8"><title>Perch Browser</title>
 <style>
 html,body{height:100%;margin:0;background:#f5f5f7;color:#222}
 body{display:flex;flex-direction:column;font:12px/1.4 "Segoe UI",system-ui,sans-serif}
@@ -308,13 +351,13 @@ address.onkeydown=function(event){
   try{ view.loadURL(value); }catch(e){}
 };
 ['dom-ready','did-navigate','did-navigate-in-page','did-stop-loading','did-fail-load'].forEach(function(name){ view.addEventListener(name,sync); });
-view.addEventListener('page-title-updated',function(event){ document.title=event.title? event.title+' — OMP Browser' : 'OMP Browser'; });
+view.addEventListener('page-title-updated',function(event){ document.title=event.title? event.title+' — Perch Browser' : 'Perch Browser'; });
 document.addEventListener('keydown',function(event){
   if(!event.altKey) return;
   if(event.key==='ArrowLeft'){ back.click(); event.preventDefault(); }
   if(event.key==='ArrowRight'){ forward.click(); event.preventDefault(); }
 });
-window.ompNavigate=function(url){ if(/^https?:\\/\\//i.test(url)){ try{ view.loadURL(url); }catch(e){} } };
+window.perchNavigate=function(url){ if(/^https?:\\/\\//i.test(url)){ try{ view.loadURL(url); }catch(e){} } };
 try{ view.src=initial; }catch(e){}
 </script>
 </body></html>`;
@@ -325,7 +368,7 @@ function browserToolbarPath(): string {
 
 function navigateBrowserWindow(url: string): void {
   if (!browserWindow || browserWindow.isDestroyed()) return;
-  const script = `window.ompNavigate && window.ompNavigate(${JSON.stringify(url)})`;
+  const script = `window.perchNavigate && window.perchNavigate(${JSON.stringify(url)})`;
   const run = () => {
     if (!browserWindow || browserWindow.isDestroyed()) return;
     void browserWindow.webContents.executeJavaScript(script).catch(() => undefined);
@@ -349,7 +392,7 @@ function openBrowserWindow(url: string): void {
     height: 820,
     minWidth: 520,
     minHeight: 420,
-    title: "OMP Browser",
+    title: "Perch Browser",
     autoHideMenuBar: true,
     backgroundColor: "#ffffff",
     parent: mainWindow ?? undefined,
@@ -395,7 +438,7 @@ function openPaneWindow(input: { kind: PaneKind; threadId?: string; diff?: PaneD
     height: 760,
     minWidth: 460,
     minHeight: 320,
-    title: `OMP Studio - ${input.kind}`,
+    title: `Perch - ${input.kind}`,
     backgroundColor: "#f7f7f8",
     autoHideMenuBar: true,
     webPreferences: {
@@ -433,7 +476,7 @@ async function createWindow(): Promise<void> {
     minHeight: 680,
     show: false,
     backgroundColor: "#f7f7f8",
-    title: "OMP Studio",
+    title: "Perch",
     icon: icon || undefined,
     titleBarStyle: "hidden",
     titleBarOverlay: {
@@ -528,6 +571,7 @@ async function createWindow(): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   app.setAppUserModelId("com.ompstudio.app");
+  migrateLegacyData();
   const dataStore = new Store();
   dataStore.init();
   initDiagnostics(dataStore.baseDir);
@@ -793,7 +837,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(bootstrap).catch((error) => {
-    console.error("OMP Studio failed to start:", error);
+    console.error("Perch failed to start:", error);
     if (smokeTest) app.exit(1);
   });
 }
@@ -818,6 +862,9 @@ app.on("before-quit", () => {
   notifications?.destroy();
   store?.flush();
 });
+
+
+
 
 
 

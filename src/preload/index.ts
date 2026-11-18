@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppEvent, OmpStudioApi } from "../shared/types";
+import type { AppEvent, PerchApi } from "../shared/types";
 
 const invoke = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args);
 
-const api: OmpStudioApi = {
+const api: PerchApi = {
   getSnapshot: () => invoke("state:get") as Promise<any>,
   getThreadMessages: (threadId) => invoke("thread:messages", threadId) as Promise<any>,
   getEnvelopes: (filter) => invoke("envelopes:list", filter) as Promise<any>,
@@ -199,12 +199,13 @@ const api: OmpStudioApi = {
 
   onEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, event: AppEvent) => cb(event);
-    ipcRenderer.on("omp:event", listener);
-    return () => ipcRenderer.removeListener("omp:event", listener);
+    ipcRenderer.on("perch:event", listener);
+    return () => ipcRenderer.removeListener("perch:event", listener);
   },
 };
 
-contextBridge.exposeInMainWorld("omp", api);
+contextBridge.exposeInMainWorld("perch", api);
+
 
 
 

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { join } from "node:path";
 import type { ChatMessage } from "../../shared/types";
 import type { EngineLocator } from "../engine/engine-locator";
 import type { Store } from "./store";
@@ -194,26 +195,21 @@ export class NamingService {
   }
 
   private ask(model: string, system: string, prompt: string): Promise<string> {
-    const exe = this.engine.resolveForSpawn();
+    const cli = this.engine.resolveForSpawn();
     return new Promise((resolve, reject) => {
       execFile(
-        exe,
+        process.execPath,
         [
+          cli,
           "-p",
           "--no-session",
           "--no-tools",
-          "--no-lsp",
-          "--no-pty",
-          "--no-title",
-          "--no-skills",
-          "--no-rules",
           "--no-extensions",
+          "--no-context-files",
           "--model",
           model,
           "--thinking",
           "off",
-          "--cwd",
-          this.store.baseDir,
           "--system-prompt",
           system,
           prompt,
@@ -224,7 +220,14 @@ export class NamingService {
           windowsHide: true,
           encoding: "utf8",
           cwd: this.store.baseDir,
-          env: { ...process.env, PI_NO_TITLE: "1" },
+          env: {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: "1",
+            PI_CODING_AGENT_DIR: join(this.store.baseDir, "pi-agent"),
+            PI_OFFLINE: "1",
+            PI_TELEMETRY: "0",
+            PI_SKIP_VERSION_CHECK: "1",
+          },
         },
         (error, stdout, stderr) => {
           if (error && !stdout.trim()) {
@@ -283,3 +286,4 @@ function titleCase(value: string): string {
     })
     .join(" ");
 }
+

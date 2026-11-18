@@ -62,7 +62,7 @@ export class DeployService {
         method: "POST",
         headers,
         body: JSON.stringify({
-          name: `${site.name} (OMP Studio)`,
+          name: `${site.name} (Perch)`,
           domain,
           type: "self_hosted",
           session_duration: "24h",
@@ -83,7 +83,7 @@ export class DeployService {
         method: "POST",
         headers,
         body: JSON.stringify({
-          name: "OMP Studio allow list",
+          name: "Perch allow list",
           decision: "allow",
           include: allowed.map((email) => ({ email: { email } })),
         }),
@@ -171,7 +171,7 @@ export class DeployService {
     const form = new FormData();
     form.append("manifest", JSON.stringify(manifest));
     form.append("branch", branch);
-    form.append("commit_message", `OMP Studio deploy ${new Date().toISOString()}`);
+    form.append("commit_message", `Perch deploy ${new Date().toISOString()}`);
     const deployment = await fetch(`${API}/accounts/${accountId}/pages/projects/${project}/deployments`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}` },
@@ -221,7 +221,7 @@ export class DeployService {
       execFileSync("git", ["checkout", "-q", "-b", "gh-pages"], { cwd: temp, windowsHide: true });
       copyTree(versionDir, temp);
       execFileSync("git", ["add", "-A"], { cwd: temp, windowsHide: true });
-      execFileSync("git", ["-c", "user.name=OMP Studio", "-c", "user.email=studio@local", "commit", "-qm", `Deploy ${site.name}`], { cwd: temp, windowsHide: true });
+      execFileSync("git", ["-c", "user.name=Perch", "-c", "user.email=studio@local", "commit", "-qm", `Deploy ${site.name}`], { cwd: temp, windowsHide: true });
       const url = token
         ? `https://x-access-token:${token}@github.com/${owner}/${repo}.git`
         : remote;

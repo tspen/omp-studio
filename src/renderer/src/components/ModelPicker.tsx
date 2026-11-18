@@ -24,7 +24,7 @@ export function ModelPicker({
   }, []);
   const providers = useMemo(() => ["all", ...new Set(models.map((model) => model.provider))], [models]);
   const candidates = useMemo(
-    () => models.filter((model) => !model.id.includes(":batch") && !/\(batch\)/i.test(model.name) && !model.id.includes("~")),
+    () => models.filter((model) => model.available && !model.id.includes(":batch") && !/\\(batch\\)/i.test(model.name) && !model.id.includes("~")),
     [models],
   );
   const filtered = useMemo(() => {
@@ -42,7 +42,7 @@ export function ModelPicker({
         <div className="model-picker-title">
           <Sparkles size={15} />
           <strong>Choose model</strong>
-          <span>OMP selector · Artificial Analysis score</span>
+          <span>Pi selector · Artificial Analysis score</span>
         </div>
         <IconButton icon={<X size={14} />} label="Close" onClick={onClose} />
       </header>
@@ -103,3 +103,4 @@ function scoreTone(score: number): "green" | "blue" | "amber" | "neutral" {
   if (score >= 50) return "amber";
   return "neutral";
 }
+

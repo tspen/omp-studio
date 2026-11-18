@@ -85,7 +85,7 @@ async function isPortFree(port: number): Promise<boolean> {
 function renderPage(token: string, thread: Thread | undefined): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(thread?.title ?? "OMP Studio share")}</title>
+<title>${escapeHtml(thread?.title ?? "Perch share")}</title>
 <style>
 :root{color-scheme:light;--bg:#f7f7f8;--card:#fff;--text:#1d1d21;--muted:#6b6b76;--line:#e6e6ea;--accent:#6556d9}
 *{box-sizing:border-box}body{margin:0;font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}

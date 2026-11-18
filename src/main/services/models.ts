@@ -61,7 +61,7 @@ export class ModelService {
   }
 
   private async doRefresh(): Promise<ModelInfo[]> {
-    const raw = await this.readOmpModels();
+    const raw = await this.readPiModels();
     const aaIndex = this.buildAAIndex();
     const models: ModelInfo[] = [];
     for (const item of raw) {
@@ -88,7 +88,7 @@ export class ModelService {
           cacheRead: Math.max(0, Number(item.cost?.cacheRead) || 0),
           cacheWrite: Math.max(0, Number(item.cost?.cacheWrite) || 0),
         },
-        available: true,
+        available: item.available ?? this.hasAuth(item.provider),
         billing: providerBilling(item.provider),
         included: providerBilling(item.provider) === "subscription",
         aa,
@@ -102,28 +102,70 @@ export class ModelService {
     return models;
   }
 
-  private readOmpModels(): Promise<any[]> {
-    const exe = this.engine.resolveForSpawn();
-    return new Promise((resolve, reject) => {
-      execFile(
-        exe,
-        ["models", "--json"],
-        { timeout: 120_000, maxBuffer: 40 * 1024 * 1024, windowsHide: true, encoding: "utf8" },
-        (error, stdout, stderr) => {
-          if (error && !stdout) {
-            reject(new Error(`Could not read OMP model catalog: ${stderr || error.message}`));
-            return;
+  private hasAuth(provider: string): boolean {
+    const local = new Set(["ollama", "lm-studio", "llama.cpp", "local", "apple"]);
+    if (local.has(provider)) return true;
+    const envMap: Record<string, string> = {
+      anthropic: "ANTHROPIC_API_KEY",
+      openai: "OPENAI_API_KEY",
+      google: "GEMINI_API_KEY",
+      deepseek: "DEEPSEEK_API_KEY",
+      openrouter: "OPENROUTER_API_KEY",
+      opencode: "OPENCODE_API_KEY",
+      "opencode-go": "OPENCODE_API_KEY",
+      xai: "XAI_API_KEY",
+      mistral: "MISTRAL_API_KEY",
+      groq: "GROQ_API_KEY",
+      cerebras: "CEREBRAS_API_KEY",
+      nvidia: "NVIDIA_API_KEY",
+      together: "TOGETHER_API_KEY",
+      fireworks: "FIREWORKS_API_KEY",
+      huggingface: "HF_TOKEN",
+    };
+    if (envMap[provider] && process.env[envMap[provider]]) return true;
+    const authPath = join(this.store.baseDir, "pi-agent", "auth.json");
+    if (!existsSync(authPath)) return false;
+    try {
+      const auth = JSON.parse(readFileSync(authPath, "utf8")) as Record<string, unknown>;
+      return !!auth[provider];
+    } catch {
+      return false;
+    }
+  }
+  private async readPiModels(): Promise<any[]> {
+    const importer = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<any>;
+    const catalog = await importer("@earendil-works/pi-ai/providers/all");
+    const models: any[] = [];
+    for (const provider of catalog.getBuiltinProviders()) {
+      for (const model of catalog.getBuiltinModels(provider)) models.push(model);
+    }
+    const customPath = join(this.store.baseDir, "pi-agent", "models.json");
+    if (existsSync(customPath)) {
+      try {
+        const custom = JSON.parse(readFileSync(customPath, "utf8")) as { providers?: Record<string, any> };
+        for (const [provider, config] of Object.entries(custom.providers ?? {})) {
+          for (const model of Array.isArray(config?.models) ? config.models : []) {
+            if (!model?.id) continue;
+            models.push({
+              id: model.id,
+              name: model.name ?? model.id,
+              api: model.api ?? config.api,
+              provider,
+              baseUrl: model.baseUrl ?? config.baseUrl,
+              reasoning: !!model.reasoning,
+              input: Array.isArray(model.input) ? model.input : ["text"],
+              cost: model.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              contextWindow: Number(model.contextWindow) || 0,
+              maxTokens: Number(model.maxTokens) || 0,
+              available: true,
+            });
           }
-          try {
-            const parsed = JSON.parse(stdout);
-            const models = Array.isArray(parsed?.models) ? parsed.models : Array.isArray(parsed) ? parsed : [];
-            resolve(models);
-          } catch (parseError) {
-            reject(new Error(`Could not parse OMP model catalog: ${String(parseError)}`));
-          }
-        },
-      );
-    });
+        }
+      } catch {
+        /* a broken custom catalog must not hide the built-in one */
+      }
+    }
+    return models;
   }
 
   resolve(selector: string): ModelInfo | undefined {
@@ -419,7 +461,7 @@ async function fetchAA(): Promise<RawAAModel[]> {
     const all: RawAAModel[] = [];
     for (let page = 1; page <= 10; page++) {
       const response = await fetch(`https://artificialanalysis.ai/api/v2/language/models/free?page=${page}`, {
-        headers: { "x-api-key": apiKey, "user-agent": "OMP-Studio" },
+        headers: { "x-api-key": apiKey, "user-agent": "Perch" },
       });
       if (!response.ok) throw new Error(`Artificial Analysis API HTTP ${response.status}`);
       const json = (await response.json()) as any;
@@ -443,7 +485,7 @@ async function fetchAA(): Promise<RawAAModel[]> {
     return all;
   }
 
-  const response = await fetch(AA_URL, { headers: { "user-agent": "Mozilla/5.0 OMP-Studio" } });
+  const response = await fetch(AA_URL, { headers: { "user-agent": "Mozilla/5.0 Perch" } });
   if (!response.ok) throw new Error(`Artificial Analysis page HTTP ${response.status}`);
   const html = await response.text();
   return parseAAHtml(html);
@@ -492,3 +534,7 @@ function parseAAHtml(html: string): RawAAModel[] {
     }))
     .filter((model) => model && model.slug && model.name);
 }
+
+
+
+

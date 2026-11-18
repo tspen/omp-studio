@@ -37,6 +37,39 @@ const TOOL_KEYS: Record<string, string> = {
   debug_tool: "debug.enabled",
 };
 
+const PI_TOOLS = ["read", "write", "edit", "bash", "grep", "find", "ls"];
+const PI_SETTING_DESCRIPTIONS: Record<string, string> = {
+  "defaultModel": "Model selector used for new sessions.",
+  "defaultThinkingLevel": "Thinking level used for new sessions.",
+  "theme": "Terminal theme name.",
+  "compaction.enabled": "Automatically summarize history when the context window fills.",
+  "retry.maxRetries": "Retries for transient provider failures.",
+  "tools": "Default tool allowlist.",
+  "packages": "Installed Pi packages.",
+  "extensions": "Installed Pi extensions.",
+  "skills": "Installed Pi skills.",
+  "sessionDir": "Directory for Pi session files.",
+};
+
+function setPath(target: Record<string, any>, key: string, value: unknown): void {
+  const parts = key.split(".");
+  let node = target;
+  for (const part of parts.slice(0, -1)) {
+    if (!node[part] || typeof node[part] !== "object" || Array.isArray(node[part])) node[part] = {};
+    node = node[part];
+  }
+  node[parts[parts.length - 1]] = value;
+}
+
+function deletePath(target: Record<string, any>, key: string): void {
+  const parts = key.split(".");
+  let node = target;
+  for (const part of parts.slice(0, -1)) {
+    if (!node[part] || typeof node[part] !== "object") return;
+    node = node[part];
+  }
+  delete node[parts[parts.length - 1]];
+}
 const HOST_TOOLS = [
   "tree_list",
   "tree_create_node",
@@ -102,94 +135,103 @@ export class SettingsService {
   }
 
   configFile(): string {
-    return join(this.store.baseDir, "..", ".omp-agent-config.yml");
+    return join(this.store.baseDir, "pi-agent", "settings.json");
+  }
+
+  private readSettings(): Record<string, any> {
+    const path = this.configFile();
+    if (!existsSync(path)) return {};
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as Record<string, any>;
+    } catch {
+      return {};
+    }
   }
 
   async refresh(): Promise<OmpConfigSnapshot> {
-    const exe = this.engine.resolveForSpawn();
-    const list = await run(exe, ["config", "list", "--json"], 60_000);
-    let entries: OmpConfigEntry[] = [];
+    const path = this.configFile();
+    const entries: OmpConfigEntry[] = [];
     let error: string | undefined;
     try {
-      const parsed = JSON.parse(list.stdout) as Record<string, { value: unknown; type: string; description?: string }>;
-      entries = Object.entries(parsed).map(([key, item]) => ({
-        key,
-        value: item.value,
-        type: normalizeType(item.type),
-        description: item.description ?? "",
-        group: key.split(".")[0] || "other",
-      }));
+      const parsed = this.readSettings();
+      const walk = (value: Record<string, any>, prefix: string) => {
+        for (const [key, item] of Object.entries(value ?? {})) {
+          const full = prefix ? prefix + "." + key : key;
+          if (item && typeof item === "object" && !Array.isArray(item) && full.split(".").length < 2) {
+            walk(item as Record<string, any>, full);
+          } else {
+            entries.push({
+              key: full,
+              value: item,
+              type: normalizeType(typeof item),
+              description: PI_SETTING_DESCRIPTIONS[full] ?? "",
+              group: full.split(".")[0] || "other",
+            });
+          }
+        }
+      };
+      walk(parsed, "");
     } catch (parseError) {
-      error = `Could not parse OMP config: ${String(parseError)}`;
+      error = "Could not parse Pi settings: " + String(parseError);
     }
-    const pathResult = await run(exe, ["config", "path"], 15_000);
-    const dir = pathResult.stdout.trim();
-    const path = dir ? join(dir, "config.yml") : "";
     const snapshot: OmpConfigSnapshot = { path, entries, fetchedAt: Date.now(), error };
     this.store.setConfig(snapshot);
     return snapshot;
   }
 
   async set(key: string, value: unknown): Promise<OmpConfigSnapshot> {
-    const exe = this.engine.resolveForSpawn();
-    const serialized = typeof value === "string" ? value : JSON.stringify(value);
-    const result = await run(exe, ["config", "set", key, serialized], 30_000);
-    if (result.code !== 0) throw new Error(result.stderr.trim() || result.stdout.trim() || `Could not set ${key}`);
+    const data = this.readSettings();
+    setPath(data, key, value);
+    mkdirSync(join(this.configFile(), ".."), { recursive: true });
+    writeFileSync(this.configFile(), JSON.stringify(data, null, 2) + "\n", "utf8");
     return this.refresh();
   }
 
   async reset(key: string): Promise<OmpConfigSnapshot> {
-    const exe = this.engine.resolveForSpawn();
-    const result = await run(exe, ["config", "reset", key], 30_000);
-    if (result.code !== 0) throw new Error(result.stderr.trim() || `Could not reset ${key}`);
+    const data = this.readSettings();
+    deletePath(data, key);
+    mkdirSync(join(this.configFile(), ".."), { recursive: true });
+    writeFileSync(this.configFile(), JSON.stringify(data, null, 2) + "\n", "utf8");
     return this.refresh();
   }
 
   async readRaw(): Promise<{ path: string; yaml: string; parsed: unknown }> {
-    const snapshot = this.store.data.ompConfig.path ? this.store.data.ompConfig : await this.refresh();
-    const path = snapshot.path;
-    if (!path || !existsSync(path)) return { path: path ?? "", yaml: "", parsed: {} };
-    const yaml = readFileSync(path, "utf8");
-    return { path, yaml, parsed: YAML.parse(yaml) ?? {} };
+    const path = this.configFile();
+    if (!existsSync(path)) return { path, yaml: "{}\n", parsed: {} };
+    const parsed = this.readSettings();
+    return { path, yaml: JSON.stringify(parsed, null, 2) + "\n", parsed };
   }
 
-  async writeRaw(yaml: string): Promise<OmpConfigSnapshot> {
-    const snapshot = this.store.data.ompConfig.path ? this.store.data.ompConfig : await this.refresh();
-    const path = snapshot.path;
-    if (!path) throw new Error("OMP config path is unavailable");
-    YAML.parse(yaml);
+  async writeRaw(raw: string): Promise<OmpConfigSnapshot> {
+    const path = this.configFile();
+    const parsed = JSON.parse(raw || "{}");
     mkdirSync(join(path, ".."), { recursive: true });
-    if (existsSync(path)) writeFileSync(`${path}.backup-${Date.now()}`, readFileSync(path));
-    const tmp = `${path}.tmp`;
-    writeFileSync(tmp, yaml, "utf8");
-    renameSync(tmp, path);
+    if (existsSync(path)) writeFileSync(path + ".backup-" + Date.now(), readFileSync(path));
+    writeFileSync(path, JSON.stringify(parsed, null, 2) + "\n", "utf8");
     return this.refresh();
   }
 
   tools(): ToolInfo[] {
-    const entries = this.store.data.ompConfig.entries;
-    const approval = (entries.find((e) => e.key === "tools.approval")?.value ?? {}) as Record<string, ToolApproval>;
+    const overrides = this.store.settings.perchTools ?? {};
     const tools: ToolInfo[] = [];
-    const names = Object.keys(TOOL_KEYS);
-    for (const name of names) {
-      const configKey = TOOL_KEYS[name];
-      const entry = configKey ? entries.find((e) => e.key === configKey) : undefined;
+    for (const name of PI_TOOLS) {
+      const override = overrides[name];
       tools.push({
         name,
         label: labelFor(name),
-        description: entry?.description || descriptionFor(name),
-        enabled: entry ? entry.value !== false : true,
-        approval: approval[name] ?? "allow",
-        configKey: configKey || undefined,
+        description: descriptionFor(name),
+        enabled: override?.enabled !== false,
+        approval: override?.approval ?? "allow",
+        configKey: name,
         group: groupFor(name),
-        source: "omp",
+        source: "pi",
       });
     }
     for (const name of HOST_TOOLS) {
       tools.push({
         name,
         label: labelFor(name),
-        description: "OMP Studio tree-messaging host tool.",
+        description: "Perch tree-messaging host tool.",
         enabled: true,
         approval: "allow",
         group: "Tree protocol",
@@ -200,23 +242,16 @@ export class SettingsService {
   }
 
   async setTool(name: string, enabled: boolean, approval?: ToolApproval): Promise<ToolInfo[]> {
-    const configKey = TOOL_KEYS[name];
-    if (configKey) await this.set(configKey, enabled);
-    if (approval) {
-      const entries = this.store.data.ompConfig.entries;
-      const current = {
-        ...((entries.find((e) => e.key === "tools.approval")?.value ?? {}) as Record<string, ToolApproval>),
-      };
-      if (approval === "allow") delete current[name];
-      else current[name] = approval;
-      await this.set("tools.approval", current);
-    }
+    const current = { ...(this.store.settings.perchTools ?? {}) };
+    const previous = current[name];
+    current[name] = { enabled, approval: approval ?? previous?.approval ?? "allow" };
+    this.store.setSettings({ perchTools: current });
     return this.tools();
   }
 
   skills(): SkillInfo[] {
     const roots = [
-      join(process.env.USERPROFILE ?? "", ".omp", "agent", "skills"),
+      join(this.store.baseDir, "pi-agent", "skills"),
       join(process.env.USERPROFILE ?? "", ".claude", "skills"),
     ];
     const skills: SkillInfo[] = [];
@@ -236,7 +271,7 @@ export class SettingsService {
             const text = readFileSync(skillFile, "utf8");
             description = text.match(/^description:\s*(.+)$/m)?.[1]?.trim() ?? "";
           }
-          skills.push({ name, path, description, enabled: true, source: root.includes(".claude") ? "claude" : "omp" });
+          skills.push({ name, path, description, enabled: true, source: root.includes(".claude") ? "claude" : "pi" });
         }
       } catch {
         /* ignore */
@@ -247,8 +282,8 @@ export class SettingsService {
 
   mcpServers(): McpServerInfo[] {
     const files = [
-      { path: join(process.env.USERPROFILE ?? "", ".omp", "agent", "mcp.json"), source: "user" },
-      { path: join(process.env.USERPROFILE ?? "", ".omp", "agent", "mcp-servers.json"), source: "user" },
+      { path: join(this.store.baseDir, "pi-agent", "mcp.json"), source: "user" },
+      { path: join(this.store.baseDir, "pi-agent", "mcp.json"), source: "user" },
     ];
     const byName = new Map<string, McpServerInfo>();
     for (const file of files) {
@@ -277,13 +312,13 @@ export class SettingsService {
   createSkill(input: { name: string; description: string; body: string }): SkillInfo {
     const slug = input.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
     if (!slug) throw new Error("Skill name is required");
-    const root = join(process.env.USERPROFILE ?? "", ".omp", "agent", "skills");
+    const root = join(this.store.baseDir, "pi-agent", "skills");
     const path = join(root, slug);
     mkdirSync(path, { recursive: true });
     const description = input.description.trim() || input.name.trim();
     const content = `---\nname: ${input.name.trim()}\ndescription: ${description}\n---\n\n${input.body.trim()}\n`;
     writeFileSync(join(path, "SKILL.md"), content, "utf8");
-    return { name: slug, path, description, enabled: true, source: "omp" };
+    return { name: slug, path, description, enabled: true, source: "pi" };
   }
 
   readSkill(path: string): { content: string; path: string } {
@@ -311,11 +346,11 @@ export class SettingsService {
       rmSync(path, { recursive: true, force: true });
       return;
     }
-    throw new Error("Only skills in managed OMP/Claude skill folders can be deleted");
+    throw new Error("Only skills in managed Pi/Claude skill folders can be deleted");
   }
 
   mcpConfigPath(): string {
-    return join(process.env.USERPROFILE ?? "", ".omp", "agent", "mcp.json");
+    return join(this.store.baseDir, "pi-agent", "mcp.json");
   }
 
   addMcpServer(name: string, config: Record<string, unknown>): McpServerInfo[] {
@@ -398,7 +433,7 @@ export class SettingsService {
 
   private skillRoots(): string[] {
     return [
-      join(process.env.USERPROFILE ?? "", ".omp", "agent", "skills"),
+      join(this.store.baseDir, "pi-agent", "skills"),
       join(process.env.USERPROFILE ?? "", ".claude", "skills"),
     ];
   }
@@ -434,7 +469,7 @@ function descriptionFor(name: string): string {
     grep: "Search file contents.",
     glob: "Find files by glob.",
     lsp: "Language-server code intelligence.",
-    task: "Spawn OMP subagents for parallel work.",
+    task: "Spawn worker sessions for parallel work.",
     todo: "Maintain a todo list.",
     web_search: "Search the web.",
     browser: "Automate a Chromium browser.",
@@ -442,7 +477,7 @@ function descriptionFor(name: string): string {
     goal: "Goal mode.",
     plan: "Plan mode.",
   };
-  return map[name] ?? "OMP tool.";
+  return map[name] ?? "Pi tool.";
 }
 
 function run(exe: string, args: string[], timeout: number): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -467,3 +502,5 @@ function isInside(root: string, target: string): boolean {
   const path = resolve(target);
   return path === base || path.startsWith(base.endsWith(sep) ? base : base + sep);
 }
+
+

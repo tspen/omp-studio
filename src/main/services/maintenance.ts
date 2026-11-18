@@ -88,7 +88,7 @@ function listDirs(path: string): string[] {
 
 /**
  * Label-scoped sweep of everything the runner owns. It never touches files outside
- * the OMP data directory, never runs a global Docker prune, and never deletes a
+ * the Perch data directory, never runs a global Docker prune, and never deletes a
  * resource that current state still references.
  */
 export async function collectGarbage(baseDir: string, state: GcState | null, options: GcOptions = {}): Promise<GcReport> {

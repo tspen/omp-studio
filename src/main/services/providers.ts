@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import providersData from "../data/providers.json";
 import type { ProviderInfo } from "../../shared/types";
 import { providerBilling } from "./billing";
@@ -31,37 +33,38 @@ export class ProviderService {
   }
 
   list(): ProviderInfo[] {
+    const supported = new Set(this.store.data.models.map((model) => model.provider));
     const counts = new Map<string, number>();
     for (const model of this.store.data.models) {
       if (model.available) counts.set(model.provider, (counts.get(model.provider) ?? 0) + 1);
     }
-    return RAW_PROVIDERS.map((provider) => ({
-      id: provider.id,
-      name: provider.name,
-      login: provider.login,
-      authUrl: provider.authUrl,
-      instructions: provider.instructions,
-      prompt: provider.prompt,
-      envVar: provider.envVar,
-      recommended: !!provider.recommended,
-      connected: (counts.get(provider.id) ?? 0) > 0,
-      modelCount: counts.get(provider.id) ?? 0,
-      billing: providerBilling(provider.id),
-    })).sort((a, b) => providerRank(a) - providerRank(b) || a.name.localeCompare(b.name));
+    return RAW_PROVIDERS
+      .filter((provider) => supported.has(provider.id))
+      .map((provider) => ({
+        id: provider.id,
+        name: provider.name,
+        login: provider.login,
+        authUrl: provider.authUrl,
+        instructions: provider.instructions,
+        prompt: provider.prompt,
+        envVar: provider.envVar,
+        recommended: !!provider.recommended,
+        connected: (counts.get(provider.id) ?? 0) > 0,
+        modelCount: counts.get(provider.id) ?? 0,
+        billing: providerBilling(provider.id),
+      }))
+      .sort((a, b) => providerRank(a) - providerRank(b) || a.name.localeCompare(b.name));
   }
 
   async connect(id: string, apiKey?: string): Promise<{ ok: boolean; output: string; providers: ProviderInfo[] }> {
     const provider = RAW_PROVIDERS.find((item) => item.id === id);
-    if (!provider) throw new Error(`Unknown OMP provider: ${id}`);
+    if (!provider) throw new Error("Unknown Pi provider: " + id);
     if (provider.login === "none") {
       return {
         ok: false,
-        output: `${provider.name} does not use an interactive login. Configure it through OMP settings or its local endpoint.`,
+        output: provider.name + " is configured through its local endpoint, not a login.",
         providers: this.list(),
       };
-    }
-    if (provider.login === "api-key" && !apiKey?.trim()) {
-      return { ok: false, output: `${provider.name} requires an API key.`, providers: this.list() };
     }
     if (provider.id === "opencode-go" && apiKey?.trim()) {
       const validation = await validateOpenCodeGo(apiKey.trim());
@@ -69,73 +72,46 @@ export class ProviderService {
         return { ok: false, output: validation.error ?? "OpenCode Go rejected that API key.", providers: this.list() };
       }
     }
-
-    const exe = this.engine.resolveForSpawn();
-    const args = ["login", provider.id];
-    const child = spawn(exe, args, {
-      cwd: this.store.baseDir,
-      env: { ...process.env, PI_NO_TITLE: "1" },
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let output = "";
-    let keySent = false;
-    const clean = (text: string) => stripAnsi(text).replaceAll(apiKey ?? "__never__", "••••••••");
-    const onData = (data: Buffer) => {
-      const text = data.toString();
-      output += text;
-      if (!keySent && apiKey && /paste|api key|key\b|prompt/i.test(stripAnsi(text))) {
-        keySent = true;
-        try { child.stdin.write(`${apiKey.trim()}\n`); } catch { /* login already closed */ }
+    if (apiKey?.trim()) {
+      const authPath = join(this.store.baseDir, "pi-agent", "auth.json");
+      let auth: Record<string, unknown> = {};
+      if (existsSync(authPath)) {
+        try { auth = JSON.parse(readFileSync(authPath, "utf8")); } catch { auth = {}; }
       }
-    };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", (data: Buffer) => {
-      output += data.toString();
-    });
-
-    if (apiKey) {
-      // Some login flows print the prompt without a word we can reliably match.
-      setTimeout(() => {
-        if (!keySent && !child.killed) {
-          keySent = true;
-          try { child.stdin.write(`${apiKey.trim()}\n`); } catch { /* login already closed */ }
-        }
-      }, 1200);
-    }
-
-    const timeoutMs = provider.login === "api-key" ? 120_000 : 300_000;
-    const result = await new Promise<{ ok: boolean; output: string }>((resolve) => {
-      const timer = setTimeout(() => {
-        try {
-          child.kill();
-        } catch {
-          /* ignore */
-        }
-        resolve({ ok: false, output: `${clean(output)}\n\nTimed out waiting for ${provider.name}.` });
-      }, timeoutMs);
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        resolve({ ok: code === 0, output: clean(output).trim() || (code === 0 ? "Connected." : "Login failed.") });
-      });
-      child.on("error", (error) => {
-        clearTimeout(timer);
-        resolve({ ok: false, output: clean(error.message) });
-      });
-    });
-
-    if (result.ok) {
+      auth[provider.id] = { type: "api_key", key: apiKey.trim() };
+      mkdirSync(dirname(authPath), { recursive: true });
+      writeFileSync(authPath, JSON.stringify(auth, null, 2) + "\n", "utf8");
       this.store.setSettings({ models: { ...this.store.settings.models, preferredProvider: provider.id } });
-      try {
-        await this.models.refresh();
-        await this.models.refreshAA();
-        this.models.resetDefaults();
-      } catch {
-        /* models can be refreshed later */
-      }
+      await this.models.refresh().catch(() => undefined);
+      await this.models.refreshAA().catch(() => undefined);
+      this.models.resetDefaults();
+      return { ok: true, output: provider.name + " connected.", providers: this.list() };
     }
-    return { ...result, providers: this.list() };
+    if (provider.login === "api-key") {
+      return { ok: false, output: provider.name + " requires an API key.", providers: this.list() };
+    }
+    // OAuth/device flows need a real terminal. Open one with the Pi CLI so the
+    // provider can complete its browser or device-code flow.
+    const cli = this.engine.resolveForSpawn();
+    const command = [
+      "$env:ELECTRON_RUN_AS_NODE=1",
+      "& " + JSON.stringify(process.execPath) + " " + JSON.stringify(cli) + " auth login " + provider.id,
+    ].join("; ");
+    try {
+      const child = spawn("powershell.exe", ["-NoExit", "-Command", command], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false,
+      });
+      child.unref();
+    } catch (error) {
+      return { ok: false, output: String(error), providers: this.list() };
+    }
+    return {
+      ok: true,
+      output: "Complete the " + provider.name + " sign-in in the opened window, then refresh the model catalog.",
+      providers: this.list(),
+    };
   }
 }
 
@@ -148,7 +124,7 @@ async function validateOpenCodeGo(apiKey: string): Promise<{ ok: boolean; error?
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await fetch("https://opencode.ai/inference/go/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}`, "user-agent": "OMP-Studio" },
+      headers: { Authorization: `Bearer ${apiKey}`, "user-agent": "Perch" },
       signal: controller.signal,
     });
     if (response.ok) return { ok: true };

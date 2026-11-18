@@ -33,10 +33,10 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "OMP Remote";
+  const title = data.title || "Perch Remote";
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: data.body || "Open OMP Remote to continue.",
+      body: data.body || "Open Perch Remote to continue.",
       icon: "/icon.svg",
       badge: "/icon.svg",
       tag: data.tag || "omp-remote",

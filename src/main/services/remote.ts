@@ -418,7 +418,7 @@ export class RemoteService {
       const thread = this.store.getThread(event.payload.threadId);
       payload = {
         title: event.payload.status === "error" ? "Session failed" : "Session needs input",
-        body: thread?.title ?? event.payload.message ?? "Open OMP to continue.",
+        body: thread?.title ?? event.payload.message ?? "Open Perch to continue.",
         threadId: event.payload.threadId,
         tag: `status:${event.payload.threadId}:${event.payload.status}`,
       };
@@ -489,8 +489,8 @@ export class RemoteService {
         this.store.setSettings({ remote: { ...settings, enabled: true, port, host } });
         const urls = this.urls();
         const token = this.token();
-        console.log(`OMP Remote listening on ${host}:${port}`);
-        for (const url of urls) console.log(`OMP Remote pairing link: ${url}/#t=${encodeURIComponent(token)}`);
+        console.log(`Perch Remote listening on ${host}:${port}`);
+        for (const url of urls) console.log(`Perch Remote pairing link: ${url}/#t=${encodeURIComponent(token)}`);
         return this.info();
       } catch (error) {
         this.server?.close();
@@ -577,7 +577,7 @@ export class RemoteService {
       response.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
     };
     const parts = url.pathname.split("/").filter(Boolean);
-    if (parts[1] === "health") return json(200, { ok: true, name: "OMP Studio", version: app.getVersion() });
+    if (parts[1] === "health") return json(200, { ok: true, name: "Perch", version: app.getVersion() });
     if (parts[1] === "state") return json(200, this.orchestrator.snapshot());
     if (parts[1] === "approvals" && !parts[2] && request.method === "GET") return json(200, this.orchestrator.pendingApprovals());
     if (parts[1] === "messages" && parts[2]) return json(200, this.store.getChat(decodeURIComponent(parts[2])));
@@ -649,7 +649,7 @@ export class RemoteService {
       return json(200, this.unsubscribePush(String(body.endpoint ?? "")));
     }
     if (parts[1] === "push" && parts[2] === "test" && request.method === "POST") {
-      return json(200, await this.sendPush({ title: "OMP Remote", body: "Test notification from your runner.", tag: "test" }));
+      return json(200, await this.sendPush({ title: "Perch Remote", body: "Test notification from your runner.", tag: "test" }));
     }
     if (parts[1] === "workspace" && parts[2] && parts[3] === "manifest" && request.method === "GET") {
       const originKey = decodeURIComponent(parts[2]);

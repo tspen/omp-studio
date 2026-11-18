@@ -225,7 +225,7 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
   {
     name: "tree_delete_node",
     label: "Tree: delete node",
-    description: "Delete a project/group and its child nodes from OMP Studio. Files, branches and worktrees stay on disk. Only use after confirming with the user.",
+    description: "Delete a project/group and its child nodes from Perch. Files, branches and worktrees stay on disk. Only use after confirming with the user.",
     parameters: object({ nodeId: { type: "string" }, confirm: { type: "boolean" } }, ["nodeId", "confirm"]),
   },
   {
@@ -272,7 +272,7 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
   {
     name: "tree_assign_environment",
     label: "Tree: assign environment",
-    description: "Assign an environment profile to a project/group. New threads inherit it immediately; existing OMP sessions pick it up when restarted.",
+    description: "Assign an environment profile to a project/group. New threads inherit it immediately; existing sessions pick it up when restarted.",
     parameters: object({ nodeId: { type: "string" }, environmentId: { type: "string" } }, ["nodeId", "environmentId"]),
     loadMode: "essential",
   },

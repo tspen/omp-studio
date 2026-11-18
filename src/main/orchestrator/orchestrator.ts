@@ -27,7 +27,7 @@ import type {
   TreeNode,
 } from "../../shared/types";
 import type { EngineLocator } from "../engine/engine-locator";
-import { OmpSession } from "../engine/session";
+import { PiSession } from "../engine/pi-session";
 import type { HostToolContext, HostToolHandler, HostToolResult } from "./host-tools";
 import { HOST_TOOL_DEFINITIONS } from "./host-tools";
 import { MessageBus } from "./message-bus";
@@ -81,9 +81,9 @@ export interface OrchestratorDeps {
 export class Orchestrator extends EventEmitter {
   private deps: OrchestratorDeps;
   private store: Store;
-  private sessions = new Map<string, OmpSession>();
-  private approvals = new Map<string, { threadId: string; session: OmpSession; request: ApprovalRequest }>();
-  private starting = new Map<string, Promise<OmpSession>>();
+  private sessions = new Map<string, PiSession>();
+  private approvals = new Map<string, { threadId: string; session: PiSession; request: ApprovalRequest }>();
+  private starting = new Map<string, Promise<PiSession>>();
   private gitTimers = new Map<string, NodeJS.Timeout>();
   private autoContinueTimers = new Map<string, NodeJS.Timeout>();
   private retitleState = new Map<string, { turns: number; lastAt: number }>();
@@ -237,7 +237,7 @@ export class Orchestrator extends EventEmitter {
     }
   }
 
-  private async compactIdleThread(threadId: string, session: OmpSession): Promise<void> {
+  private async compactIdleThread(threadId: string, session: PiSession): Promise<void> {
     try {
       await session.compact();
       const state = await session.getState().catch(() => null);
@@ -1174,7 +1174,7 @@ export class Orchestrator extends EventEmitter {
     return { ok: result.code === 0, output: `${result.stdout}\n${result.stderr}`.trim() || (result.code === 0 ? `Reverted hunk in ${path}` : "Patch failed") };
   }
 
-  /** Stop a local OMP session without deleting its stored transcript. */
+  /** Stop a local Pi session without deleting its stored transcript. */
   async releaseThreadSession(threadId: string): Promise<void> {
     await this.disposeSession(threadId).catch(() => undefined);
   }
@@ -1354,7 +1354,7 @@ export class Orchestrator extends EventEmitter {
 
   // ---------- sessions ----------
 
-  private async ensureSession(threadId: string): Promise<OmpSession> {
+  private async ensureSession(threadId: string): Promise<PiSession> {
     const existing = this.sessions.get(threadId);
     if (existing?.isRunning) return existing;
     const inFlight = this.starting.get(threadId);
@@ -1364,12 +1364,12 @@ export class Orchestrator extends EventEmitter {
     return promise;
   }
 
-  private async startSession(threadId: string): Promise<OmpSession> {
+  private async startSession(threadId: string): Promise<PiSession> {
     const thread = this.store.getThread(threadId);
     if (!thread) throw new Error("Thread not found");
     const node = this.store.getNode(thread.nodeId);
     if (!node) throw new Error("Node not found");
-    if (thread.kind === "native") throw new Error("Native OMP subagents are controlled by their parent");
+    if (thread.kind === "native") throw new Error("Native Pi subagents are controlled by their parent");
     if (this.sessions.size >= this.store.settings.maxConcurrentThreads) {
       const idle = [...this.sessions.entries()].find(([, session]) => session.thread.status === "idle" || session.thread.status === "parked");
       if (idle) await this.disposeSession(idle[0]);
@@ -1380,7 +1380,7 @@ export class Orchestrator extends EventEmitter {
     const cwd = thread.worktreePath || node.repoPath || node.path;
     mkdirSync(cwd, { recursive: true });
     mkdirSync(thread.sessionDir, { recursive: true });
-    this.updateStatus(threadId, "starting", "Starting OMP…");
+    this.updateStatus(threadId, "starting", "Starting Pi…");
 
     if (environment) {
       const ok = await this.deps.environments.runSetup(environment, cwd, (text) => {
@@ -1408,9 +1408,9 @@ export class Orchestrator extends EventEmitter {
       toolNames,
     });
 
-    const session = new OmpSession({
+    const session = new PiSession({
       store: this.store,
-      exe: this.deps.engine.resolveForSpawn(),
+      cliPath: this.deps.engine.resolveForSpawn(),
       thread,
       node,
       environment,
@@ -1725,7 +1725,7 @@ export class Orchestrator extends EventEmitter {
             toThreadId: parentThreadId,
             kind: "result",
             subject: native.title,
-            body: `Native OMP subagent ${native.title} ${payload.status}. Its full transcript is in the nested thread.`,
+            body: `Native Pi subagent ${native.title} ${payload.status}. Its full transcript is in the nested thread.`,
             deliver: false,
             priority: "low",
           })
@@ -1940,7 +1940,7 @@ export class Orchestrator extends EventEmitter {
     const shouldWake =
       envelope.direction === "down" || envelope.fromThreadId === "user" || (this.store.settings.autoWakeParent && urgent);
     if (!this.sessions.get(target.id)?.isRunning && !shouldWake) return false;
-    let session: OmpSession;
+    let session: PiSession;
     try {
       if (debug) console.log("DELIVER_ENSURE", target.id, target.title, target.status);
       session = await this.ensureSession(target.id);
@@ -2521,7 +2521,7 @@ export class Orchestrator extends EventEmitter {
       return textResult(await this.gitDiff(node.id, thread?.id));
     }
     if (op === "commit") {
-      const result = await this.gitCommit(node.id, thread?.id, String(context.args.message ?? "OMP Studio: commit"), undefined);
+      const result = await this.gitCommit(node.id, thread?.id, String(context.args.message ?? "Perch: commit"), undefined);
       return { ...textResult(result.output), isError: !result.ok };
     }
     if (op === "merge") {
@@ -2764,7 +2764,7 @@ function textOf(message: ChatMessage): string {
 }
 
 /**
- * The response that approves an OMP permission prompt when the node is in
+ * The response that approves a Pi permission prompt when the node is in
  * yolo mode. Returns undefined for genuine questions we must ask the user.
  */
 const ACRONYMS = new Set(["API", "HTTP", "HTTPS", "OMP", "CLI", "UI", "UX", "RPC", "SSE", "JSON", "GPU", "CPU", "MCP", "LLM", "AI", "CI", "CD", "PR", "URL", "ID", "SDK", "SQL", "CSS", "HTML", "TS", "JS"]);
@@ -2843,6 +2843,7 @@ function envToolNames(node: TreeNode, environment?: Environment): string[] {
   const names = environment?.toolNames?.length ? environment.toolNames : node.toolNames;
   return names?.length ? names : [];
 }
+
 
 
 

@@ -123,7 +123,7 @@ function ThreadIntro({ thread }: { thread: Thread }) {
       <div>
         <h1>{thread.title}</h1>
         <div className="thread-intro-meta">
-          <span>{thread.kind === "orchestrator" ? "Orchestrator" : thread.kind === "native" ? "OMP subagent" : "Worker thread"}</span>
+          <span>{thread.kind === "orchestrator" ? "Orchestrator" : thread.kind === "native" ? "Pi subagent" : "Worker thread"}</span>
           <span>·</span>
           <span>{thread.model.name ?? thread.model.selector}</span>
           <span>·</span>
@@ -195,7 +195,7 @@ function MessageRow({ message, showThinking }: { message: ChatMessage; showThink
         <div className="assistant-avatar"><Logo size={22} /></div>
         <div className="assistant-content">
           <div className="assistant-meta">
-            <strong>{message.model ?? "OMP"}</strong>
+            <strong>{message.model ?? "Pi"}</strong>
             <span>{new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
             {message.usage ? <span>{formatNumber(message.usage.totalTokens)} tok</span> : null}
           </div>
@@ -250,7 +250,7 @@ function ImageBlock({ block }: { block: Extract<ChatBlock, { type: "image" }> })
           <img src={source} alt={block.path ?? "Image attachment"} onClick={(event) => event.stopPropagation()} />
           <div className="image-lightbox-foot">
             <span>{block.path ? truncate(block.path, 90) : block.mimeType}</span>
-            {block.path ? <Button size="sm" variant="soft" onClick={() => void window.omp.openPath(block.path!)}>Open file</Button> : null}
+            {block.path ? <Button size="sm" variant="soft" onClick={() => void window.perch.openPath(block.path!)}>Open file</Button> : null}
             <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
           </div>
         </div>

@@ -4,7 +4,7 @@ Date: 2026-11-17
 
 Locked decisions from the architecture review:
 
-- No managed OMP relay, no public inbound ports, no OMP-hosted compute in the traffic path.
+- No managed Pi relay, no public inbound ports, no Pi-hosted compute in the traffic path.
 - Tailscale first, self-hosted relay second, Cloudflare Tunnel + Access third. E2E encryption regardless.
 - Docker/VPS is the default cloud target. No managed provider is required.
 - Cloud becomes the default only after a user-owned target is paired and consent is given.
@@ -25,7 +25,7 @@ src/core/
   store.ts            # persisted state, no electron imports
   orchestrator.ts
   message-bus.ts
-  session.ts          # OMP RPC session
+  session.ts          # Pi RPC session
   git.ts
   pty.ts
   workspace.ts
@@ -42,14 +42,14 @@ Electron `safeStorage` stays behind an injectable `Secrets` interface. Filesyste
 
 This is the prerequisite. Everything else is a thin adapter over it.
 
-## 2. OMP Runner
+## 2. Perch Runner
 
 New package: `src/runner` and a distributable `omp-runner` binary/container.
 
 Responsibilities:
 
 - own a `Core` instance;
-- run OMP sessions and worktrees;
+- run Pi sessions and worktrees;
 - serve a local JSON-RPC/WebSocket API;
 - hold device keys and paired client keys;
 - register itself with a target registry;
@@ -146,8 +146,8 @@ Cold move algorithm:
 2. Create a file checkpoint.
 3. Export bundle.
 4. Upload to destination runner or object store.
-5. Destination validates checksum, imports git bundle, restores untracked files, loads OMP session.
-6. Start a new session on the destination from the OMP JSONL.
+5. Destination validates checksum, imports git bundle, restores untracked files, loads Pi session.
+6. Start a new session on the destination from the Pi JSONL.
 7. Replay unacknowledged events.
 8. Mark source as archived/moved; keep its volume for rollback for N days.
 9. Update `targetId` on the thread and emit `session.moved`.

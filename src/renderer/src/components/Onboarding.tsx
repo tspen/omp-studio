@@ -58,7 +58,7 @@ export function Onboarding() {
   }, [settings?.notifications.enabled, settings?.autoName]);
 
   useEffect(() => {
-    void window.omp.listProviders().then((list) => {
+    void window.perch.listProviders().then((list) => {
       setProviders(list);
       const preferred = settings?.models.preferredProvider;
       const chosen =
@@ -125,7 +125,7 @@ export function Onboarding() {
     setProviderError("");
     setProviderOutput("");
     try {
-      const result = await window.omp.connectProvider(selectedProvider, needsKey ? providerKey.trim() : undefined);
+      const result = await window.perch.connectProvider(selectedProvider, needsKey ? providerKey.trim() : undefined);
       setProviders(result.providers);
       if (!result.ok) {
         setProviderOutput("");
@@ -181,17 +181,17 @@ export function Onboarding() {
     <div className="onboarding">
       <div className="onboarding-drag-region" />
       <div className="onboarding-left">
-        <div className="onboarding-brand"><Logo size={34} /><div><strong>OMP Studio</strong><span>Tree orchestration for real code</span></div></div>
+        <div className="onboarding-brand"><Logo size={34} /><div><strong>Perch</strong><span>Tree orchestration for real code</span></div></div>
         <div className="onboarding-pitch">
           <h1>One orchestrator.<br />A tree of workers.</h1>
           <p>Connect a provider, pick your defaults, and let the orchestrator split work into isolated threads that report back.</p>
           <div className="onboarding-features">
             <Feature icon={<Sparkles size={15} />} title="Orchestrator + threads" body="Root, groups, projects and workers with typed messages up and down." />
-            <Feature icon={<Wrench size={15} />} title="Real tools, real repo" body="OMP tools, git worktrees, diffs, commits and merges." />
-            <Feature icon={<ShieldCheck size={15} />} title="Your keys, your machine" body="Provider credentials stay in OMP's local auth store." />
+            <Feature icon={<Wrench size={15} />} title="Real tools, real repo" body="Pi tools, git worktrees, diffs, commits and merges." />
+            <Feature icon={<ShieldCheck size={15} />} title="Your keys, your machine" body="Provider credentials stay in Pi's local auth store." />
           </div>
         </div>
-        <div className="onboarding-foot">OMP {engine?.version ?? ""} {engine?.found ? "detected" : "not found"}</div>
+        <div className="onboarding-foot">Pi {engine?.version ?? ""} {engine?.found ? "detected" : "not found"}</div>
       </div>
       <div className="onboarding-right">
         <div className="onboarding-progress">
@@ -212,22 +212,22 @@ export function Onboarding() {
             <div className="onboarding-head">
               <Badge tone="accent">Step 1</Badge>
               <h2>Connect a provider</h2>
-              <p>OMP Studio uses OMP's provider catalog and credential store. Connect one service to unlock its models.</p>
+              <p>Perch uses Pi's provider catalog and credential store. Connect one service to unlock its models.</p>
             </div>
 
             <div className={cx("engine-card", engine?.found ? "ok" : "bad")}>
               <div className="engine-card-icon">{engine?.found ? <Check size={16} /> : <CircleAlert size={16} />}</div>
               <div>
-                <strong>{engine?.found ? `OMP ${engine.version} is ready` : "OMP engine not found"}</strong>
+                <strong>{engine?.found ? `Pi ${engine.version} is ready` : "Pi engine not found"}</strong>
                 <span>{engine?.found ? engine.path : "Download the engine before connecting a provider."}</span>
               </div>
               {!engine?.found ? (
-                <Button size="sm" variant="primary" onClick={() => void window.omp.downloadEngine().then(() => state.refresh())}><Download size={13} /> Download OMP</Button>
+                <Button size="sm" variant="primary" onClick={() => void window.perch.downloadEngine().then(() => state.refresh())}><Download size={13} /> Recheck engine</Button>
               ) : null}
             </div>
 
             <div className="provider-connected">
-              <span>Already connected through OMP</span>
+              <span>Already connected through Pi</span>
               {connectedProviders.length ? connectedProviders.slice(0, 6).map((provider) => <Badge key={provider.id} tone="green">{provider.name} · {provider.modelCount}</Badge>) : <Badge tone="neutral">None yet</Badge>}
             </div>
 
@@ -243,7 +243,7 @@ export function Onboarding() {
                   <div className="provider-logo">{provider.name.slice(0, 1).toUpperCase()}</div>
                   <div className="provider-copy">
                     <strong>{provider.name}</strong>
-                    <span>{provider.id} · {provider.login === "api-key" ? "API key" : provider.login === "oauth-code" ? "OAuth" : provider.login === "device-code" ? "device code" : provider.envVar ? "API key / env" : "OMP config"}</span>
+                    <span>{provider.id} · {provider.login === "api-key" ? "API key" : provider.login === "oauth-code" ? "OAuth" : provider.login === "device-code" ? "device code" : provider.envVar ? "API key / env" : "Pi config"}</span>
                   </div>
                   {provider.connected ? <Badge tone="green">connected</Badge> : provider.recommended ? <Badge tone="accent">recommended</Badge> : null}
                   {provider.billing === "subscription" && !provider.connected ? <Badge tone="blue">plan</Badge> : null}
@@ -262,17 +262,17 @@ export function Onboarding() {
                   <>
                     <div className="provider-instructions">
                       <div><strong>{selectedProviderInfo.name}</strong><span>{selectedProviderInfo.instructions ?? "Paste your API key."}</span></div>
-                      {selectedProviderInfo.authUrl ? <Button size="sm" variant="soft" onClick={() => void window.omp.openExternal(selectedProviderInfo.authUrl!)}><ExternalLink size={13} /> Get key</Button> : null}
+                      {selectedProviderInfo.authUrl ? <Button size="sm" variant="soft" onClick={() => void window.perch.openExternal(selectedProviderInfo.authUrl!)}><ExternalLink size={13} /> Get key</Button> : null}
                     </div>
                     <div className="provider-key">
                       <KeyRound size={15} />
                       <input type="password" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder={selectedProviderInfo.prompt ?? "Paste API key"} onKeyDown={(event) => event.key === "Enter" && void connect()} />
                       <Button size="sm" variant="primary" disabled={connecting || !providerKey.trim()} onClick={() => void connect()}>{connecting ? <Spinner /> : <ArrowRight size={13} />} Connect</Button>
                     </div>
-                    <span className="provider-hint">The key is sent to OMP's local auth store and is never stored in the renderer.</span>
+                    <span className="provider-hint">The key is sent to Pi's local auth store and is never stored in the renderer.</span>
                   </>
                 ) : selectedProviderInfo.login === "none" ? (
-                  <div className="provider-warning"><CircleAlert size={15} /> This provider needs configuration through OMP settings or a local endpoint.</div>
+                  <div className="provider-warning"><CircleAlert size={15} /> This provider needs configuration through Pi settings or a local endpoint.</div>
                 ) : (
                   <div className="provider-instructions">
                     <div><strong>{selectedProviderInfo.name}</strong><span>{selectedProviderInfo.instructions ?? "This provider uses an interactive login."}</span></div>
@@ -331,10 +331,10 @@ export function Onboarding() {
               <div className="onboarding-option"><div><strong>Auto-name threads</strong><span>Names threads from the first message and refreshes long workers every few turns.</span></div><Toggle checked={autoName} onChange={setAutoName} /></div>
             </div>
             <div className="onboarding-project">
-              <div className="onboarding-project-head"><div><strong>First project</strong><span>Optional. Point it at a repository or let OMP Studio create a workspace folder.</span></div><Badge tone="neutral">optional</Badge></div>
+              <div className="onboarding-project-head"><div><strong>First project</strong><span>Optional. Point it at a repository or let Perch create a workspace folder.</span></div><Badge tone="neutral">optional</Badge></div>
               <div className="two-col">
                 <Field label="Name" hint="Leave blank to auto-name."><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Auto-name project" /></Field>
-                <Field label="Path" hint="Defaults to a folder named after the project under your workspace root."><div className="inline-actions"><input value={effectiveProjectPath} onChange={(event) => { setProjectPathTouched(true); setProjectPath(event.target.value); }} placeholder={projectName.trim() ? suggestedProjectPath : "Type a name for a default folder, or pick one"} /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.omp.pickDirectory(); if (picked) { setProjectPathTouched(true); setProjectPath(picked); } }}><Terminal size={13} /></Button></div></Field>
+                <Field label="Path" hint="Defaults to a folder named after the project under your workspace root."><div className="inline-actions"><input value={effectiveProjectPath} onChange={(event) => { setProjectPathTouched(true); setProjectPath(event.target.value); }} placeholder={projectName.trim() ? suggestedProjectPath : "Type a name for a default folder, or pick one"} /><Button size="sm" variant="soft" onClick={async () => { const picked = await window.perch.pickDirectory(); if (picked) { setProjectPathTouched(true); setProjectPath(picked); } }}><Terminal size={13} /></Button></div></Field>
               </div>
               <Field label="Brief" hint="Sent to the project orchestrator as its first task."><textarea rows={3} value={projectBrief} onChange={(event) => setProjectBrief(event.target.value)} placeholder="What should the first project own?" /></Field>
               <label className="inline-check"><input type="checkbox" checked={gitInit} onChange={(event) => setGitInit(event.target.checked)} /> Initialize git if needed</label>

@@ -1,9 +1,9 @@
 {
-  "name": "omp-studio",
+  "name": "perch-studio",
   "version": "0.1.0",
-  "description": "Windows cockpit for oh-my-pi: tree-based orchestrators, threads, git, memory and environments.",
+  "description": "Perch: tree-based cockpit for the Pi coding agent.",
   "main": "out/main/index.js",
-  "author": "OMP Studio",
+  "author": "Perch",
   "license": "MIT",
   "private": false,
   "repository": {
@@ -22,9 +22,8 @@
     "build": "electron-vite build && npm run build:mobile && npm run build:runner",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "start": "electron-vite preview",
-    "package": "npm run fetch:omp && npm run build && electron-builder --win nsis",
-    "package:dir": "npm run fetch:omp && npm run build && electron-builder --win dir",
-    "fetch:omp": "node scripts/fetch-omp.mjs",
+    "package": "npm run build && electron-builder --win nsis",
+    "package:dir": "npm run build && electron-builder --win dir",
     "test": "vitest run",
     "smoke": "npm run build && electron . --smoke-test",
     "build:mobile": "vite build --config mobile/vite.config.ts",
@@ -37,12 +36,15 @@
     "perf:remote": "node scripts/remote-perf.mjs",
     "runner:gc": "node out/runner/cli/runner.js gc --dry-run",
     "runner:quota": "node out/runner/cli/runner.js quota",
-    "test:gc": "node scripts/gc-selftest.mjs"
+    "test:gc": "node scripts/gc-selftest.mjs",
+    "pi:selftest": "node scripts/pi-engine-selftest.mjs",
+    "pi:durable": "node scripts/pi-durable-selftest.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.0",
     "@capacitor/core": "^7.4.0",
     "@capacitor/ios": "^7.4.0",
+    "@earendil-works/pi-coding-agent": "^1.5.2",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "diff": "^9.0.0",
@@ -66,6 +68,8 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.0",
+    "@earendil-works/chord": "^1.5.2",
+    "@earendil-works/pi-durable": "^1.5.2",
     "@types/node": "^26.6.6",
     "@types/pixelmatch": "^5.2.6",
     "@types/pngjs": "^6.0.5",

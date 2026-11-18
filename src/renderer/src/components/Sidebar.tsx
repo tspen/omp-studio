@@ -147,7 +147,7 @@ export function Sidebar() {
         <div className="foot-stats">
           <span><Zap size={12} /> {formatNumber(snapshot?.usage.totalTokens ?? 0)} tokens</span>
           <span><CircleDollarSign size={12} /> {formatCost(snapshot?.usage.totalCost ?? 0)}</span>
-          <span className={cx("engine-pill", state.engine?.found ? "ok" : "bad")}>{state.engine?.found ? "OMP" : "No engine"}</span>
+          <span className={cx("engine-pill", state.engine?.found ? "ok" : "bad")}>{state.engine?.found ? "Pi" : "No engine"}</span>
         </div>
         {thread ? (
           <div className="foot-thread">
@@ -169,7 +169,7 @@ export function Sidebar() {
               onClick={async () => {
                 setMenu(null);
                 try {
-                  await window.omp.updateThread(target.id, { pinned: !target.pinned });
+                  await window.perch.updateThread(target.id, { pinned: !target.pinned });
                   await state.refresh();
                 } catch (error) {
                   state.pushToast({ kind: "error", title: "Could not update pin", body: String(error) });
@@ -184,7 +184,7 @@ export function Sidebar() {
                 onClick={async () => {
                   setMenu(null);
                   try {
-                    await window.omp.updateThread(target.id, { archived: false, status: "idle", statusMessage: "Reopened" });
+                    await window.perch.updateThread(target.id, { archived: false, status: "idle", statusMessage: "Reopened" });
                     await state.refresh();
                     state.pushToast({ kind: "info", title: "Thread reopened", body: target.title });
                   } catch (error) {
@@ -204,7 +204,7 @@ export function Sidebar() {
                 setMenu(null);
                 if (!confirm(`Delete thread "${target.title}"? Its branch and files stay on disk.`)) return;
                 try {
-                  await window.omp.deleteThread(target.id);
+                  await window.perch.deleteThread(target.id);
                   await state.refresh();
                   state.pushToast({ kind: "info", title: "Thread deleted", body: target.title });
                 } catch (error) {
