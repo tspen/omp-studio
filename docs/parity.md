@@ -39,7 +39,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Gap | Impact | Notes |
 | --- | --- | --- |
 | External language servers | TypeScript/JavaScript/JSON LSP is bundled. Python, Rust, Go, C/C++, Java, C#, Ruby and PHP use an installed language server or `PERCH_LSP_*` override. | `lsp` host tool; see `src/main/services/lsp.ts`. |
-| AST editing in other languages | `ast_grep`/`ast_edit` cover JavaScript, TypeScript, TSX, HTML, CSS and Python | Go, Rust, Java, C/C++ and other languages use Pi `grep`/`edit`. |
+| AST editing for Go, Rust, Java, C/C++ | JavaScript, TypeScript, TSX, HTML, CSS and Python are supported | Other languages use Pi `grep`/`edit`. |
 
 ## Decisions
 
