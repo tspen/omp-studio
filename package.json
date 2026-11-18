@@ -61,6 +61,7 @@
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
+    "typescript-language-server": "^6.1.0",
     "web-push": "^3.6.7",
     "ws": "^8.18.0",
     "yaml": "^2.9.1",
@@ -82,7 +83,7 @@
     "electron": "^45.3.2",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
-    "typescript": "^7.0.2",
+    "typescript": "^5.9.3",
     "vite": "^8.3.8",
     "vitest": "^5.1.0"
   }

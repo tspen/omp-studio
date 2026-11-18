@@ -52,7 +52,7 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
-  const reply = hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
+  const reply = /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: reply }, finish_reason: null }] })}\n\n`);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\n`);
   response.write("data: [DONE]\n\n");
@@ -62,4 +62,5 @@ const server = createServer(async (request, response) => {
 server.listen(port, "127.0.0.1", () => {
   console.log(`Perch mock provider listening on http://127.0.0.1:${port}/v1`);
 });
+
 

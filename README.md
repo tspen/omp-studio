@@ -10,7 +10,7 @@ Perch is the cockpit. Pi is the engine. There is no separate agent runtime, no h
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
 - **Parallel tasks**: the `task` host tool fans out up to eight worker threads and returns structured results, so Pi agents get parallel task delegation without in-process subagents.
 - **Pi under the hood**: Perch launches the bundled `@earendil-works/pi-coding-agent` in `--mode rpc`, uses Pi sessions, tools, skills, provider auth and compaction. It does not reimplement the agent loop.
-- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace and mobile tools are registered as Pi tools through a local authenticated extension.
+- **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are available without a separate agent engine.
 - **Explicit model selection**: Per-thread model and thinking level, plus role defaults for root/group/project/worker/naming/memory.
 - **Git-aware threads**: Project repositories, worker branches and worktrees, status, diffs, commit, merge and PR actions. Worktrees live outside the repository so unmerged work is not silently destroyed.
 - **Memory**: Per-node durable memory, visible and editable. Orchestrators write through `tree_memory_write`; completed thread outcomes are auto-captured as low-importance entries.
@@ -104,6 +104,8 @@ Pi session files are the transcript source of truth. Perch keeps a compact messa
 ## Credits
 
 - Pi: MIT, https://github.com/earendil-works/pi
+
+
 
 
 

@@ -84,6 +84,22 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "lsp",
+    label: "LSP: code intelligence",
+    description:
+      "Query the project language server for TypeScript/JavaScript/JSON: diagnostics, definitions, references, hover and document symbols. Use before editing or renaming. 1-based line and character.",
+    parameters: object(
+      {
+        action: { type: "string", enum: ["diagnostics", "definition", "references", "hover", "symbols"] },
+        path: { type: "string", description: "File path, absolute or relative to the project." },
+        line: { type: "number" },
+        character: { type: "number" },
+      },
+      ["action", "path"],
+    ),
+    loadMode: "essential",
+  },
+  {
     name: "task",
     label: "Task: parallel workers",
     description:
@@ -530,4 +546,5 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
 for (const tool of HOST_TOOL_DEFINITIONS) {
   tool.loadMode = "essential";
 }
+
 

@@ -2,7 +2,7 @@
 
 Date: 2026-11-18
 
-Perch runs the bundled Pi coding agent. This is the current feature-parity record against the old OMP/oh-my-pi engine. It is intentionally explicit about what is done and what is not.
+Perch runs the bundled Pi coding agent. This is the current feature-parity record against the previous engine. It is intentionally explicit about what is done and what is not.
 
 ## Done
 
@@ -18,7 +18,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Provider setup | API keys write Pi `auth.json`; OAuth opens the Pi CLI in a terminal |
 | Settings | Pi `settings.json` edited through the existing settings UI |
 | Skills/MCP | Pi `pi-agent/skills` and `pi-agent/mcp.json` |
-| Goal state | App-side create/pause/resume/drop; initial goal prompt is sent |
+| Goal state | App-side create/pause/resume/drop, bounded auto-continuation (50 turns), token budget and `GOAL COMPLETE` detection |
 | Parallel tasks | `task` host tool fans out Perch worker threads and returns structured results |
 | Rebrand | Perch window, tray, PWA, Android/iOS IDs, installer, repository, data dir |
 | Data | `%APPDATA%\Perch`; 19 existing threads verified after migration |
@@ -29,13 +29,12 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 
 | Gap | Impact | Notes |
 | --- | --- | --- |
-| LSP / DAP | No `lsp` or `debug` tool for agents | Pi has no built-in LSP/DAP. Needs a language-server bridge. |
+| LSP / DAP | TypeScript/JavaScript/JSON LSP is bridged through `typescript-language-server`: diagnostics, definition, references, hover, symbols. DAP and other language servers are not wired. | `lsp` host tool; see `src/main/services/lsp.ts`. |
 | Python / AST / notebook | No persistent Python kernel, `ast_grep`, `ast_edit`, `notebook` | Pi built-ins only. |
 | Web search | No built-in `web_search` | Deliberately not added; use a chosen extension/provider. |
-| Native subagent panel | OMP's in-process `task` frames are gone | `task` now creates normal Perch worker threads; the tree is the subagent UI. |
-| Goal auto-continuation | Goal state exists, but a turn does not automatically continue forever | Needs a bounded continuation loop and completion detection. |
-| Provider credentials | OMP credentials are not imported | Reconnect a provider once in Settings. |
-| OMP-specific tooling | Hashes/hashline edits, summarized reads, Rust tool core | Not ported. |
+| Native subagent panel | The previous in-process `task` frames are gone | `task` now creates normal Perch worker threads; the tree is the subagent UI. |
+| Provider credentials | Previous credentials are not imported | Reconnect a provider once in Settings. |
+| Previous-engine tooling | Hashes/hashline edits, summarized reads, Rust tool core | Not ported. |
 | Pi Durable | Spike only, not default | See [`pi-durable.md`](pi-durable.md). |
 
 ## Verification
@@ -47,3 +46,6 @@ node scripts/pi-engine-selftest.mjs    "PERCH PI OK", 3 messages
 node scripts/pi-durable-selftest.mjs   commit + reopen "PERCH DURABLE OK"
 packaged Perch.exe                     Pi 1.5.2, completed Pi session
 ```
+
+
+

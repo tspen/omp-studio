@@ -15,7 +15,7 @@ extraResources:
 asar: true
 asarUnpack:
   - node_modules/node-pty/**
-  - node_modules/@earendil-works/**
+  - node_modules/@earendil-works/**\n  - node_modules/typescript-language-server/**\n  - node_modules/typescript/**
 npmRebuild: false
 win:
   target:
@@ -31,3 +31,4 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Perch
+

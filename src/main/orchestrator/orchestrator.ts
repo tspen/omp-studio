@@ -51,9 +51,10 @@ import type { MobileService } from "../services/mobile";
 import type { Store } from "../services/store";
 import { newId } from "../services/store";
 import { trace } from "../diagnostics";
+import { lspRequest } from "../services/lsp";
 import { audit } from "../audit";
 
-const WORKER_RESUME_PRPerchT =
+const WORKER_RESUME_PROMPT =
   "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace and branch first, finish the unfinished work, verify it, then call tree_report with the outcome. Do not redo steps that already completed.";
 
 export interface OrchestratorDeps {
@@ -82,6 +83,7 @@ export class Orchestrator extends EventEmitter {
   private deps: OrchestratorDeps;
   private store: Store;
   private sessions = new Map<string, PiSession>();
+  private goalContinuing = new Set<string>();
   private approvals = new Map<string, { threadId: string; session: PiSession; request: ApprovalRequest }>();
   private starting = new Map<string, Promise<PiSession>>();
   private gitTimers = new Map<string, NodeJS.Timeout>();
@@ -595,7 +597,7 @@ export class Orchestrator extends EventEmitter {
     if (thread.kind === "native") throw new Error("Native subagent threads are resumed by their parent");
     if (["running", "starting"].includes(thread.status)) return;
     if (thread.kind !== "orchestrator") {
-      await this.sendUserMessage({ threadId, text: WORKER_RESUME_PRPerchT });
+      await this.sendUserMessage({ threadId, text: WORKER_RESUME_PROMPT });
       return;
     }
     const node = this.store.getNode(thread.nodeId);
@@ -626,7 +628,7 @@ export class Orchestrator extends EventEmitter {
         paused.push({ thread: worker, reason });
         continue;
       }
-      await this.sendUserMessage({ threadId: worker.id, text: WORKER_RESUME_PRPerchT }).catch(() => undefined);
+      await this.sendUserMessage({ threadId: worker.id, text: WORKER_RESUME_PROMPT }).catch(() => undefined);
       for (const key of this.conflictKeys(worker)) claimed.set(key, worker.title);
       resumed.push(worker);
     }
@@ -1807,6 +1809,38 @@ export class Orchestrator extends EventEmitter {
     }
   }
 
+  private async continueGoal(threadId: string): Promise<void> {
+    if (this.goalContinuing.has(threadId)) return;
+    const thread = this.store.getThread(threadId);
+    if (!thread?.goal || thread.goal.status !== "active" || thread.archived) return;
+    const last = this.latestSummary(threadId);
+    if (/goal complete|goal achieved|objective complete|all done\b/i.test(last)) {
+      const updated = this.store.updateThread(threadId, { goal: { ...thread.goal, status: "completed" } });
+      this.deps.emit({ type: "thread:updated", payload: updated });
+      this.deps.notifications.notify({ kind: "thread_completed", title: "Goal complete", body: thread.title, nodeId: thread.nodeId, threadId });
+      return;
+    }
+    if (thread.goal.tokenBudget && thread.tokens >= thread.goal.tokenBudget) {
+      const updated = this.store.updateThread(threadId, { goal: { ...thread.goal, status: "paused" }, statusMessage: "Goal budget reached" });
+      this.deps.emit({ type: "thread:updated", payload: updated });
+      return;
+    }
+    if (thread.goal.turns >= 50) {
+      const updated = this.store.updateThread(threadId, { goal: { ...thread.goal, status: "paused" }, statusMessage: "Goal paused after 50 turns" });
+      this.deps.emit({ type: "thread:updated", payload: updated });
+      return;
+    }
+    const session = this.sessions.get(threadId);
+    if (!session?.isRunning) return;
+    this.goalContinuing.add(threadId);
+    const updated = this.store.updateThread(threadId, { goal: { ...thread.goal, turns: thread.goal.turns + 1 } });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+    setTimeout(() => {
+      this.goalContinuing.delete(threadId);
+      void session.prompt("Continue working toward the goal. Report progress and what remains. If the goal is fully complete, say GOAL COMPLETE.", "prompt").catch(() => undefined);
+    }, 750);
+  }
+
   private async handlePromptResult(threadId: string, result: any): Promise<void> {
     const thread = this.store.getThread(threadId);
     if (!thread) return;
@@ -1848,6 +1882,7 @@ export class Orchestrator extends EventEmitter {
     }
     await this.autoReport(threadId, text);
     await this.refreshGit(threadId);
+    void this.continueGoal(threadId);
   }
 
   private scheduleUsageResume(threadId: string): void {
@@ -1969,7 +2004,7 @@ export class Orchestrator extends EventEmitter {
     const current = this.store.getThread(target.id);
     try {
       if (!options?.skipFlush) await this.flushQueued(target.id, envelope.id);
-      if (debug) console.log("DELIVER_PRPerchT", target.id, current?.status, target.status);
+      if (debug) console.log("DELIVER_PROMPT", target.id, current?.status, target.status);
       if (current && (current.status === "running" || current.status === "waiting")) {
         await session.prompt(text, "steer");
       } else {
@@ -2056,6 +2091,19 @@ export class Orchestrator extends EventEmitter {
             return textResult(`Thread ${settled.map((t) => `${t.title} [${t.status}]`).join(", ")}\n\n${this.latestSummary(thread.id)}`);
           }
           return textResult(`Spawned worker "${thread.title}" (${thread.id}), status ${thread.status}. It will report upward.`);
+        }
+        case "lsp": {
+          const result = await lspRequest({
+            action: context.args.action,
+            cwd: context.cwd,
+            path: String(context.args.path ?? ""),
+            line: context.args.line == null ? undefined : Number(context.args.line),
+            character: context.args.character == null ? undefined : Number(context.args.character),
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            details: { action: context.args.action, result },
+          };
         }
         case "task": {
           const requested = Array.isArray(context.args.tasks) ? context.args.tasks : [];
@@ -2903,6 +2951,9 @@ function envToolNames(node: TreeNode, environment?: Environment): string[] {
   const names = environment?.toolNames?.length ? environment.toolNames : node.toolNames;
   return names?.length ? names : [];
 }
+
+
+
 
 
 

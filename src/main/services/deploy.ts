@@ -229,7 +229,7 @@ export class DeployService {
         cwd: temp,
         windowsHide: true,
         stdio: "pipe",
-        env: { ...process.env, GIT_TERMINAL_PRPerchT: "0" },
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
         timeout: 300_000,
       });
       if (token) {
@@ -317,3 +317,4 @@ function describe(payload: any): string {
   if (Array.isArray(payload.errors) && payload.errors.length) return payload.errors.map((error: any) => error.message).join("; ");
   return payload.message || JSON.stringify(payload).slice(0, 400);
 }
+
