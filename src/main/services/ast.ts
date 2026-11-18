@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Lang, parse } from "@ast-grep/napi";
+import { pythonAstEdit, pythonAstGrep } from "./python-ast";
 
 const IGNORED_DIRECTORIES = new Set([
   ".git",
@@ -88,6 +89,12 @@ function languageFor(file: string, requested?: string): string | null {
   return LANGUAGE_BY_EXTENSION[extname(file).toLowerCase()] ?? null;
 }
 
+function wantsPython(input: { lang?: string; path?: string }): boolean {
+  const language = (input.lang || "").trim().toLowerCase();
+  if (language === "python" || language === "py") return true;
+  return (input.path || "").trim().toLowerCase().endsWith(".py");
+}
+
 function isInside(root: string, target: string): boolean {
   const base = resolve(root);
   const path = resolve(target);
@@ -171,7 +178,8 @@ function matchDetails(root: string, file: string, node: any, pattern: string): A
   };
 }
 
-export function astGrep(input: AstGrepInput): AstResult {
+export async function astGrep(input: AstGrepInput): Promise<AstResult> {
+  if (wantsPython(input)) return pythonAstGrep(input);
   const pattern = String(input.pattern ?? "");
   if (!pattern.trim()) throw new Error("ast_grep needs a pattern");
   const root = resolve(input.cwd);
@@ -212,7 +220,8 @@ export function astGrep(input: AstGrepInput): AstResult {
   return { matches, files: parsedFiles, truncated, errors };
 }
 
-export function astEdit(input: AstEditInput): AstEditResult {
+export async function astEdit(input: AstEditInput): Promise<AstEditResult> {
+  if (wantsPython(input)) return pythonAstEdit(input);
   const pattern = String(input.pattern ?? "");
   const rewrite = String(input.rewrite ?? "");
   if (!pattern.trim()) throw new Error("ast_edit needs a pattern");

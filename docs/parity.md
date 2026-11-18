@@ -25,7 +25,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Tool core | Pi-native `read`, `edit`, `bash`, `grep`, `find` and `ls` replace the previous hashline/summarized-read/Rust implementation; user-visible tool cards and approvals are unchanged |
 | Python | Persistent Python 3 kernel per thread, reset, timeout; `PERCH_PYTHON` or PATH discovery |
 | Notebook | Read, edit and execute `.ipynb` cells through the persistent Python kernel |
-| AST editing | Structural `ast_grep`/`ast_edit` for JavaScript, TypeScript, TSX, HTML and CSS via `@ast-grep/napi` |
+| AST editing | Structural `ast_grep`/`ast_edit` for JavaScript, TypeScript, TSX, HTML and CSS via `@ast-grep/napi`, plus Python expressions, single statements, `$CAPTURE` and variadic argument/body captures via the Python AST bridge |
 | Web search | Configurable `web_search` host tool: Brave, Tavily, SearXNG or Exa; disabled until a provider is configured |
 | Debugging | `launch`/`debug` DAP host tools for breakpoints, stepping, threads, stack, scopes, variables and evaluate; adapters come from PATH or `PERCH_DAP_<LANGUAGE>` |
 | Rebrand | Perch window, tray, PWA, Android/iOS IDs, installer, repository, data dir |
@@ -39,7 +39,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Gap | Impact | Notes |
 | --- | --- | --- |
 | External language servers | TypeScript/JavaScript/JSON LSP is bundled. Python, Rust, Go, C/C++, Java, C#, Ruby and PHP use an installed language server or `PERCH_LSP_*` override. | `lsp` host tool; see `src/main/services/lsp.ts`. |
-| AST editing outside JS/TS/HTML/CSS | `ast_grep`/`ast_edit` cover JavaScript, TypeScript, TSX, HTML and CSS | Python and other languages use Pi `grep`/`edit` plus the Python kernel. |
+| AST editing in other languages | `ast_grep`/`ast_edit` cover JavaScript, TypeScript, TSX, HTML, CSS and Python | Go, Rust, Java, C/C++ and other languages use Pi `grep`/`edit`. |
 
 ## Decisions
 
@@ -62,7 +62,8 @@ DAP launch/control (fake adapter)      threads, stack, scopes, variables, evalua
 legacy auth import                     3 providers ready: openrouter, opencode-go, openai-codex
 subagent rail                          "Subagents" section with a task worker and full transcript
 Pi read + edit tools                   "READ APP DONE", "EDIT APP DONE"; file updated to "hello world"
-packaged Perch.exe                     Pi 1.5.2; subagent rail, 443 authenticated provider models, Pi read/edit, Python/notebook/AST/LSP/web search/DAP
+Python AST grep + edit                 packaged "PY AST APP DONE", "PY AST EDIT APP DONE"; print($A) -> logger.info(...), greet($$$ARGS) captured arguments
+packaged Perch.exe                     Pi 1.5.2; subagent rail, 443 authenticated provider models, Pi read/edit, Python AST, Python/notebook/LSP/web search/DAP
 ```
 
 

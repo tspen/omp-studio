@@ -2157,7 +2157,7 @@ export class Orchestrator extends EventEmitter {
           };
         }
         case "ast_grep": {
-          const result = astGrep({
+          const result = await astGrep({
             cwd: context.cwd,
             pattern: String(context.args.pattern ?? ""),
             path: typeof context.args.path === "string" ? context.args.path : undefined,
@@ -2170,7 +2170,7 @@ export class Orchestrator extends EventEmitter {
           };
         }
         case "ast_edit": {
-          const result = astEdit({
+          const result = await astEdit({
             cwd: context.cwd,
             pattern: String(context.args.pattern ?? ""),
             rewrite: String(context.args.rewrite ?? ""),

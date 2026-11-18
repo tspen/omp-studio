@@ -70,7 +70,7 @@ for line in sys.stdin:
 
 let commandCache: { command: string; args: string[] } | null = null;
 
-function pythonCommand(): { command: string; args: string[] } {
+export function pythonCommand(): { command: string; args: string[] } {
   if (commandCache) return commandCache;
   const configured = process.env.PERCH_PYTHON?.trim();
   const candidates = configured
