@@ -264,6 +264,7 @@ export interface Thread {
   };
   error?: string;
   pendingApproval?: string;
+  goal?: { objective: string; tokenBudget?: number; status: "active" | "paused" | "dropped"; createdAt: number; turns: number };
   targetId?: string;
   remoteThreadId?: string;
   remoteNodeId?: string;
@@ -1207,6 +1208,7 @@ export interface PerchApi {
 
   onEvent(cb: (event: AppEvent) => void): () => void;
 }
+
 
 
 

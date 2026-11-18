@@ -945,8 +945,25 @@ export class Orchestrator extends EventEmitter {
   }
 
   async goalThread(threadId: string, op: "get" | "create" | "resume" | "pause" | "drop", objective?: string, tokenBudget?: number): Promise<any> {
-    const session = await this.ensureSession(threadId);
-    return session.goal(op, objective, tokenBudget);
+    const thread = this.store.getThread(threadId);
+    if (!thread) throw new Error("Thread not found");
+    if (op === "get") return { goal: thread.goal };
+    if (op === "create") {
+      const text = objective?.trim();
+      if (!text) throw new Error("A goal objective is required");
+      const goal = { objective: text, tokenBudget: tokenBudget && tokenBudget > 0 ? tokenBudget : undefined, status: "active" as const, createdAt: Date.now(), turns: 0 };
+      const updated = this.store.updateThread(threadId, { goal });
+      this.deps.emit({ type: "thread:updated", payload: updated });
+      await this.sendUserMessage({
+        threadId,
+        text: `Goal: ${text}\n\nWork toward this goal. Report what you changed and what remains. Continue until it is complete or I pause it.`,
+      });
+      return { goal: this.store.getThread(threadId)?.goal };
+    }
+    const status = op === "resume" ? "active" : op === "pause" ? "paused" : "dropped";
+    const updated = this.store.updateThread(threadId, { goal: thread.goal ? { ...thread.goal, status } : undefined });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+    return { goal: updated.goal };
   }
 
   async exportThread(threadId: string): Promise<{ path: string }> {
@@ -2843,6 +2860,7 @@ function envToolNames(node: TreeNode, environment?: Environment): string[] {
   const names = environment?.toolNames?.length ? environment.toolNames : node.toolNames;
   return names?.length ? names : [];
 }
+
 
 
 
