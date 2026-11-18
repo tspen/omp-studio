@@ -424,7 +424,7 @@ export interface RemoteTarget {
   id: string;
   name: string;
   url: string;
-  kind: "paired" | "docker" | "e2b-embed";
+  kind: "paired" | "docker";
   status: "online" | "offline" | "unknown";
   latencyMs?: number;
   lastSeen?: number;
@@ -432,8 +432,6 @@ export interface RemoteTarget {
   cost?: number;
   tokens?: number;
   usageAt?: number;
-  sandboxId?: string;
-  template?: string;
   createdAt: number;
 }
 
@@ -451,24 +449,6 @@ export interface CheckpointInput {
   url: string;
   container: string;
   token: string;
-}
-
-export interface E2BInfo {
-  configured: boolean;
-  apiUrl: string;
-  domain: string;
-  template: string;
-  hasKey: boolean;
-  targets: RemoteTarget[];
-  error?: string;
-}
-
-export interface E2BInput {
-  apiUrl: string;
-  domain: string;
-  template: string;
-  timeoutMinutes: number;
-  apiKey: string;
 }
 
 export interface RelayInfo {
@@ -508,9 +488,7 @@ export interface RemoteTargetInput {
   name: string;
   url: string;
   token: string;
-  kind?: "paired" | "docker" | "e2b-embed";
-  sandboxId?: string;
-  template?: string;
+  kind?: "paired" | "docker";
 }
 
 export interface PlacementPolicy {
@@ -623,7 +601,6 @@ export interface AppSettings {
   remoteTargets: RemoteTarget[];
   remotePlacement: PlacementPolicy;
   remoteRelay: { enabled: boolean; url: string; room: string };
-  remoteE2B: { apiUrl: string; domain: string; template: string; timeoutMinutes: number };
   remoteCheckpoint: { url: string; container: string };
   computerUse: boolean;
   autoFixCi: boolean;
@@ -1199,10 +1176,6 @@ export interface OmpStudioApi {
   configureRelay(input: RelayInput): Promise<RelayInfo>;
   startRelay(): Promise<RelayInfo>;
   stopRelay(): Promise<RelayInfo>;
-  e2bInfo(): Promise<E2BInfo>;
-  configureE2B(input: E2BInput): Promise<E2BInfo>;
-  provisionE2B(): Promise<RemoteTarget>;
-  terminateE2B(targetId: string): Promise<E2BInfo>;
   runnerCheckpointInfo(): Promise<CheckpointInfo>;
   configureRunnerCheckpoint(input: CheckpointInput): Promise<CheckpointInfo>;
   createRunnerCheckpoint(name?: string): Promise<CheckpointInfo>;

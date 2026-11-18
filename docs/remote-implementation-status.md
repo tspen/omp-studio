@@ -17,7 +17,7 @@ Cross-host **memory** migration is **out of v1**. Supported v1 paths are:
 Cross-host checkpoint export/import remains in the code as experimental and is
 not part of the v1 guarantee. Docker/CRIU does not reconnect live Electron/OMP
 pipes on another host, so a durable cross-host handoff needs CRIU-native
-migration or E2B pause/resume rather than Docker checkpoints.
+migration with pipe reconnection rather than Docker checkpoints.
 
 ## What ships
 
@@ -29,7 +29,7 @@ migration or E2B pause/resume rather than Docker checkpoints.
 | Mobile app | `mobile/` React PWA: pair screen, session list with Live/All filters, chat with tool blocks, approvals, inbox, settings, installable manifest + service worker. WebSocket with 3 s reconnect plus 4 s HTTP polling fallback. |
 | Android | Capacitor project in `android/`; cleartext allowed for LAN/Tailscale dev; `app-debug.apk` builds and runs. |
 | iOS | Capacitor project in `ios/`; ATS and local-network entries added; build/sign requires macOS (see CI workflow). |
-| Desktop UI | Settings → Remote: enable, bind host/port, keep-running toggles, URLs, token show/copy/rotate, QR, Tailscale steps, cleanup report, targets and cold move. |
+| Desktop UI | Settings → Remote: enable, QR pairing, one-command relay, move/pair another machine, and an Advanced disclosure for network, token, cleanup and targets. |
 | Cold move | Export zip (manifest + workspace + OMP session + chat) and import on the same or another runner. A running session offers **Move after turn** (queued automatically at the next boundary) or **Stop & move**. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
 | Warm move | Targets keep the workspace in place under an origin key (`.omp-origin.json` + `.omp-manifest.json`). Before export the source reads the target manifest, hashes the workspace, sends only changed files, and lists deletions. The target applies the delta to the existing workspace and creates only a new session thread. Reuses the target node and orchestrator. |
 | Automatic placement | `remotePlacement` policy: enabled + explicit consent + selected target + idle threshold. A scheduler checks every 20 seconds, picks idle worker sessions with history, cold-moves at most two per pass, never interrupts a running turn, releases the local OMP session, and records `targetId`, `remoteThreadId`, `remoteNodeId`, `movedAt`. Settings shows policy, "Place idle sessions now", and the last automatic placement. `placeIdleSessions(force, threadId)` is also available over IPC for scoped placement. |
@@ -41,7 +41,6 @@ migration or E2B pause/resume rather than Docker checkpoints.
 | Self-hosted relay | `relay/server.mjs` is a stateless WebSocket relay. Runner dials out, clients connect to a room, frames are AES-256-GCM encrypted with HKDF-SHA256, and the relay only routes ciphertext. Serves the PWA, enforces room tokens, frame/client limits and reaps empty rooms. Dockerfile/compose and cleanup/security notes in `relay/`. |
 | Memory checkpoint | `runner/checkpoint-agent.mjs` drives Docker Engine checkpoints (CRIU) for the Linux runner container. Checkpoint stores the full process tree/memory and stops the container; restore starts it from the image and the same in-flight turn continues. Same-host checkpoint/restore is v1. Export bundles checkpoint images + metadata + `/data` archive and import recreates a container; that cross-host path is **experimental and out of v1**. Settings exposes agent URL/container/token, checkpoint/restore/delete and the experimental bundle tools. Requires Docker experimental, CRIU 4.x, host networking. |
 | Live pause/resume | Threads have `pauseThread`/`resumeThread` on the runner and `POST /api/threads/:id/{pause,resume}`. The OMP process tree is suspended (SIGSTOP or `NtSuspendProcess` on Windows) and resumed (SIGCONT/`NtResumeProcess`), preserving memory and the in-flight turn. Desktop and PWA expose Pause/Resume; placed sessions proxy the action to their target. |
-| E2B Embed target | `src/main/services/e2b.ts` creates Firecracker sandboxes from an `omp-runner` template on a self-hosted E2B Embed API, passes a per-sandbox `OMP_REMOTE_TOKEN`, waits for `/api/health`, and registers a normal target. Settings lets you configure API URL/domain/template/key/timeout and create or terminate sandbox targets. Template and host setup are documented in `e2b/README.md`. |
 | Performance | `scripts/remote-perf.mjs` measures the real HTTP/WS path, export/import and GC, and cleans up after itself. |
 
 ## Verification evidence
@@ -188,24 +187,6 @@ The relay never receives the room's E2E secret; frames are decoded only in the
 runner and the phone. It stores no files and reaps rooms after the runner and
 clients disconnect.
 
-E2B Embed target — adapter implemented, live verification **blocked by this
-host**:
-
-```
-official E2B Embed preflight:
-  kernel 5.15.167.4-microsoft-standard-WSL2 is older than 6.8
-  cgroup v2 is not mounted at /sys/fs/cgroup
-  FIX: install linux-generic-hwe-24.04 and reboot
-  FIX: boot with systemd.unified_cgroup_hierarchy=1
-```
-
-The self-hosted E2B stack was downloaded and started in WSL; it stopped at
-`preflight` before host mutation. E2B Embed requires a real Linux host (or a
-nested-virtualization VM) with kernel 6.8+, cgroup v2, `/dev/kvm` and
-`/dev/net/tun`; WSL2's 5.15 kernel cannot run it. The E2B target adapter,
-settings UI and `omp-runner` template build instructions ship, but a sandbox
-session could not be created or measured on this machine.
-
 Live pause/resume (real OMP turn):
 
 ```
@@ -259,7 +240,7 @@ checkpoint descriptors.json: ["/dev/null","pipe:[834954]","pipe:[834955]"]
 The live runner checkpoint contains pipe inodes from Electron/OMP stdio. Docker
 does not remap those pipes on another host, so the memory image cannot be
 restored there. Stateless cross-daemon handoff works; runner handoff needs
-CRIU-native migration with pipe reconnection or E2B pause/resume.
+CRIU-native migration with pipe reconnection.
 
 GC CLI on the real data directory (216 MB):
 
@@ -309,10 +290,7 @@ Packaged app (`dist/OMP Studio-0.1.0-x64.exe`): RemoteService starts, serves
 
 - **Cross-host runner memory migration.** Export/import exists, but Docker/CRIU
   does not reconnect live Electron/OMP pipes on another host. Use warm/cold moves
-  for cross-host handoff. CRIU-native migration or E2B pause/resume is a separate
-  phase.
-- **E2B Embed live sessions** on a supported KVM host (adapter and template ship,
-  preflight requires kernel 6.8+/cgroup v2; optional target, not required for v1).
+  for cross-host handoff. CRIU-native migration is a separate phase.
 
 
 

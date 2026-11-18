@@ -6,12 +6,12 @@ Locked decisions from the architecture review:
 
 - No managed OMP relay, no public inbound ports, no OMP-hosted compute in the traffic path.
 - Tailscale first, self-hosted relay second, Cloudflare Tunnel + Access third. E2E encryption regardless.
-- Docker/VPS or self-hosted E2B Embed is the default cloud target. No managed provider is required.
+- Docker/VPS is the default cloud target. No managed provider is required.
 - Cloud becomes the default only after a user-owned target is paired and consent is given.
 - Placement is automatic; no per-session "pick a place" dialog.
 - Cold move at turn boundaries only; no live migration.
 - PWA first for mobile.
-- No proprietary managed sandbox adapter. Docker/VPS and self-hosted E2B Embed are the only sandbox targets in v1.
+- No proprietary managed sandbox adapter. Docker/VPS is the only sandbox target in v1.
 - Setup must be one command + QR; local sessions need no setup.
 - Everything the runner creates is labeled and garbage-collected automatically.
 - Performance gates: local start <300 ms, warm start <1 s, cold Docker <5 s, reconnect <500 ms, move small repo <5 s.
@@ -162,7 +162,7 @@ Persisted in the app Store, synced to paired runners:
 interface ExecutionTarget {
   id: string;
   name: string;
-  kind: "local" | "paired" | "docker" | "e2b-embed";
+  kind: "local" | "paired" | "docker";
   runnerId?: string;
   status: "online" | "offline" | "sleeping" | "provisioning";
   region?: string;
@@ -310,6 +310,5 @@ Mechanisms: prebuilt runner image, warm pool, persistent volume first, bare repo
 6. **Cold move** — create session on target A, checkpoint, export bundle, import on target B, resume from same conversation state; git diff matches.
 7. **Placement** — default target applied automatically to a new worker; budget/data-residency guard blocks an invalid move.
 8. **Performance and cleanup gates** - measure start/reconnect/move, run GC dry-run, verify no orphaned managed resources after terminate, crash, and move.
-9. **E2B Embed adapter (optional)** - only if Docker isolation is insufficient; never required for v1.
 
 Out of scope: live migration, managed relay, native mobile, Kubernetes, multi-region scheduling.

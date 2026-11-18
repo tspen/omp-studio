@@ -15,7 +15,7 @@ Goals:
 
 ## Recommendation in one sentence
 
-Build **one OMP Runner**, register every place it can run as a **target**, move sessions as **portable bundles at turn boundaries**, and reach runners only through **networks the user controls** (Tailscale, a self-hosted relay, or Cloudflare Tunnel + Access). Default to a **user-owned cloud target** (VPS Docker runner, or self-hosted E2B Embed); no proprietary managed sandbox is in the default path.
+Build **one OMP Runner**, register every place it can run as a **target**, move sessions as **portable bundles at turn boundaries**, and reach runners only through **networks the user controls** (a self-hosted relay, Cloudflare Tunnel + Access, or a private LAN). Default to a **user-owned cloud target** (VPS Docker runner); no proprietary managed sandbox is in the default path.
 
 ## What Codex Cloud validates
 
@@ -34,26 +34,10 @@ That is the bar: isolated workspace + setup phase + proxy + persistent task stat
 | --- | --- | --- | --- |
 | **OMP Runner (ours)** | Yes | Your PC/VPS | The thing we build. |
 | **Docker / Podman** | Yes | VPS, home server, local WSL2 | Default self-hosted cloud target. |
-| **E2B Embed** | Apache-2.0 | One Linux host with KVM | Optional microVM isolation with pause/resume. |
 | **Firecracker / CRIU** | Yes | Your hosts | Building blocks, not a product. |
 | **Managed sandbox clouds** | Varies | Third party | Not in v1; they put code on someone else's infrastructure. |
 
 No proprietary managed sandbox services, no OMP-hosted relay or compute.
-
-## E2B Embed, precisely
-
-Released September 2026, E2B Embed packages the Apache-2.0 **E2B Runtime** (control plane, orchestrator, Firecracker layer) plus a dashboard onto **one machine you own**. Install is Docker Compose on Linux with KVM, Terraform on a cloud account, or one Kubernetes node. It gives Firecracker microVMs per sandbox, the same Python/JS SDKs, custom templates, a dashboard, and OpenTelemetry. No E2B account or license key; databases, templates and logs stay on your disk.
-
-It is **not** a remote-agent product:
-
-- plain HTTP inside your network; you add TLS/ACLs;
-- no secrets, volumes, workload identity or bring-your-own proxy;
-- single-machine by design;
-- no OMP sessions, tree, PWA, pairing, relay or placement policy.
-
-For one user and one toy project it is overkill. **Docker on a VPS is the v1 default.** Keep E2B Embed as an optional adapter when hardware-isolated microVMs and memory+filesystem pause/resume justify the extra moving parts.
-
-Useful E2B properties if we add it: paused sandboxes retain memory and disk indefinitely, resume is roughly 1 second, pause is roughly 4 seconds per GiB of RAM, and filesystem-only snapshots are lighter but reboot on resume.
 
 ## Five components
 
@@ -68,7 +52,6 @@ Modes:
 | Embedded | Desktop app | None; works today |
 | Paired host | Spare PC/Mac/mini PC | One command + QR |
 | Docker | VPS/home server | One command; auto-detects Docker |
-| E2B Embed | Self-hosted Linux/KVM | Optional advanced target |
 
 The runner never needs an inbound port. It dials out and authenticates with a device key.
 
@@ -77,7 +60,7 @@ The runner never needs an inbound port. It dials out and authenticates with a de
 An `ExecutionTarget`:
 
 ```
-id, name, kind: local | paired | docker | e2b-embed
+id, name, kind: local | paired | docker
 status: online | sleeping | provisioning | offline
 os, arch, cpu, ram, disk, gpu
 caps, reachability: tailscale | self-hosted-relay | cloudflare-tunnel | embedded
@@ -103,7 +86,7 @@ Placement is automatic:
 Move qualities:
 
 1. **Cold move (v1):** turn boundary, export, import, resume. Works everywhere.
-2. **Warm move:** compute moves while workspace stays on a persistent volume (VPS volume, E2B paused sandbox). Fast.
+2. **Warm move:** compute moves while workspace stays on a persistent volume (VPS volume). Fast.
 3. **Live move:** memory/device snapshot; same host/instance type; not v1.
 
 Use **git push to a bare repo on the target** plus a tar of untracked files instead of shipping a full workspace each time. For large repos, start the target from its existing cache and fetch only the delta.
@@ -247,9 +230,9 @@ Secrets are never in the bundle; the target injects its own.
 
 **Phase 1 (2-4 weeks):** core extraction; `omp-runner` local/VPS; Tailscale/self-hosted relay; QR pairing; PWA; cold move; GC and quotas; performance gates.
 
-**Phase 2 (2-3 weeks):** user-owned cloud default (VPS Docker, optional E2B Embed); automatic placement; push; cost meter; move UI.
+**Phase 2 (2-3 weeks):** user-owned cloud default (VPS Docker); automatic placement; push; cost meter; move UI.
 
-**Phase 3 (3-5 weeks):** warm moves; E2B microVM adapter; tree-level placement policy; team targets.
+**Phase 3 (3-5 weeks):** warm moves; tree-level placement policy; team targets.
 
 **Not in v1:** managed sandbox services, managed relay, live migration, native mobile, Kubernetes, multi-region scheduling.
 
@@ -257,11 +240,6 @@ Secrets are never in the bundle; the target injects its own.
 
 - OpenAI Codex Cloud environments: https://developers.openai.com/codex/environments/cloud-environments
 - Legacy Codex environments (setup/agent phases, cache, proxy, secrets): https://developers.openai.com/codex/cloud/environments
-- E2B Embed introduction: https://e2b.dev/resources/introducing-e2b-embed
-- E2B open source: https://e2b.dev/open-source
-- E2B self-hosting: https://e2b.dev/docs/self-hosting
-- E2B persistence: https://e2b.dev/docs/sandbox/persistence
-- E2B runtime (Apache-2.0): https://github.com/e2b-dev/runtime
 - Fly "Code and let live" (persistent vs ephemeral computers): https://fly.io/blog/code-and-let-live/
 - Simon Willison lethal trifecta: https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/
 - Firecracker snapshotting: https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md

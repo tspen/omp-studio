@@ -75,9 +75,8 @@ for verified evidence and performance.
 
 V1 scope decision: same-host pause/resume and Docker/CRIU checkpoint are
 supported; **cross-host memory migration is out of v1** and deferred. Cross-host
-handoff uses cold or warm moves at turn boundaries. E2B Embed is an optional
-target requiring a supported Linux/KVM host; signed iOS device builds require
-Apple credentials.
+handoff uses cold or warm moves at turn boundaries. Signed iOS device builds
+require Apple credentials.
 
 Design details remain in
 [`docs/remote-execution-architecture.md`](docs/remote-execution-architecture.md)

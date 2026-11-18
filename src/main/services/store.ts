@@ -81,7 +81,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   remoteTargets: [],
   remotePlacement: { enabled: false, targetId: "", idleSeconds: 60, consent: false },
   remoteRelay: { enabled: false, url: "", room: "" },
-  remoteE2B: { apiUrl: "http://127.0.0.1:3000", domain: "localhost", template: "omp-runner", timeoutMinutes: 60 },
   remoteCheckpoint: { url: "http://127.0.0.1:43160", container: "omp-runner" },
   computerUse: false,
   autoFixCi: false,

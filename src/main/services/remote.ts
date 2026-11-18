@@ -130,8 +130,6 @@ export class RemoteService {
       name,
       url,
       kind: input.kind ?? "paired",
-      sandboxId: input.sandboxId,
-      template: input.template,
       status: "online",
       latencyMs,
       lastSeen: Date.now(),

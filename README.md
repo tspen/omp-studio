@@ -109,10 +109,6 @@ frames and never sees prompts or files. No inbound runner port, no managed relay
   omp-data:/data ghcr.io/tspen/omp-runner:latest` and paste the pairing link from
   its logs under **Advanced settings**. See [`runner/README.md`](runner/README.md).
 - Self-hosted encrypted relay source and security model: [`relay/README.md`](relay/README.md).
-- E2B Embed target adapter: create a Firecracker sandbox from an `omp-runner`
-  template on a self-hosted KVM host. Template build and host requirements are
-  in [`e2b/README.md`](e2b/README.md). Live sandbox verification needs a Linux
-  host with kernel 6.8+/cgroup v2; this Windows WSL2 host fails preflight.
 - Sessions move as portable bundles (workspace + OMP session + chat) at turn
   boundaries. The source is retained for rollback. Repeats to the same target are
   **warm**: the target keeps the workspace, and only changed files plus the
@@ -137,8 +133,8 @@ Measured on this machine: HTTP health 1.4 ms, state 11.2 ms, WebSocket snapshot
 15 ms; cold move of a 74 MB workspace 7.1 s, the same repeat move warm in 207 ms
 (51 KB sent); GC sweep 28-49 ms. Push uses VAPID Web Push and the cost meter
 reads `GET /api/usage`. Relay traffic is end-to-end encrypted (17 sessions
-loaded through the relay in the checks). Remaining optional tracks are signed iOS
-and E2B live verification; cross-host memory migration is deferred beyond v1.
+loaded through the relay in the checks). The remaining optional track is signed
+iOS; cross-host memory migration is deferred beyond v1.
 Full evidence and gaps are in
 [`docs/remote-implementation-status.md`](docs/remote-implementation-status.md).
 
