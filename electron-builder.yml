@@ -4,6 +4,7 @@ copyright: Copyright © 2026
 directories:
   output: dist
   buildResources: resources
+beforePack: scripts/before-pack.cjs
 files:
   - out/**/*
   - package.json

@@ -42,9 +42,6 @@
   },
   "dependencies": {
     "@ast-grep/napi": "^0.51.3",
-    "@capacitor/android": "^7.4.0",
-    "@capacitor/core": "^7.4.0",
-    "@capacitor/ios": "^7.4.0",
     "@earendil-works/pi-coding-agent": "^1.5.2",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
@@ -70,7 +67,10 @@
     "zustand": "^5.1.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.0",
     "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/ios": "^7.4.0",
     "@earendil-works/chord": "^1.5.2",
     "@earendil-works/pi-durable": "^1.5.2",
     "@types/node": "^26.6.6",
