@@ -84,6 +84,33 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "task",
+    label: "Task: parallel workers",
+    description:
+      "Run one or more tasks in parallel worker threads and return their structured results. Use for independent workstreams, research, or verification. Each worker gets its own context, model and optional git worktree. Set wait=false to fan out and collect results later with tree_wait.",
+    parameters: object(
+      {
+        tasks: {
+          type: "array",
+          items: object(
+            {
+              title: { type: "string" },
+              brief: { type: "string" },
+              model: { type: "string" },
+              effort: { type: "string" },
+              isolation: { type: "string", enum: ["auto", "shared", "branch", "worktree"] },
+            },
+            ["brief"],
+          ),
+        },
+        wait: { type: "boolean", description: "Wait for every worker to finish and return results. Default true." },
+        timeoutMs: { type: "number" },
+      },
+      ["tasks"],
+    ),
+    loadMode: "essential",
+  },
+  {
     name: "tree_message",
     label: "Tree: send message",
     description:
@@ -503,3 +530,4 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
 for (const tool of HOST_TOOL_DEFINITIONS) {
   tool.loadMode = "essential";
 }
+

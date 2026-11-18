@@ -2057,6 +2057,45 @@ export class Orchestrator extends EventEmitter {
           }
           return textResult(`Spawned worker "${thread.title}" (${thread.id}), status ${thread.status}. It will report upward.`);
         }
+        case "task": {
+          const requested = Array.isArray(context.args.tasks) ? context.args.tasks : [];
+          const tasks = requested.slice(0, 8).map((item: any) => ({
+            title: typeof item?.title === "string" ? item.title : undefined,
+            brief: String(item?.brief ?? "").trim(),
+            model: typeof item?.model === "string" ? item.model : undefined,
+            effort: typeof item?.effort === "string" ? item.effort : undefined,
+            isolation: item?.isolation,
+          })).filter((item: any) => item.brief);
+          if (!tasks.length) throw new Error("task needs at least one task with a brief");
+          const created: Thread[] = [];
+          for (const item of tasks) {
+            created.push(await this.createThread({
+              nodeId: context.node.id,
+              parentThreadId: context.thread.id,
+              title: item.title,
+              brief: item.brief,
+              model: item.model,
+              effort: item.effort,
+              isolation: item.isolation,
+              wait: false,
+            }));
+          }
+          if (context.args.wait === false) {
+            return textResult(`Started ${created.length} worker(s): ${created.map((thread) => `${thread.title} (${thread.id})`).join(", ")}. Use tree_wait to collect results.`);
+          }
+          const settled = await this.waitForThreads(created.map((thread) => thread.id), Number(context.args.timeoutMs) || 20 * 60_000);
+          const results = settled.map((thread) => ({
+            threadId: thread.id,
+            title: thread.title,
+            status: thread.status,
+            summary: this.latestSummary(thread.id),
+            error: thread.error,
+          }));
+          return {
+            content: [{ type: "text", text: JSON.stringify({ tasks: results }, null, 2) }],
+            details: { tasks: results },
+          };
+        }
         case "tree_message": {
           const target = this.resolveMessageTarget(context);
           if (!target) throw new Error("Target not found");
@@ -2860,6 +2899,7 @@ function envToolNames(node: TreeNode, environment?: Environment): string[] {
   const names = environment?.toolNames?.length ? environment.toolNames : node.toolNames;
   return names?.length ? names : [];
 }
+
 
 
 
