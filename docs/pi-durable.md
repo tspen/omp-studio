@@ -55,3 +55,24 @@ If Perch adds a durable mode, it should be a separate engine behind the existing
 5. Crash recovery is tested by killing the process during a model call and while a tool is running.
 
 The current RPC engine already survives app restarts at turn boundaries because Pi persists session JSONL and Perch reconciles the transcript. Pi Durable would add mid-turn crash recovery and replay-safe tools.
+
+## Default engine decision (2026-11-18)
+
+Pi Durable is **not** the default engine in Perch v1. The default remains the Pi coding agent over RPC.
+
+Reasons:
+
+- Pi Durable is explicitly experimental and its API changes between minor releases.
+- Perch's host tools have no replay/idempotency contract yet. Re-running a deploy, site publish, browser action or outbound message after a crash is unsafe.
+- We have verified commit + reopen, but not crash recovery during a provider stream, a bash call, or a host-tool call.
+- Durable commits every step, which adds latency to interactive desktop turns.
+
+It should become the default only after:
+
+1. the package is pinned/vendored or leaves experimental status,
+2. each host tool declares `safeToRetry`,
+3. kill-mid-turn tests pass for model, bash and host-tool calls,
+4. packaged performance stays within the existing gates.
+
+Until then, Pi Durable stays an opt-in engine experiment.
+

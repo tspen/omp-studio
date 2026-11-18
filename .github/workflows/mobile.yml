@@ -31,7 +31,7 @@ jobs:
       - run: cd android && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: omp-remote-android
+          name: perch-remote-android
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
   ios:
@@ -55,9 +55,9 @@ jobs:
       - name: Package app
         run: |
           cd ios/App/build/Build/Products/Debug-iphonesimulator
-          zip -r omp-remote-ios-simulator.zip App.app
+          zip -r perch-remote-ios-simulator.zip App.app
       - uses: actions/upload-artifact@v4
         with:
-          name: omp-remote-ios-simulator
-          path: ios/App/build/Build/Products/Debug-iphonesimulator/omp-remote-ios-simulator.zip
+          name: perch-remote-ios-simulator
+          path: ios/App/build/Build/Products/Debug-iphonesimulator/perch-remote-ios-simulator.zip
 

@@ -301,7 +301,7 @@ export class BrowserController {
     const script = `(() => new Promise((resolve) => {
       if (window.__ompPicker) { try { window.__ompPicker.cancel(); } catch (error) {} }
       const overlay = document.createElement("div");
-      overlay.setAttribute("data-omp-picker", "overlay");
+      overlay.setAttribute("data-perch-picker", "overlay");
       overlay.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;border:2px solid #7c6cff;background:rgba(124,108,255,0.12);border-radius:4px;transition:none;display:none";
       const banner = document.createElement("div");
       banner.textContent = "Click an element to add it to the chat  ·  Esc to cancel";

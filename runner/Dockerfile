@@ -1,13 +1,13 @@
-# Headless OMP runner: the same app, served from a user-owned host.
-# Build from the repository root:  docker build -f runner/Dockerfile -t omp-runner .
+# Headless Perch runner: the same app, served from a user-owned host.
+# Build from the repository root:  docker build -f runner/Dockerfile -t perch-runner .
 FROM node:22-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
     ELECTRON_DISABLE_SECURITY_WARNINGS=1 \
-    OMP_STUDIO_USER_DATA=/data \
-    OMP_HEADLESS=1 \
-    OMP_REMOTE_HOST=0.0.0.0 \
-    OMP_REMOTE_PORT=43120
+    PERCH_USER_DATA=/data \
+    PERCH_HEADLESS=1 \
+    PERCH_REMOTE_HOST=0.0.0.0 \
+    PERCH_REMOTE_PORT=43120
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \

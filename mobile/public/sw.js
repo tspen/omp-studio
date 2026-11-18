@@ -1,4 +1,4 @@
-const CACHE = "omp-remote-v2";
+const CACHE = "perch-remote-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -39,7 +39,7 @@ self.addEventListener("push", (event) => {
       body: data.body || "Open Perch Remote to continue.",
       icon: "/icon.svg",
       badge: "/icon.svg",
-      tag: data.tag || "omp-remote",
+      tag: data.tag || "perch-remote",
       data: { threadId: data.threadId || "", url: "/" },
     }),
   );

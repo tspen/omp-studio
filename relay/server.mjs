@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * OMP self-hosted relay.
+ * Perch self-hosted relay.
  *
  * A runner dials out to this process; phones connect to it. The relay forwards
  * opaque encrypted frames and keeps no state on disk. It never sees prompts,
@@ -70,7 +70,7 @@ const server = createServer((request, response) => {
     return;
   }
   if (url.pathname === "/relay-info") {
-    response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ name: "OMP Relay", rooms: rooms.size, maxClients: MAX_CLIENTS }));
+    response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ name: "Perch Relay", rooms: rooms.size, maxClients: MAX_CLIENTS }));
     return;
   }
   serveStatic(url.pathname, response);
@@ -85,7 +85,7 @@ function serveStatic(pathname, response) {
   }
   if (!existsSync(file) || !extname(file)) file = join(MOBILE_DIR, "index.html");
   if (!existsSync(file)) {
-    response.writeHead(404, { "content-type": "text/plain" }).end("OMP relay is running. Build the PWA with npm run build:mobile.");
+    response.writeHead(404, { "content-type": "text/plain" }).end("Perch relay is running. Build the PWA with npm run build:mobile.");
     return;
   }
   response.writeHead(200, {
@@ -196,7 +196,7 @@ server.on("upgrade", (request, socket, head) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`OMP relay listening on http://${HOST}:${PORT}`);
+  console.log(`Perch relay listening on http://${HOST}:${PORT}`);
   console.log(`Static PWA: ${MOBILE_DIR}`);
 });
 

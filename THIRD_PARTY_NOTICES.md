@@ -1,11 +1,11 @@
 # Third-party notices
 
-## OMP / oh-my-pi
+## Pi
 
-- Project: https://github.com/can1357/oh-my-pi
+- Project: https://github.com/earendil-works/pi
 - License: MIT
-- Copyright: 2025 Mario Zechner and contributors
-- Bundled executable: `vendor/omp/omp.exe` (Windows x64 release asset), with license at `vendor/omp/LICENSE`.
+- Copyright: Earendil Inc. and contributors
+- Bundled package: `@earendil-works/pi-coding-agent`
 
 ## Artificial Analysis
 

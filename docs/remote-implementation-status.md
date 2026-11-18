@@ -25,9 +25,9 @@ Cross-host **memory** migration is **out of v1**. Supported v1 paths are:
 | iOS | Capacitor project in `ios/`; ATS and local-network entries added; build/sign requires macOS (see CI workflow). |
 | Desktop UI | Settings → Remote: one **Use your phone** card with QR pairing, a **Your machines** card only when targets exist, and a collapsed **More options** disclosure for relay, server, adding machines and cleanup. |
 | Cold move | Export zip (manifest + workspace + Pi session + chat) and import on the same or another runner. A running session offers **Move after turn** (queued automatically at the next boundary) or **Stop & move**. Target registry probes `/api/health`, stores tokens separately, and reports latency. Source is retained for rollback. |
-| Warm move | Targets keep the workspace in place under an origin key (`.omp-origin.json` + `.omp-manifest.json`). Before export the source reads the target manifest, hashes the workspace, sends only changed files, and lists deletions. The target applies the delta to the existing workspace and creates only a new session thread. Reuses the target node and orchestrator. |
+| Warm move | Targets keep the workspace in place under an origin key (`.perch-origin.json` + `.perch-manifest.json`). Before export the source reads the target manifest, hashes the workspace, sends only changed files, and lists deletions. The target applies the delta to the existing workspace and creates only a new session thread. Reuses the target node and orchestrator. |
 | Remote control | Prompts, stop, continue and compact on a placed session are proxied to its target over the target API; the desktop mirrors target status, new messages, cost, tokens and model every 8 seconds and keeps local chat in sync. |
-| Docker/VPS runner | `runner/Dockerfile`, `runner/docker-compose.yml`, `runner/entrypoint.sh`, `runner/README.md`. Headless Electron (`Pi_HEADLESS=1`) under Xvfb, data on a labeled volume, loopback port by default, healthcheck, no public exposure. |
+| Docker/VPS runner | `runner/Dockerfile`, `runner/docker-compose.yml`, `runner/entrypoint.sh`, `runner/README.md`. Headless Electron (`PERCH_HEADLESS=1`) under Xvfb, data on a labeled volume, loopback port by default, healthcheck, no public exposure. |
 | Self-cleaning | `src/main/services/maintenance.ts` + `src/cli/runner.ts` (`gc`, `quota`, `bench`). Startup sweep and 5-minute interval; `Maintenance → Clean up now/Preview` in Settings; `POST /api/maintenance/sweep`. |
 | Push notifications | VAPID keys stored as secrets; `GET /api/push/key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`. Push fires on approval requests, waiting/error status, and reply-required envelopes even when no WebSocket is connected. PWA service worker shows the notification and opens `/?thread=<id>` on click. |
 | Self-hosted relay | `relay/server.mjs` is a stateless WebSocket relay. Runner dials out, clients connect to a room, frames are AES-256-GCM encrypted with HKDF-SHA256, and the relay only routes ciphertext. Serves the PWA, enforces room tokens, frame/client limits and reaps empty rooms. Dockerfile/compose and cleanup/security notes in `relay/`. |
@@ -74,8 +74,8 @@ top: "Perch Remote connected", sessions: 1, banner: "", runtime errors: []
 CI (GitHub Actions run 44025063671):
 
 ```
-android job passed, artifact omp-remote-android/app-debug.apk 3.9 MB
-ios job passed, artifact omp-remote-ios-simulator.zip 1.5 MB
+android job passed, artifact perch-remote-android/app-debug.apk 3.9 MB
+ios job passed, artifact perch-remote-ios-simulator.zip 1.5 MB
 ```
 
 Cold move (`scripts/remote-perf.mjs`, small repo):
@@ -173,7 +173,7 @@ used: 216.0 MB / 20.00 GB (1.1%)
 Docker runner:
 
 ```
-image omp-runner:local built
+image perch-runner:local built
 container Up (healthy) 127.0.0.1:43121->43120/tcp
 Perch Remote listening on 0.0.0.0:43120
 pairing link http://127.0.0.1:43120/#t=doctortoken123
@@ -201,7 +201,7 @@ Packaged app (`dist/Perch-0.1.0-x64.exe`): RemoteService starts, serves
 
 - **iOS device signing**: the Capacitor project builds for the iOS Simulator in
   CI (`.github/workflows/mobile.yml`, run 44025063671: iOS job passed, artifact
-  `omp-remote-ios-simulator.zip` 1.5 MB). A signed installable device build
+  `perch-remote-ios-simulator.zip` 1.5 MB). A signed installable device build
   still needs an Apple account, a signing certificate and a provisioning
   profile.
 - **Docker image size**: includes Electron and build tooling; the Pi binary is
@@ -212,6 +212,7 @@ Packaged app (`dist/Perch-0.1.0-x64.exe`): RemoteService starts, serves
 - **Cross-host runner memory migration.** Export/import exists, but Docker/CRIU
   does not reconnect live Electron/Pi pipes on another host. Use warm/cold moves
   for cross-host handoff. CRIU-native migration is a separate phase.
+
 
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * omp-runner maintenance CLI.
+ * perch-runner maintenance CLI.
  *
  * This is the same code the desktop runner calls at startup and every five
  * minutes, so `gc --dry-run` is an exact preview of what the app will remove.
@@ -21,11 +21,11 @@ interface StateShape {
 }
 
 function defaultBaseDir(): string {
-  if (process.env.OMP_STUDIO_BASE_DIR) return process.env.OMP_STUDIO_BASE_DIR;
-  if (process.env.OMP_STUDIO_USER_DATA) return join(process.env.OMP_STUDIO_USER_DATA, "omp-studio");
-  if (process.platform === "win32") return join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), "omp-studio", "omp-studio");
-  if (process.platform === "darwin") return join(homedir(), "Library", "Application Support", "omp-studio", "omp-studio");
-  return join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "omp-studio", "omp-studio");
+  if (process.env.PERCH_STUDIO_BASE_DIR) return process.env.PERCH_STUDIO_BASE_DIR;
+  if (process.env.PERCH_USER_DATA) return join(process.env.PERCH_USER_DATA, "Perch");
+  if (process.platform === "win32") return join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), "Perch");
+  if (process.platform === "darwin") return join(homedir(), "Library", "Application Support", "Perch");
+  return join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "Perch");
 }
 
 function parseArgs(argv: string[]) {
@@ -54,7 +54,7 @@ async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   const base = args.base ? args.base : defaultBaseDir();
   if (!existsSync(base)) {
-    console.error(`OMP data directory not found: ${base}`);
+    console.error(`Perch data directory not found: ${base}`);
     return 2;
   }
   const state = loadState(base);
@@ -93,4 +93,5 @@ async function main(): Promise<number> {
 }
 
 main().then((code) => process.exit(code)).catch((error) => { console.error(error); process.exit(1); });
+
 

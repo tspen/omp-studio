@@ -33,7 +33,7 @@ Every item from the Windows coding-agent parity checklist is either implemented 
 | Cloudflare Access app + allow-list policy | Done | `DeployService.configureCloudflareAccess` |
 | Local Sites access token / protected links | Done | `SiteService.setAccess` |
 | OAuth 2.0 connectors (GitHub, Slack, Linear, Figma) | Done - supply your own OAuth app credentials; loopback callback `127.0.0.1:43110` | `OAuthService` |
-| Cloudflare MCP | Done | one-click config at `~/.omp/agent/mcp.json` |
+| Cloudflare MCP | Done | one-click config at `pi-agent/mcp.json` |
 | Cloudflare Access identity provider | External prerequisite in Cloudflare Zero Trust; app creates the app and allow policy | Cloudflare dashboard |
 
 ## Orchestration extras

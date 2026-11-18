@@ -16,7 +16,7 @@ import type {
   InstalledPlugin,
   MemoryEntry,
   ModelInfo,
-  OmpConfigSnapshot,
+  PiConfigSnapshot,
   Site,
   Snapshot,
   TerminalRun,
@@ -38,7 +38,7 @@ export interface PersistedState {
   terminals: TerminalRun[];
   models: ModelInfo[];
   modelsUpdatedAt: number;
-  ompConfig: OmpConfigSnapshot;
+  piConfig: PiConfigSnapshot;
   usage: UsageSnapshot;
   engine: EngineStatus;
   sites: Site[];
@@ -118,7 +118,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     defaultMode: "auto",
     autoCommit: false,
     autoMerge: false,
-    branchPrefix: "omp",
+    branchPrefix: "perch",
   },
   usage: {
     autoContinueOnReset: false,
@@ -127,7 +127,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ui: { sidebarWidth: 280, rightWidth: 320, showThinking: true, dense: false, sounds: true, soundVolume: 0.25 },
 };
 
-const EMPTY_CONFIG: OmpConfigSnapshot = {
+const EMPTY_CONFIG: PiConfigSnapshot = {
   path: "",
   entries: [],
   fetchedAt: 0,
@@ -167,7 +167,7 @@ export class Store {
   private chats = new Map<string, ChatMessage[]>();
 
   constructor(baseDir?: string) {
-    this.baseDir = baseDir ?? process.env.PERCH_USER_DATA ?? process.env.OMP_STUDIO_USER_DATA ?? join(app.getPath("appData"), "Perch");
+    this.baseDir = baseDir ?? process.env.PERCH_USER_DATA ?? join(app.getPath("appData"), "Perch");
     this.sessionsDir = join(this.baseDir, "sessions");
     this.worktreesDir = join(this.baseDir, "worktrees");
     this.artifactsDir = join(this.baseDir, "artifacts");
@@ -236,7 +236,7 @@ export class Store {
         terminals: [],
         models: [],
         modelsUpdatedAt: 0,
-        ompConfig: { ...EMPTY_CONFIG },
+        piConfig: { ...EMPTY_CONFIG },
         usage: { ...EMPTY_USAGE },
         engine: { ...EMPTY_ENGINE },
         sites: [],
@@ -258,7 +258,7 @@ export class Store {
           const interrupted = wasActive || !!t.pendingApproval || !!t.interrupted;
           const status = wasActive ? "parked" : t.status;
           const statusMessage =
-            !["running", "starting", "queued"].includes(status) && t.statusMessage && /^(working|starting omp)/i.test(t.statusMessage)
+            !["running", "starting", "queued"].includes(status) && t.statusMessage && /^(working|starting pi)/i.test(t.statusMessage)
               ? status === "parked"
                 ? "Parked"
                 : undefined
@@ -278,7 +278,7 @@ export class Store {
         artifacts: parsed.artifacts ?? [],
         terminals: (parsed.terminals ?? []).map((t) => (t.status === "running" ? { ...t, status: "cancelled" } : t)),
         models: parsed.models ?? [],
-        ompConfig: parsed.ompConfig ?? { ...EMPTY_CONFIG },
+        piConfig: parsed.piConfig ?? { ...EMPTY_CONFIG },
         usage: parsed.usage ?? { ...EMPTY_USAGE },
         engine: parsed.engine ?? { ...EMPTY_ENGINE },
         sites: parsed.sites ?? [],
@@ -306,7 +306,7 @@ export class Store {
         terminals: [],
         models: [],
         modelsUpdatedAt: 0,
-        ompConfig: { ...EMPTY_CONFIG },
+        piConfig: { ...EMPTY_CONFIG },
         usage: { ...EMPTY_USAGE },
         engine: { ...EMPTY_ENGINE },
         sites: [],
@@ -401,7 +401,7 @@ export class Store {
       models: this.state.models,
       modelsUpdatedAt: this.state.modelsUpdatedAt,
       workspaceRoot: this.workspaceRoot,
-      ompConfig: this.state.ompConfig,
+      piConfig: this.state.piConfig,
       notifications: this.state.notifications,
       artifacts: this.state.artifacts,
       traces: this.state.traces,
@@ -683,8 +683,8 @@ export class Store {
     this.markDirty();
   }
 
-  setConfig(config: OmpConfigSnapshot): void {
-    this.state.ompConfig = config;
+  setConfig(config: PiConfigSnapshot): void {
+    this.state.piConfig = config;
     this.markDirty();
   }
 
@@ -1043,6 +1043,7 @@ function compactValue(value: unknown, depth = 0): unknown {
 export function newId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
+
 
 
 

@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-const MOUSE = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class OmpMouse{[DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint dx,uint dy,uint d,uint e);}'`;
+const MOUSE = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class PerchMouse{[DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint dx,uint dy,uint d,uint e);}'`;
 
 export class ComputerService {
   private artifactsDir: string;
@@ -39,7 +39,7 @@ export class ComputerService {
     if (process.platform !== "win32") throw new Error("Computer use is Windows-only");
     const down = button === "right" ? "0x08" : "0x02";
     const up = button === "right" ? "0x10" : "0x04";
-    const result = await this.run(`${MOUSE}; [OmpMouse]::SetCursorPos(${Math.round(x)},${Math.round(y)}); [OmpMouse]::mouse_event(${down},0,0,0,0); [OmpMouse]::mouse_event(${up},0,0,0,0); Write-Output 'clicked'`);
+    const result = await this.run(`${MOUSE}; [PerchMouse]::SetCursorPos(${Math.round(x)},${Math.round(y)}); [PerchMouse]::mouse_event(${down},0,0,0,0); [PerchMouse]::mouse_event(${up},0,0,0,0); Write-Output 'clicked'`);
     if (!result.ok) throw new Error(`Click failed: ${result.output}`);
     return `Clicked ${button} at ${Math.round(x)},${Math.round(y)}`;
   }

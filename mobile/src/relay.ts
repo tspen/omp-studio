@@ -37,7 +37,7 @@ export function relayConfigFromHash(): RelayConfig | null {
     try {
       const config = JSON.parse(fromBase64Url(encoded)) as RelayConfig;
       if (config?.relay && config?.room && config?.token && config?.key) {
-        localStorage.setItem("omp.relay", JSON.stringify(config));
+        localStorage.setItem("perch.relay", JSON.stringify(config));
         return config;
       }
     } catch {
@@ -45,7 +45,7 @@ export function relayConfigFromHash(): RelayConfig | null {
     }
   }
   try {
-    const stored = JSON.parse(localStorage.getItem("omp.relay") || "null") as RelayConfig | null;
+    const stored = JSON.parse(localStorage.getItem("perch.relay") || "null") as RelayConfig | null;
     return stored?.relay && stored?.room && stored?.token && stored?.key ? stored : null;
   } catch {
     return null;
@@ -76,7 +76,7 @@ export class RelayTransport {
     if (this.key) return this.key;
     const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(this.config.key), "HKDF", false, ["deriveKey"]);
     this.key = await crypto.subtle.deriveKey(
-      { name: "HKDF", hash: "SHA-256", salt: new TextEncoder().encode("omp-relay-v1"), info: new TextEncoder().encode("omp-relay-e2e") },
+      { name: "HKDF", hash: "SHA-256", salt: new TextEncoder().encode("perch-relay-v1"), info: new TextEncoder().encode("perch-relay-e2e") },
       material,
       { name: "AES-GCM", length: 256 },
       false,

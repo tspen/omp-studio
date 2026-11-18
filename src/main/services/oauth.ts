@@ -69,7 +69,7 @@ export class OAuthService {
     const port = (server.address() as AddressInfo).port;
     const redirectUri = `http://127.0.0.1:${port}/oauth/callback`;
     const state = randomUUID();
-    const authorize = new URL(process.env[`OMP_OAUTH_${providerName.toUpperCase()}_AUTHORIZE`] ?? provider.authorize);
+    const authorize = new URL(process.env[`PERCH_OAUTH_${providerName.toUpperCase()}_AUTHORIZE`] ?? provider.authorize);
     authorize.searchParams.set("client_id", clientId);
     authorize.searchParams.set("redirect_uri", redirectUri);
     authorize.searchParams.set("response_type", "code");
@@ -101,7 +101,7 @@ export class OAuthService {
         else if (returnedState !== state) reject(new Error("OAuth state mismatch"));
         else resolve(value);
       });
-      if (process.env.OMP_OAUTH_SKIP_BROWSER === "1") {
+      if (process.env.PERCH_OAUTH_SKIP_BROWSER === "1") {
         void fetch(authorize.toString()).catch(() => undefined);
       } else {
         void shell.openExternal(authorize.toString());
@@ -115,7 +115,7 @@ export class OAuthService {
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
     });
-    const tokenUrl = process.env[`OMP_OAUTH_${providerName.toUpperCase()}_TOKEN`] ?? provider.token;
+    const tokenUrl = process.env[`PERCH_OAUTH_${providerName.toUpperCase()}_TOKEN`] ?? provider.token;
     const tokenResponse = await fetch(tokenUrl, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },

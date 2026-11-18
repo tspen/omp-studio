@@ -236,8 +236,8 @@ export interface Thread {
   environmentId?: string;
   sessionDir: string;
   sessionFile?: string;
-  ompSubagentId?: string;
-  ompSubagentParentToolCallId?: string;
+  nativeSubagentId?: string;
+  nativeSubagentParentToolCallId?: string;
   branch?: string;
   baseBranch?: string;
   worktreePath?: string;
@@ -589,7 +589,7 @@ export interface MemoryEntry {
   updatedAt: number;
 }
 
-export interface OmpConfigEntry {
+export interface PiConfigEntry {
   key: string;
   value: unknown;
   type: "boolean" | "number" | "string" | "enum" | "array" | "record" | "unknown";
@@ -597,9 +597,9 @@ export interface OmpConfigEntry {
   group: string;
 }
 
-export interface OmpConfigSnapshot {
+export interface PiConfigSnapshot {
   path: string;
-  entries: OmpConfigEntry[];
+  entries: PiConfigEntry[];
   fetchedAt: number;
   error?: string;
 }
@@ -888,7 +888,7 @@ export interface Snapshot {
   models: ModelInfo[];
   modelsUpdatedAt: number;
   workspaceRoot: string;
-  ompConfig: OmpConfigSnapshot;
+  piConfig: PiConfigSnapshot;
   notifications: AppNotification[];
   artifacts: Artifact[];
   traces: Trace[];
@@ -918,7 +918,7 @@ export type AppEvent =
   | { type: "terminal:updated"; payload: TerminalRun }
   | { type: "engine:progress"; payload: EngineStatus }
   | { type: "models:updated"; payload: { models: ModelInfo[]; updatedAt: number } }
-  | { type: "config:updated"; payload: OmpConfigSnapshot }
+  | { type: "config:updated"; payload: PiConfigSnapshot }
   | { type: "usage:updated"; payload: UsageSnapshot }
   | { type: "share:updated"; payload: ShareInfo | null }
   | { type: "sites:updated"; payload: Site[] }
@@ -1078,9 +1078,9 @@ export interface PerchApi {
 
   updateSettings(patch: SettingsPatch): Promise<AppSettings>;
   completeOnboarding(payload: OnboardingPayload): Promise<{ snapshot: Snapshot; node?: TreeNode }>;
-  getOmpConfig(): Promise<OmpConfigSnapshot>;
-  setOmpConfig(key: string, value: unknown): Promise<OmpConfigSnapshot>;
-  resetOmpConfig(key: string): Promise<OmpConfigSnapshot>;
+  getPiConfig(): Promise<PiConfigSnapshot>;
+  setPiConfig(key: string, value: unknown): Promise<PiConfigSnapshot>;
+  resetPiConfig(key: string): Promise<PiConfigSnapshot>;
 
   listTools(): Promise<ToolInfo[]>;
   setTool(name: string, enabled: boolean, approval?: ToolApproval): Promise<ToolInfo[]>;

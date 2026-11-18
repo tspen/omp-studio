@@ -88,7 +88,7 @@ export class PluginService {
     const trimmed = source.trim();
     if (!trimmed) throw new Error("A Git URL or local plugin folder is required");
     if (/^https?:\/\/|^git@/i.test(trimmed)) {
-      const dir = join(tmpdir(), `omp-plugin-${Date.now().toString(36)}`);
+      const dir = join(tmpdir(), `perch-plugin-${Date.now().toString(36)}`);
       mkdirSync(dir, { recursive: true });
       execFileSync("git", ["clone", "--depth", "1", trimmed, dir], { windowsHide: true, timeout: 180_000, stdio: "pipe" });
       return { plugins: this.findPlugins(dir), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
@@ -187,7 +187,7 @@ export class PluginService {
   }
 
   private skillsRoot(): string {
-    const root = join(process.env.USERPROFILE ?? "", ".omp", "agent", "skills");
+    const root = join(process.env.USERPROFILE ?? "", "pi-agent", "skills");
     mkdirSync(root, { recursive: true });
     return root;
   }

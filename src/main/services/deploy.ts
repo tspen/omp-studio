@@ -215,7 +215,7 @@ export class DeployService {
         token = "";
       }
     }
-    const temp = mkdtempSync(join(tmpdir(), "omp-pages-"));
+    const temp = mkdtempSync(join(tmpdir(), "perch-pages-"));
     try {
       execFileSync("git", ["init", "-q"], { cwd: temp, windowsHide: true });
       execFileSync("git", ["checkout", "-q", "-b", "gh-pages"], { cwd: temp, windowsHide: true });
@@ -229,7 +229,7 @@ export class DeployService {
         cwd: temp,
         windowsHide: true,
         stdio: "pipe",
-        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        env: { ...process.env, GIT_TERMINAL_PRPerchT: "0" },
         timeout: 300_000,
       });
       if (token) {

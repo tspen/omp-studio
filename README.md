@@ -2,12 +2,13 @@
 
 A Windows cockpit for the [Pi coding agent](https://pi.dev), built around a **tree of orchestrators**. The main chat is an orchestrator; it delegates down to groups, projects and worker threads, and every child sends typed messages back up.
 
-Perch is the cockpit. Pi is the engine. There is no oh-my-pi runtime, no `omp.exe`, and no OMP-hosted service in the path.
+Perch is the cockpit. Pi is the engine. There is no separate agent runtime, no hosted service in the path.
 
 ## What is in the box
 
 - **Tree orchestrators**: Root -> Groups -> Projects -> Worker threads. Each level has its own Pi session, context, model, environment and memory.
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
+- **Parallel tasks**: the `task` host tool fans out up to eight worker threads and returns structured results, so Pi agents get parallel task delegation without in-process subagents.
 - **Pi under the hood**: Perch launches the bundled `@earendil-works/pi-coding-agent` in `--mode rpc`, uses Pi sessions, tools, skills, provider auth and compaction. It does not reimplement the agent loop.
 - **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace and mobile tools are registered as Pi tools through a local authenticated extension.
 - **Explicit model selection**: Per-thread model and thinking level, plus role defaults for root/group/project/worker/naming/memory.
@@ -29,6 +30,7 @@ Perch is the cockpit. Pi is the engine. There is no oh-my-pi runtime, no `omp.ex
 - **Sandbox and audit**: command denylist enforced in app terminals and dev servers, path/network policy injected into agent guidance, and a JSONL audit trail.
 - **Budgets**: app-level and per-node USD budgets with warn-only or pause-new-work enforcement.
 - **File checkpoints**: a shadow git commit snapshots the checkout before each prompt. Restore code only, or code plus conversation, from Thread history.
+- **Engine parity**: Pi Durable is an experimental opt-in harness, not the default. See [`docs/parity.md`](docs/parity.md) and [`docs/pi-durable.md`](docs/pi-durable.md).
 - **Remote and mobile**: same-Wi-Fi QR pairing, an installable PWA, an encrypted self-hosted relay for away-from-home use, and session moves between machines.
 
 ## Requirements
@@ -65,7 +67,7 @@ The NSIS installer is written to `dist/`. The Pi runtime is bundled from `node_m
 **Anywhere:** run the relay on a VPS you own and paste its HTTPS address in **Settings -> Remote -> More options -> Use away from home**:
 
 ```bash
-docker run -d --restart unless-stopped --name perch-relay -p 43150:43150 ghcr.io/tspen/omp-relay:latest
+docker run -d --restart unless-stopped --name perch-relay -p 43150:43150 ghcr.io/tspen/perch-relay:latest
 ```
 
 Scan the relay QR once. The runner dials out; the relay only forwards AES-256-GCM frames. No inbound runner port, no managed relay.
@@ -91,7 +93,7 @@ Renderer (React) ---- IPC ---- Main (Electron)
                                   |- Relay ----------- outbound AES-256-GCM frames
 ```
 
-Pi session files are the transcript source of truth. Perch keeps a compact message/envelope log, a normalized transcript cache for fast paint, and app metadata in `%APPDATA%\Perch`. Existing OMP Studio data is migrated on first launch.
+Pi session files are the transcript source of truth. Perch keeps a compact message/envelope log, a normalized transcript cache for fast paint, and app metadata in `%APPDATA%\Perch`. Existing data stays in place.
 
 ## Security notes
 
@@ -102,6 +104,8 @@ Pi session files are the transcript source of truth. Perch keeps a compact messa
 ## Credits
 
 - Pi: MIT, https://github.com/earendil-works/pi
-- Perch's cockpit began as OMP Studio and has been rewired to Pi.
+
+
+
 
 

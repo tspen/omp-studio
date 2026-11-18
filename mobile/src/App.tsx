@@ -65,8 +65,8 @@ interface Approval {
   options?: Array<{ label: string; value: string; description?: string }>;
 }
 
-const LS_SERVER = "omp.remote.server";
-const LS_TOKEN = "omp.remote.token";
+const LS_SERVER = "perch.remote.server";
+const LS_TOKEN = "perch.remote.token";
 
 function cleanBase(value: string): string {
   return value.trim().replace(/\/+$/, "");
@@ -459,7 +459,7 @@ export function App() {
           onForget={() => {
             localStorage.removeItem(LS_TOKEN);
             localStorage.removeItem(LS_SERVER);
-            localStorage.removeItem("omp.relay");
+            localStorage.removeItem("perch.relay");
             relayRef.current?.close();
             setRelayConfig(null);
             setToken("");

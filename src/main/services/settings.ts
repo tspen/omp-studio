@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync, readFileSync, renameSync, writeFileSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import YAML from "yaml";
-import type { McpServerInfo, OmpConfigEntry, OmpConfigSnapshot, SkillInfo, ToolApproval, ToolInfo } from "../../shared/types";
+import type { McpServerInfo, PiConfigEntry, PiConfigSnapshot, SkillInfo, ToolApproval, ToolInfo } from "../../shared/types";
 import type { EngineLocator } from "../engine/engine-locator";
 import type { Store } from "./store";
 
@@ -148,9 +148,9 @@ export class SettingsService {
     }
   }
 
-  async refresh(): Promise<OmpConfigSnapshot> {
+  async refresh(): Promise<PiConfigSnapshot> {
     const path = this.configFile();
-    const entries: OmpConfigEntry[] = [];
+    const entries: PiConfigEntry[] = [];
     let error: string | undefined;
     try {
       const parsed = this.readSettings();
@@ -174,12 +174,12 @@ export class SettingsService {
     } catch (parseError) {
       error = "Could not parse Pi settings: " + String(parseError);
     }
-    const snapshot: OmpConfigSnapshot = { path, entries, fetchedAt: Date.now(), error };
+    const snapshot: PiConfigSnapshot = { path, entries, fetchedAt: Date.now(), error };
     this.store.setConfig(snapshot);
     return snapshot;
   }
 
-  async set(key: string, value: unknown): Promise<OmpConfigSnapshot> {
+  async set(key: string, value: unknown): Promise<PiConfigSnapshot> {
     const data = this.readSettings();
     setPath(data, key, value);
     mkdirSync(join(this.configFile(), ".."), { recursive: true });
@@ -187,7 +187,7 @@ export class SettingsService {
     return this.refresh();
   }
 
-  async reset(key: string): Promise<OmpConfigSnapshot> {
+  async reset(key: string): Promise<PiConfigSnapshot> {
     const data = this.readSettings();
     deletePath(data, key);
     mkdirSync(join(this.configFile(), ".."), { recursive: true });
@@ -202,7 +202,7 @@ export class SettingsService {
     return { path, yaml: JSON.stringify(parsed, null, 2) + "\n", parsed };
   }
 
-  async writeRaw(raw: string): Promise<OmpConfigSnapshot> {
+  async writeRaw(raw: string): Promise<PiConfigSnapshot> {
     const path = this.configFile();
     const parsed = JSON.parse(raw || "{}");
     mkdirSync(join(path, ".."), { recursive: true });
@@ -439,8 +439,8 @@ export class SettingsService {
   }
 }
 
-function normalizeType(type: string): OmpConfigEntry["type"] {
-  if (["boolean", "number", "string", "enum", "array", "record"].includes(type)) return type as OmpConfigEntry["type"];
+function normalizeType(type: string): PiConfigEntry["type"] {
+  if (["boolean", "number", "string", "enum", "array", "record"].includes(type)) return type as PiConfigEntry["type"];
   return "unknown";
 }
 

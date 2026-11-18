@@ -45,7 +45,7 @@ export class RemoteService {
   }
 
   token(): string {
-    const fromEnv = process.env.OMP_REMOTE_TOKEN?.trim();
+    const fromEnv = process.env.PERCH_REMOTE_TOKEN?.trim();
     if (fromEnv) return fromEnv;
     let token = this.store.getSecret("remote.token");
     if (!token) {
@@ -389,7 +389,7 @@ export class RemoteService {
     const subs = this.loadPush();
     if (!subs.length) return { sent: 0, failed: 0, skipped: 1 };
     const { publicKey, privateKey } = this.vapidKeys();
-    webpush.setVapidDetails("mailto:omp@localhost", publicKey, privateKey);
+    webpush.setVapidDetails("mailto:perch@localhost", publicKey, privateKey);
     let sent = 0;
     let failed = 0;
     let firstError = "";
@@ -450,8 +450,8 @@ export class RemoteService {
   async start(): Promise<RemoteInfo> {
     if (this.server) return this.info();
     const settings = this.store.settings.remote;
-    const preferred = Math.max(1024, Number(process.env.OMP_REMOTE_PORT) || Number(settings.port) || 43120);
-    const host = process.env.OMP_REMOTE_HOST || settings.host || "127.0.0.1";
+    const preferred = Math.max(1024, Number(process.env.PERCH_REMOTE_PORT) || Number(settings.port) || 43120);
+    const host = process.env.PERCH_REMOTE_HOST || settings.host || "127.0.0.1";
     let port = preferred;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       try {
@@ -731,7 +731,7 @@ export class RemoteService {
     let filesUnchanged = 0;
     let bytesSent = 0;
     const manifest: Record<string, unknown> = {
-      format: "omp-session-v1",
+      format: "pi-session-v1",
       createdAt: Date.now(),
       originKey,
       node: { name: node.name, type: node.type, path: node.path, repoPath: node.repoPath, description: node.description, approvalMode: node.approvalMode, gitMode: node.gitMode },
@@ -750,7 +750,7 @@ export class RemoteService {
         for (const entry of entries) {
           if (total > 200 * 1024 * 1024) return;
           if (entry.name === "node_modules" || entry.name === ".venv" || entry.name === "__pycache__") continue;
-          if (entry.name === ".omp-origin.json" || entry.name === ".omp-manifest.json") continue;
+          if (entry.name === ".perch-origin.json" || entry.name === ".perch-manifest.json") continue;
           const full = join(directory, entry.name);
           if (entry.isDirectory()) {
             walk(full);
@@ -830,7 +830,7 @@ export class RemoteService {
   private findNodeByOrigin(originKey: string): TreeNode | null {
     for (const node of this.store.nodes) {
       if (!node.path) continue;
-      const marker = join(node.path, ".omp-origin.json");
+      const marker = join(node.path, ".perch-origin.json");
       if (!existsSync(marker)) continue;
       try {
         const data = JSON.parse(readFileSync(marker, "utf8")) as { originKey?: string };
@@ -845,7 +845,7 @@ export class RemoteService {
   private workspaceManifest(originKey: string): { nodeId: string; files: Record<string, { hash?: string; size?: number }> } | null {
     const node = this.findNodeByOrigin(originKey);
     if (!node?.path) return null;
-    const file = join(node.path, ".omp-manifest.json");
+    const file = join(node.path, ".perch-manifest.json");
     if (!existsSync(file)) return null;
     try {
       const data = JSON.parse(readFileSync(file, "utf8")) as { files?: Record<string, { hash?: string; size?: number }> };
@@ -863,7 +863,7 @@ export class RemoteService {
     const manifestFile = zip.file("manifest.json");
     if (!manifestFile) throw new Error("Bundle has no manifest.json");
     const manifest = JSON.parse(await manifestFile.async("string")) as any;
-    if (manifest.format !== "omp-session-v1") throw new Error("Unsupported bundle format");
+    if (manifest.format !== "pi-session-v1") throw new Error("Unsupported bundle format");
     const quota = await collectGarbage(this.store.baseDir, { nodes: this.store.nodes, threads: this.store.threads }, { dryRun: true });
     if (quota.quotaUsedPct >= 100) throw new Error("Runner disk quota is full; clean up before importing");
 
@@ -906,9 +906,9 @@ export class RemoteService {
       }
     }
     if (originKey) {
-      writeFileSync(join(targetDir, ".omp-origin.json"), JSON.stringify({ originKey, updatedAt: now }));
+      writeFileSync(join(targetDir, ".perch-origin.json"), JSON.stringify({ originKey, updatedAt: now }));
       if (manifest.filesMeta) {
-        writeFileSync(join(targetDir, ".omp-manifest.json"), JSON.stringify({ originKey, updatedAt: now, files: manifest.filesMeta }));
+        writeFileSync(join(targetDir, ".perch-manifest.json"), JSON.stringify({ originKey, updatedAt: now, files: manifest.filesMeta }));
       }
     }
 
@@ -1048,7 +1048,7 @@ export class RemoteService {
   }
 
   private urls(): string[] {
-    const publicUrl = (process.env.OMP_PUBLIC_URL ?? "").trim();
+    const publicUrl = (process.env.PERCH_PUBLIC_URL ?? "").trim();
     if (publicUrl) return [publicUrl.replace(/\/+$/, "")];
     const port = this.port || this.store.settings.remote.port || 43120;
     const host = this.host || this.store.settings.remote.host || "127.0.0.1";
@@ -1112,6 +1112,8 @@ function normalizeUrl(value: string): string {
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   return new URL(withScheme).toString().replace(/\/+$/, "");
 }
+
+
 
 
 

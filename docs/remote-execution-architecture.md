@@ -1,3 +1,5 @@
+> Historical design document. Current implementation details and verified evidence are in [remote-implementation-status.md](remote-implementation-status.md).
+
 # Remote, mobile and cloud execution architecture
 
 Date: 2026-11-17
@@ -119,7 +121,7 @@ The app already bundles Pi. A local session must start with **zero configuration
 One command:
 
 ```
-curl -fsSL https://get.omp.studio/runner | sh
+curl -fsSL https://github.com/tspen/perch/runner | sh
 ```
 
 Then:
@@ -176,7 +178,7 @@ Mechanisms:
 
 ## Self-cleaning policy
 
-Everything the runner creates is labeled `omp.managed=true`, `omp.runner=<id>`, `omp.session=<id>`, `omp.kind=<container|volume|network>`.
+Everything the runner creates is labeled `perch.managed=true`, `perch.runner=<id>`, `perch.session=<id>`, `perch.kind=<container|volume|network>`.
 
 | Resource | Policy |
 | --- | --- |
@@ -192,7 +194,7 @@ Everything the runner creates is labeled `omp.managed=true`, `omp.runner=<id>`, 
 | Orphans | Startup sweep + every 5 min; any managed resource with no live session is removed after 1 h |
 | Disk quota | 20 GB per runner default, 5 GB per session; warn at 80%, refuse new sessions at 100% |
 
-Cleanup is **label-scoped**, never global. The runner exposes `omp-runner gc --dry-run` and a UI "Clean up now" action. A crash cannot leave permanent debris because the next start reconciles by labels and session registry.
+Cleanup is **label-scoped**, never global. The runner exposes `perch-runner gc --dry-run` and a UI "Clean up now" action. A crash cannot leave permanent debris because the next start reconciles by labels and session registry.
 
 ## Move algorithm (cold)
 
@@ -228,7 +230,7 @@ Secrets are never in the bundle; the target injects its own.
 
 ## Phases
 
-**Phase 1 (2-4 weeks):** core extraction; `omp-runner` local/VPS; Tailscale/self-hosted relay; QR pairing; PWA; cold move; GC and quotas; performance gates.
+**Phase 1 (2-4 weeks):** core extraction; `perch-runner` local/VPS; Tailscale/self-hosted relay; QR pairing; PWA; cold move; GC and quotas; performance gates.
 
 **Phase 2 (2-3 weeks):** user-owned cloud default (VPS Docker); push; move UI.
 
@@ -247,4 +249,5 @@ Secrets are never in the bundle; the target injects its own.
 - Tailscale: https://tailscale.com/
 - Cloudflare Tunnel: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
 - pi-daemon (persistent agent + PWA via Tailscale/Cloudflare Access): https://github.com/SASUKE40/pi-daemon
+
 

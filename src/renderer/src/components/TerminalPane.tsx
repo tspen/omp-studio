@@ -42,13 +42,13 @@ export function XtermView({ sessionId }: { sessionId: string }) {
       const detail = (event as CustomEvent<{ sessionId: string; chunk: string }>).detail;
       if (detail?.sessionId === sessionId) term.write(detail.chunk);
     };
-    window.addEventListener("omp:pty", onEvent);
+    window.addEventListener("perch:pty", onEvent);
     const observer = new ResizeObserver(refit);
     observer.observe(host);
     term.focus();
     return () => {
       observer.disconnect();
-      window.removeEventListener("omp:pty", onEvent);
+      window.removeEventListener("perch:pty", onEvent);
       onData.dispose();
       term.dispose();
     };

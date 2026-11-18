@@ -240,17 +240,17 @@ export function registerIpc(context: IpcContext): void {
     broadcast({ type: "snapshot", payload: snapshot });
     return { snapshot, node };
   });
-  ipcMain.handle("omp-config:get", async () => {
-    const cached = store.data.ompConfig;
+  ipcMain.handle("pi-config:get", async () => {
+    const cached = store.data.piConfig;
     if (cached.fetchedAt && Date.now() - cached.fetchedAt < 5 * 60_000) return cached;
     return settings.refresh();
   });
-  ipcMain.handle("omp-config:set", async (_event, key: string, value: unknown) => {
+  ipcMain.handle("pi-config:set", async (_event, key: string, value: unknown) => {
     const snapshot = await settings.set(key, value);
     broadcast({ type: "config:updated", payload: snapshot });
     return snapshot;
   });
-  ipcMain.handle("omp-config:reset", async (_event, key: string) => {
+  ipcMain.handle("pi-config:reset", async (_event, key: string) => {
     const snapshot = await settings.reset(key);
     broadcast({ type: "config:updated", payload: snapshot });
     return snapshot;

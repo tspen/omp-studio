@@ -1,4 +1,4 @@
-# Self-hosted OMP relay. It stores nothing and only forwards encrypted frames.
+# Self-hosted Perch relay. It stores nothing and only forwards encrypted frames.
 #
 #   docker compose -f relay/docker-compose.yml up -d --build
 #
@@ -9,15 +9,15 @@ services:
     build:
       context: ..
       dockerfile: relay/Dockerfile
-    image: omp-relay:local
-    container_name: omp-relay
+    image: perch-relay:local
+    container_name: perch-relay
     restart: unless-stopped
     labels:
-      omp.managed: "true"
-      omp.runner: "relay"
-      omp.kind: "container"
+      perch.managed: "true"
+      perch.runner: "relay"
+      perch.kind: "container"
     ports:
-      - "${OMP_RELAY_BIND:-127.0.0.1}:${OMP_RELAY_PORT:-43150}:43150"
+      - "${PERCH_RELAY_BIND:-127.0.0.1}:${PERCH_RELAY_PORT:-43150}:43150"
     environment:
       RELAY_HOST: 0.0.0.0
       RELAY_PORT: "43150"

@@ -1,4 +1,4 @@
-package com.ompstudio.remote;
+package com.perch.remote;
 
 import com.getcapacitor.BridgeActivity;
 

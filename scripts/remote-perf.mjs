@@ -8,8 +8,8 @@
  * up the imported copy through DELETE /api/nodes/:id. If the node is removed,
  * the next GC sweep reclaims its workspace and session directory.
  */
-const url = arg("--url") || process.env.OMP_REMOTE_URL || "http://127.0.0.1:43120";
-const token = arg("--token") || process.env.OMP_REMOTE_TOKEN || "";
+const url = arg("--url") || process.env.PERCH_REMOTE_URL || "http://127.0.0.1:43120";
+const token = arg("--token") || process.env.PERCH_REMOTE_TOKEN || "";
 const base = url.replace(/\/+$/, "");
 const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
 
@@ -40,7 +40,7 @@ async function json(path, init) {
 }
 
 if (!token) {
-  console.error("Pass --token or set OMP_REMOTE_TOKEN");
+  console.error("Pass --token or set PERCH_REMOTE_TOKEN");
   process.exit(2);
 }
 

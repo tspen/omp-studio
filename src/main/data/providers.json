@@ -268,7 +268,7 @@
     "id": "gitlab-duo-agent",
     "name": "GitLab Duo Agent",
     "login": "oauth-code",
-    "instructions": "Complete GitLab login in your browser. This uses GitLab's official VS Code OAuth application. If the redirect opens VS Code instead of returning to OMP, copy the full vscode://gitlab.gitlab-workflow/authentication?... callback URL from VS Code/browser and paste it back into OMP.",
+    "instructions": "Complete GitLab login in your browser. This uses GitLab's official VS Code OAuth application. If the redirect opens VS Code instead of returning to Perch, copy the full vscode://gitlab.gitlab-workflow/authentication?... callback URL from VS Code/browser and paste it back into Perch.",
     "recommended": false
   },
   {
@@ -867,7 +867,7 @@
     "id": "zai-coding-plan",
     "name": "Z.AI (GLM Coding Plan · Sign in)",
     "login": "oauth-code",
-    "instructions": "Complete Z.ai login in your browser. On supported local desktops, omp captures the zcode:// callback and restores its previous handler automatically. You can also paste the final redirect URL or authorization code when prompted.",
+    "instructions": "Complete Z.ai login in your browser. On supported local desktops, Perch captures the zcode:// callback and restores its previous handler automatically. You can also paste the final redirect URL or authorization code when prompted.",
     "envVar": "ZAI_API_KEY",
     "recommended": false
   },

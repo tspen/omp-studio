@@ -1,3 +1,5 @@
+> Historical design document. The current implementation is the Pi engine described in [remote-implementation-status.md](remote-implementation-status.md).
+
 # Remote execution Phase 1 spec
 
 Date: 2026-11-17
@@ -44,7 +46,7 @@ This is the prerequisite. Everything else is a thin adapter over it.
 
 ## 2. Perch Runner
 
-New package: `src/runner` and a distributable `omp-runner` binary/container.
+New package: `src/runner` and a distributable `perch-runner` binary/container.
 
 Responsibilities:
 
@@ -61,19 +63,19 @@ Responsibilities:
 CLI:
 
 ```
-omp-runner init --name "office-pc" --data ~/.omp-studio/runner
-omp-runner pair                       # prints QR / device code
-omp-runner serve                      # foreground
-omp-runner service install            # Windows service / systemd / launchd
-omp-runner target self-test
+perch-runner init --name "office-pc" --data ~/.perch/runner
+perch-runner pair                       # prints QR / device code
+perch-runner serve                      # foreground
+perch-runner service install            # Windows service / systemd / launchd
+perch-runner target self-test
 ```
 
 Docker:
 
 ```
-docker run -d --name omp-runner \
-  -v omp-data:/data -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/tspen/omp-studio/runner:latest pair
+docker run -d --name perch-runner \
+  -v perch-data:/data -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/tspen/perch/runner:latest pair
 ```
 
 The Docker socket is optional and used only for nested workspaces, never mounted into an agent sandbox.
@@ -126,7 +128,7 @@ bundle/
   manifest.json        # schema, sessionId, tree node, model, effort, policy
   workspace.bundle     # git bundle of the branch/commit
   untracked.tar        # untracked + deleted files, no ignored caches unless requested
-  omp-session/         # JSONL session files
+  pi-session/         # JSONL session files
   store.json           # app Store subset: goals, todos, memory refs, envelopes
   checkpoints.json     # checkpoint ids + hashes
   events.jsonl         # append-only log up to the pause point
@@ -138,7 +140,7 @@ Rules:
 - ignored caches are optional and off by default;
 - bundles are encrypted with a key derived from the user's device key;
 - R2/S3/self-hosted object storage or direct runner-to-runner transfer;
-- `manifest.json` includes `sourceTarget`, `createdAt`, `ompVersion` and `checksum`.
+- `manifest.json` includes `sourceTarget`, `createdAt`, `piVersion` and `checksum`.
 
 Cold move algorithm:
 
@@ -228,7 +230,7 @@ Local: zero config, embedded runner.
 New PC or VPS:
 
 ```
-curl -fsSL https://get.omp.studio/runner | sh
+curl -fsSL https://github.com/tspen/perch/runner | sh
 ```
 
 The script:
@@ -248,10 +250,10 @@ First-run has three buttons: **Start here**, **Connect this computer**, **Connec
 Label every created resource:
 
 ```
-omp.managed=true
-omp.runner=<runnerId>
-omp.session=<sessionId>
-omp.kind=container|volume|network
+perch.managed=true
+perch.runner=<runnerId>
+perch.session=<sessionId>
+perch.kind=container|volume|network
 ```
 
 | Resource | Policy |
@@ -268,7 +270,7 @@ omp.kind=container|volume|network
 | Orphans | sweep at startup + every 5 min, remove after 1 h |
 | Disk quota | 20 GB/runner, 5 GB/session, warn 80%, deny 100% |
 
-Expose `omp-runner gc --dry-run` and a "Clean up now" UI action. Cleanup is always label-scoped.
+Expose `perch-runner gc --dry-run` and a "Clean up now" UI action. Cleanup is always label-scoped.
 
 ## 12. Performance
 
@@ -287,7 +289,7 @@ Mechanisms: prebuilt runner image, warm pool, persistent volume first, bare repo
 ## 13. Milestones and evidence
 
 1. **Core extraction** — typecheck passes with no Electron imports in `src/core`.
-2. **Runner boots locally** — `omp-runner serve` starts a Core, creates a thread, runs a prompt, streams events.
+2. **Runner boots locally** — `perch-runner serve` starts a Core, creates a thread, runs a prompt, streams events.
 3. **Pairing** — QR + device code, E2E round trip, revocation.
 4. **Tailscale path** — PWA loads over `tailscale serve`, chat + approval works.
 5. **Self-hosted relay** — runner dials out, phone PWA pairs, no inbound port on runner.
@@ -295,3 +297,4 @@ Mechanisms: prebuilt runner image, warm pool, persistent volume first, bare repo
 7. **Performance and cleanup gates** - measure start/reconnect/move, run GC dry-run, verify no orphaned managed resources after terminate, crash, and move.
 
 Out of scope: live migration, managed relay, native mobile, Kubernetes, multi-region scheduling.
+

@@ -69,9 +69,9 @@ const api: PerchApi = {
 
   updateSettings: (patch) => invoke("settings:update", patch) as Promise<any>,
   completeOnboarding: (payload) => invoke("settings:complete-onboarding", payload) as Promise<any>,
-  getOmpConfig: () => invoke("omp-config:get") as Promise<any>,
-  setOmpConfig: (key, value) => invoke("omp-config:set", key, value) as Promise<any>,
-  resetOmpConfig: (key) => invoke("omp-config:reset", key) as Promise<any>,
+  getPiConfig: () => invoke("pi-config:get") as Promise<any>,
+  setPiConfig: (key, value) => invoke("pi-config:set", key, value) as Promise<any>,
+  resetPiConfig: (key) => invoke("pi-config:reset", key) as Promise<any>,
 
   listTools: () => invoke("tools:list") as Promise<any>,
   setTool: (name, enabled, approval) => invoke("tools:set", name, enabled, approval) as Promise<any>,

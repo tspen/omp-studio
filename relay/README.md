@@ -7,11 +7,11 @@ connects to the relay; the relay forwards **AES-256-GCM ciphertext** only.
 ## Quick start
 
 ```bash
-docker run -d --restart unless-stopped --name omp-relay -p 43150:43150 ghcr.io/tspen/omp-relay:latest
+docker run -d --restart unless-stopped --name perch-relay -p 43150:43150 ghcr.io/tspen/perch-relay:latest
 ```
 
 Give the relay an HTTPS address (Caddy, nginx or a Cloudflare Tunnel), then paste
-that address in OMP Studio → Settings → Remote → **Use from anywhere** and press
+that address in Perch -> Settings -> Remote → **Use from anywhere** and press
 Connect. The app generates a room, token and E2E secret, connects outbound, and
 shows a QR/link. Scan it once on the phone; the PWA stores the room, token and
 E2E key in the URL fragment and talks only through encrypted frames.
@@ -20,8 +20,8 @@ Build from source instead:
 
 ```bash
 npm run build:mobile
-docker build -f relay/Dockerfile -t omp-relay .
-docker run --rm --name omp-relay -p 43150:43150 omp-relay
+docker build -f relay/Dockerfile -t perch-relay .
+docker run --rm --name perch-relay -p 43150:43150 perch-relay
 ```
 
 ## TLS
@@ -59,14 +59,14 @@ serve the PWA over HTTPS so the app itself cannot be tampered with in transit.
 For a headless runner, pass the same values instead of using the desktop UI:
 
 ```bash
-OMP_RELAY_URL=https://relay.tailnet-name.ts.net \
-OMP_RELAY_ROOM=my-room \
-OMP_RELAY_TOKEN=... \
-OMP_RELAY_SECRET=... \
+PERCH_RELAY_URL=https://relay.tailnet-name.ts.net \
+PERCH_RELAY_ROOM=my-room \
+PERCH_RELAY_TOKEN=... \
+PERCH_RELAY_SECRET=... \
 docker compose -f runner/docker-compose.yml up -d
 ```
 
-`OMP_RELAY_URL` enables the relay client even when the saved desktop setting is
+`PERCH_RELAY_URL` enables the relay client even when the saved desktop setting is
 off.
 
 ## Verification
@@ -81,3 +81,5 @@ curl http://127.0.0.1:43150/health
 
 With `RELAY_DEBUG_FRAMES=1`, the relay logs frame sizes and ciphertext prefixes
 only; use it to confirm no plaintext is present, then leave it off.
+
+

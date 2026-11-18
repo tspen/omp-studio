@@ -53,7 +53,7 @@ import { newId } from "../services/store";
 import { trace } from "../diagnostics";
 import { audit } from "../audit";
 
-const WORKER_RESUME_PROMPT =
+const WORKER_RESUME_PRPerchT =
   "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace and branch first, finish the unfinished work, verify it, then call tree_report with the outcome. Do not redo steps that already completed.";
 
 export interface OrchestratorDeps {
@@ -374,7 +374,7 @@ export class Orchestrator extends EventEmitter {
     worktreePath?: string;
     titleAuto?: boolean;
     source?: Thread["source"];
-    ompSubagentId?: string;
+    nativeSubagentId?: string;
     sessionFile?: string;
   }): Thread {
     const now = Date.now();
@@ -397,7 +397,7 @@ export class Orchestrator extends EventEmitter {
       effort: normalizeEffort(input.effort || "medium", model),
       sessionDir: input.sessionDir,
       sessionFile: input.sessionFile,
-      ompSubagentId: input.ompSubagentId,
+      nativeSubagentId: input.nativeSubagentId,
       branch: input.branch,
       baseBranch: input.baseBranch,
       worktreePath: input.worktreePath,
@@ -595,7 +595,7 @@ export class Orchestrator extends EventEmitter {
     if (thread.kind === "native") throw new Error("Native subagent threads are resumed by their parent");
     if (["running", "starting"].includes(thread.status)) return;
     if (thread.kind !== "orchestrator") {
-      await this.sendUserMessage({ threadId, text: WORKER_RESUME_PROMPT });
+      await this.sendUserMessage({ threadId, text: WORKER_RESUME_PRPerchT });
       return;
     }
     const node = this.store.getNode(thread.nodeId);
@@ -626,7 +626,7 @@ export class Orchestrator extends EventEmitter {
         paused.push({ thread: worker, reason });
         continue;
       }
-      await this.sendUserMessage({ threadId: worker.id, text: WORKER_RESUME_PROMPT }).catch(() => undefined);
+      await this.sendUserMessage({ threadId: worker.id, text: WORKER_RESUME_PRPerchT }).catch(() => undefined);
       for (const key of this.conflictKeys(worker)) claimed.set(key, worker.title);
       resumed.push(worker);
     }
@@ -1699,7 +1699,7 @@ export class Orchestrator extends EventEmitter {
     if (!parent) return;
     const subagentId = payload.id ?? payload.progress?.id;
     if (!subagentId) return;
-    let native = this.store.threads.find((thread) => thread.ompSubagentId === subagentId);
+    let native = this.store.threads.find((thread) => thread.nativeSubagentId === subagentId);
     if (frame.type === "subagent_lifecycle") {
       if (payload.status === "started") {
         if (!native) {
@@ -1714,11 +1714,11 @@ export class Orchestrator extends EventEmitter {
             status: "running",
             source: "native",
             titleAuto: false,
-            ompSubagentId: subagentId,
+            nativeSubagentId: subagentId,
             sessionFile: payload.sessionFile,
           });
           native.agentName = payload.agent;
-          native.ompSubagentParentToolCallId = payload.parentToolCallId;
+          native.nativeSubagentParentToolCallId = payload.parentToolCallId;
           this.store.addThread(native);
           this.deps.emit({ type: "thread:updated", payload: native });
         }
@@ -1944,8 +1944,8 @@ export class Orchestrator extends EventEmitter {
     if (!target) return false;
     if (target.kind === "native") {
       const parent = target.parentThreadId ? this.sessions.get(target.parentThreadId) : undefined;
-      if (parent?.isRunning && target.ompSubagentId) {
-        await parent.steerSubagent(target.ompSubagentId, envelope.body).catch(() => undefined);
+      if (parent?.isRunning && target.nativeSubagentId) {
+        await parent.steerSubagent(target.nativeSubagentId, envelope.body).catch(() => undefined);
         return true;
       }
       return false;
@@ -1969,7 +1969,7 @@ export class Orchestrator extends EventEmitter {
     const current = this.store.getThread(target.id);
     try {
       if (!options?.skipFlush) await this.flushQueued(target.id, envelope.id);
-      if (debug) console.log("DELIVER_PROMPT", target.id, current?.status, target.status);
+      if (debug) console.log("DELIVER_PRPerchT", target.id, current?.status, target.status);
       if (current && (current.status === "running" || current.status === "waiting")) {
         await session.prompt(text, "steer");
       } else {
@@ -2074,8 +2074,8 @@ export class Orchestrator extends EventEmitter {
               parentThreadId: context.thread.id,
               title: item.title,
               brief: item.brief,
-              model: item.model,
-              effort: item.effort,
+              model: item.model ?? context.thread.model.selector,
+              effort: item.effort ?? context.thread.effort,
               isolation: item.isolation,
               wait: false,
             }));
@@ -2648,7 +2648,11 @@ export class Orchestrator extends EventEmitter {
     const wanted = ids.map((id) => this.store.getThread(id)).filter(Boolean) as Thread[];
     while (Date.now() < deadline) {
       const current = ids.map((id) => this.store.getThread(id)).filter(Boolean) as Thread[];
-      if (current.every((thread) => ["completed", "error", "cancelled", "idle"].includes(thread.status) && !thread.pendingApproval)) {
+      if (current.every((thread) => {
+        if (thread.pendingApproval) return false;
+        if (["completed", "error", "cancelled"].includes(thread.status)) return true;
+        return thread.status === "idle" && this.store.getChat(thread.id).length > 0;
+      })) {
         return current;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -2823,7 +2827,7 @@ function textOf(message: ChatMessage): string {
  * The response that approves a Pi permission prompt when the node is in
  * yolo mode. Returns undefined for genuine questions we must ask the user.
  */
-const ACRONYMS = new Set(["API", "HTTP", "HTTPS", "OMP", "CLI", "UI", "UX", "RPC", "SSE", "JSON", "GPU", "CPU", "MCP", "LLM", "AI", "CI", "CD", "PR", "URL", "ID", "SDK", "SQL", "CSS", "HTML", "TS", "JS"]);
+const ACRONYMS = new Set(["API", "HTTP", "HTTPS", "CLI", "UI", "UX", "RPC", "SSE", "JSON", "GPU", "CPU", "MCP", "LLM", "AI", "CI", "CD", "PR", "URL", "ID", "SDK", "SQL", "CSS", "HTML", "TS", "JS"]);
 
 function cleanThreadTitle(value: string): string {
   let title = value
@@ -2899,6 +2903,8 @@ function envToolNames(node: TreeNode, environment?: Environment): string[] {
   const names = environment?.toolNames?.length ? environment.toolNames : node.toolNames;
   return names?.length ? names : [];
 }
+
+
 
 
 

@@ -1,4 +1,4 @@
-# Self-hosted OMP runner.
+# Self-hosted Perch runner.
 #
 #   docker compose -f runner/docker-compose.yml up -d --build
 #   docker compose -f runner/docker-compose.yml logs runner | grep "pairing link"
@@ -11,43 +11,47 @@ services:
     build:
       context: ..
       dockerfile: runner/Dockerfile
-    image: omp-runner:local
-    container_name: omp-runner
+    image: perch-runner:local
+    container_name: perch-runner
     restart: unless-stopped
     labels:
-      omp.managed: "true"
-      omp.runner: "docker"
-      omp.kind: "container"
+      perch.managed: "true"
+      perch.runner: "docker"
+      perch.kind: "container"
     ports:
-      - "${OMP_RUNNER_BIND:-127.0.0.1}:${OMP_RUNNER_PORT:-43120}:43120"
+      - "${PERCH_RUNNER_BIND:-127.0.0.1}:${PERCH_RUNNER_PORT:-43120}:43120"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      OMP_REMOTE_TOKEN: ${OMP_REMOTE_TOKEN:-}
-      OMP_REMOTE_HOST: 0.0.0.0
-      OMP_REMOTE_PORT: "43120"
-      OMP_STUDIO_USER_DATA: /data
+      PERCH_REMOTE_TOKEN: ${PERCH_REMOTE_TOKEN:-}
+      PERCH_REMOTE_HOST: 0.0.0.0
+      PERCH_REMOTE_PORT: "43120"
+      PERCH_USER_DATA: /data
       HOME: /data
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OMP_RELAY_URL: ${OMP_RELAY_URL:-}
-      OMP_RELAY_ROOM: ${OMP_RELAY_ROOM:-}
-      OMP_RELAY_TOKEN: ${OMP_RELAY_TOKEN:-}
-      OMP_RELAY_SECRET: ${OMP_RELAY_SECRET:-}
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      PERCH_RELAY_URL: ${PERCH_RELAY_URL:-}
+      PERCH_RELAY_ROOM: ${PERCH_RELAY_ROOM:-}
+      PERCH_RELAY_TOKEN: ${PERCH_RELAY_TOKEN:-}
+      PERCH_RELAY_SECRET: ${PERCH_RELAY_SECRET:-}
     volumes:
-      - omp-data:/data
+      - perch-data:/data
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 15s
 
 volumes:
-  omp-data:
+  perch-data:
     labels:
-      omp.managed: "true"
-      omp.runner: "docker"
-      omp.kind: "volume"
+      perch.managed: "true"
+      perch.runner: "docker"
+      perch.kind: "volume"
+
 
 
 

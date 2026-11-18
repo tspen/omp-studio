@@ -26,11 +26,11 @@ export class RelayService {
   private config(): { enabled: boolean; url: string; room: string; token: string; secret: string } {
     const settings = this.store.settings.remoteRelay;
     return {
-      enabled: process.env.OMP_RELAY_URL ? true : !!settings?.enabled,
-      url: (process.env.OMP_RELAY_URL || settings?.url || "").replace(/\/+$/, ""),
-      room: process.env.OMP_RELAY_ROOM || settings?.room || "",
-      token: process.env.OMP_RELAY_TOKEN || this.store.getSecret("remote.relay.token") || "",
-      secret: process.env.OMP_RELAY_SECRET || this.store.getSecret("remote.relay.secret") || "",
+      enabled: process.env.PERCH_RELAY_URL ? true : !!settings?.enabled,
+      url: (process.env.PERCH_RELAY_URL || settings?.url || "").replace(/\/+$/, ""),
+      room: process.env.PERCH_RELAY_ROOM || settings?.room || "",
+      token: process.env.PERCH_RELAY_TOKEN || this.store.getSecret("remote.relay.token") || "",
+      secret: process.env.PERCH_RELAY_SECRET || this.store.getSecret("remote.relay.secret") || "",
     };
   }
 
@@ -57,7 +57,7 @@ export class RelayService {
 
   async configure(input: RelayInput): Promise<RelayInfo> {
     const url = normalizeUrl(input.url);
-    const room = input.room.trim() || `omp-${randomBytes(4).toString("hex")}`;
+    const room = input.room.trim() || `perch-${randomBytes(4).toString("hex")}`;
     const token = input.token.trim() || this.store.getSecret("remote.relay.token") || randomBytes(24).toString("hex");
     const secret = input.secret.trim() || this.store.getSecret("remote.relay.secret") || randomBytes(32).toString("hex");
     this.store.setSecret("remote.relay.token", token);
@@ -74,7 +74,7 @@ export class RelayService {
       this.lastError = "Relay URL, room, token and secret are required";
       return this.info();
     }
-    this.key = Buffer.from(hkdfSync("sha256", Buffer.from(config.secret), Buffer.from("omp-relay-v1"), Buffer.from("omp-relay-e2e"), 32));
+    this.key = Buffer.from(hkdfSync("sha256", Buffer.from(config.secret), Buffer.from("perch-relay-v1"), Buffer.from("perch-relay-e2e"), 32));
     this.stopped = false;
     this.connect(config);
     return this.info();
@@ -155,7 +155,7 @@ export class RelayService {
 
   private async localRequest(method: string, path: string, body?: string): Promise<{ status: number; body: string }> {
     if (!path.startsWith("/api/")) return { status: 400, body: JSON.stringify({ error: "Relay only proxies the runner API" }) };
-    const token = process.env.OMP_REMOTE_TOKEN || this.store.getSecret("remote.token") || "";
+    const token = process.env.PERCH_REMOTE_TOKEN || this.store.getSecret("remote.token") || "";
     const port = this.store.settings.remote.port || 43120;
     try {
       const response = await fetch(`http://127.0.0.1:${port}${path}`, {
@@ -216,6 +216,7 @@ function normalizeUrl(value: string): string {
 function base64url(value: string): string {
   return Buffer.from(value, "utf8").toString("base64url");
 }
+
 
 
 

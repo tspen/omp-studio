@@ -13,7 +13,7 @@ import type {
   Environment,
   MemoryEntry,
   ModelInfo,
-  OmpConfigSnapshot,
+  PiConfigSnapshot,
   PaneDiff,
   PaneKind,
   PtySession,
@@ -57,7 +57,7 @@ interface AppState {
   ptySessions: PtySession[];
   artifacts: Artifact[];
   memory: MemoryEntry[];
-  ompConfig: OmpConfigSnapshot | null;
+  piConfig: PiConfigSnapshot | null;
   engine: EngineStatus | null;
   share: ShareInfo | null;
   sites: Site[];
@@ -163,7 +163,7 @@ export const useApp = create<AppState>((set, get) => ({
   ptySessions: [],
   artifacts: [],
   memory: [],
-  ompConfig: null,
+  piConfig: null,
   engine: null,
   share: null,
   sites: [],
@@ -203,7 +203,7 @@ export const useApp = create<AppState>((set, get) => ({
         envelopes: snapshot.latestEnvelopes,
         inbox: snapshot.inbox,
         artifacts: snapshot.artifacts,
-        ompConfig: snapshot.ompConfig,
+        piConfig: snapshot.piConfig,
         engine: snapshot.engine,
         share: snapshot.share ?? null,
         sites: snapshot.sites ?? [],
@@ -233,7 +233,7 @@ export const useApp = create<AppState>((set, get) => ({
       envelopes: snapshot.latestEnvelopes,
       inbox: snapshot.inbox,
       artifacts: snapshot.artifacts,
-      ompConfig: snapshot.ompConfig,
+      piConfig: snapshot.piConfig,
       engine: snapshot.engine,
       share: snapshot.share ?? null,
       sites: snapshot.sites ?? [],
@@ -255,7 +255,7 @@ export const useApp = create<AppState>((set, get) => ({
           envelopes: snapshot.latestEnvelopes,
           inbox: snapshot.inbox,
           artifacts: snapshot.artifacts,
-          ompConfig: snapshot.ompConfig,
+          piConfig: snapshot.piConfig,
           engine: snapshot.engine,
           share: snapshot.share ?? null,
           selectedNodeId: keepNode ? state.selectedNodeId : root?.id ?? null,
@@ -354,7 +354,7 @@ export const useApp = create<AppState>((set, get) => ({
         set({ models: event.payload.models });
         break;
       case "config:updated":
-        set({ ompConfig: event.payload });
+        set({ piConfig: event.payload });
         break;
       case "terminal:updated": {
         const exists = state.terminalRuns.some((run) => run.id === event.payload.id);
@@ -389,7 +389,7 @@ export const useApp = create<AppState>((set, get) => ({
         break;
       }
       case "pty:data":
-        window.dispatchEvent(new CustomEvent("omp:pty", { detail: event.payload }));
+        window.dispatchEvent(new CustomEvent("perch:pty", { detail: event.payload }));
         break;
       case "pty:updated": {
         const exists = state.ptySessions.some((item) => item.id === event.payload.id);
@@ -655,8 +655,8 @@ export const useApp = create<AppState>((set, get) => ({
 
   async refreshConfig() {
     try {
-      const config = await api().getOmpConfig();
-      set({ ompConfig: config });
+      const config = await api().getPiConfig();
+      set({ piConfig: config });
     } catch (error) {
       get().pushToast({ kind: "error", title: "Could not read Pi config", body: String(error) });
     }

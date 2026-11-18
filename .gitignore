@@ -17,9 +17,9 @@ env-settings.png
 memory-settings.png
 check.png
 tmp*.png
-vendor/omp/omp.exe
-vendor/omp/omp.exe.part
-vendor/omp/LICENSE
+
+.part
+
 login-*.txt
 
 # Capacitor / native build outputs
@@ -35,8 +35,8 @@ ios/App/App/public/
 ios/App/App/capacitor.config.json
 ios/DerivedData/
 ios/App/*.xcworkspace/
-vendor/omp/omp
-vendor/omp/omp.part
+
+.part
 
 runner/backups/
 

@@ -170,7 +170,7 @@ export class GitService {
 
   async createSnapshot(cwd: string, label: string): Promise<string | null> {
     if (!(await this.isRepo(cwd))) return null;
-    const index = join(tmpdir(), `omp-index-${randomUUID()}.index`);
+    const index = join(tmpdir(), `perch-index-${randomUUID()}.index`);
     const env = { ...process.env, GIT_INDEX_FILE: index };
     try {
       const head = await this.runWithEnv(cwd, ["rev-parse", "--verify", "HEAD"], env);

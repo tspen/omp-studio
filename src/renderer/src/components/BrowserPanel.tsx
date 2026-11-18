@@ -156,7 +156,7 @@ export function BrowserPanel() {
           {React.createElement("webview" as any, {
             ref: viewRef,
             src: state.browserUrl,
-            partition: "persist:omp-browser",
+            partition: "persist:perch-browser",
             allowpopups: "true",
             style: { width: "100%", height: "100%" },
           })}

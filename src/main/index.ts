@@ -1,6 +1,6 @@
 import { app, BrowserWindow, nativeImage } from "electron";
 import { basename, join } from "node:path";
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { EngineLocator } from "./engine/engine-locator";
 import { registerIpc, type IpcContext } from "./ipc";
@@ -59,7 +59,7 @@ function logCrash(kind: string, error: unknown): void {
   console.error(`[${kind}]`, error);
   trace(kind, message);
   try {
-    const dir = app.isReady() ? join(app.getPath("userData"), "omp-studio") : join(process.env.APPDATA ?? process.cwd(), "omp-studio");
+    const dir = app.isReady() ? join(app.getPath("appData"), "Perch") : join(process.env.APPDATA ?? process.cwd(), "Perch");
     mkdirSync(dir, { recursive: true });
     appendFileSync(join(dir, "errors.log"), `[${new Date().toISOString()}] ${kind}: ${message}\n`, "utf8");
   } catch {
@@ -70,52 +70,9 @@ function logCrash(kind: string, error: unknown): void {
 process.on("uncaughtException", (error) => logCrash("uncaughtException", error));
 process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
 app.on("child-process-gone", (_event, details) => logCrash("child-process-gone", details));
-function rewriteStatePaths(file: string, legacy: string, target: string): void {
-  try {
-    const text = readFileSync(file, "utf8");
-    if (!text.includes("omp-studio")) return;
-    const rewrite = (value: unknown): unknown => {
-      if (typeof value === "string") return value.split(legacy).join(target).split(legacy.replaceAll("\\", "/")).join(target.replaceAll("\\", "/"));
-      if (Array.isArray(value)) return value.map(rewrite);
-      if (value && typeof value === "object") {
-        return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, rewrite(item)]));
-      }
-      return value;
-    };
-    writeFileSync(file, JSON.stringify(rewrite(JSON.parse(text)), null, 2), "utf8");
-  } catch {
-    /* path migration is best effort */
-  }
-}
-function migrateLegacyData(): void {
-  const appData = app.getPath("appData");
-  const legacy = join(appData, "omp-studio", "omp-studio");
-  const target = join(appData, "Perch");
-  const targetState = join(target, "state.json");
-  if (!existsSync(join(legacy, "state.json")) && !existsSync(targetState)) return;
-  if (existsSync(targetState)) {
-    rewriteStatePaths(targetState, legacy, target);
-    return;
-  }
-  try {
-    mkdirSync(target, { recursive: true });
-    for (const entry of readdirSync(legacy)) {
-      const source = join(legacy, entry);
-      const destination = join(target, entry);
-      if (existsSync(destination)) continue;
-      try {
-        renameSync(source, destination);
-      } catch {
-        cpSync(source, destination, { recursive: true });
-      }
-    }
-  } catch {
-    /* migration is best effort; the app can start with a fresh data directory */
-  }
-}
-if (process.env.OMP_STUDIO_USER_DATA) {
-  mkdirSync(process.env.OMP_STUDIO_USER_DATA, { recursive: true });
-  app.setPath("userData", process.env.OMP_STUDIO_USER_DATA);
+if (process.env.PERCH_USER_DATA) {
+  mkdirSync(process.env.PERCH_USER_DATA, { recursive: true });
+  app.setPath("userData", process.env.PERCH_USER_DATA);
 }
 
 function broadcast(event: AppEvent): void {
@@ -329,7 +286,7 @@ webview{flex:1;width:100%;height:100%;border:0}
   <button id="reload" title="Reload">&#8635;</button>
   <input id="address" spellcheck="false" placeholder="Enter a URL" />
 </div>
-<webview id="view" partition="persist:omp-browser" allowpopups></webview>
+<webview id="view" partition="persist:perch-browser" allowpopups></webview>
 <script>
 const view=document.getElementById('view');
 const address=document.getElementById('address');
@@ -363,7 +320,7 @@ try{ view.src=initial; }catch(e){}
 </body></html>`;
 
 function browserToolbarPath(): string {
-  return join(app.getPath("userData"), "omp-browser.html");
+  return join(app.getPath("userData"), "perch-browser.html");
 }
 
 function navigateBrowserWindow(url: string): void {
@@ -414,7 +371,7 @@ function openBrowserWindow(url: string): void {
     delete webPreferences.preload;
     webPreferences.nodeIntegration = false;
     webPreferences.contextIsolation = true;
-    webPreferences.partition = "persist:omp-browser";
+    webPreferences.partition = "persist:perch-browser";
   });
   browserWindow.webContents.on("did-attach-webview", (_event, contents) => {
     contents.setWindowOpenHandler(({ url: target }) => {
@@ -464,7 +421,7 @@ function openPaneWindow(input: { kind: PaneKind; threadId?: string; diff?: PaneD
   win.show();
 }
 
-const HEADLESS = process.env.OMP_HEADLESS === "1";
+const HEADLESS = process.env.PERCH_HEADLESS === "1";
 
 async function createWindow(): Promise<void> {
   if (HEADLESS) return;
@@ -570,8 +527,7 @@ async function createWindow(): Promise<void> {
 }
 
 async function bootstrap(): Promise<void> {
-  app.setAppUserModelId("com.ompstudio.app");
-  migrateLegacyData();
+  app.setAppUserModelId("com.perch.app");
   const dataStore = new Store();
   dataStore.init();
   initDiagnostics(dataStore.baseDir);
@@ -705,7 +661,7 @@ async function bootstrap(): Promise<void> {
   remote = remoteService;
   const relayService = new RelayService(dataStore);
   relay = relayService;
-  if (dataStore.settings.remoteRelay?.enabled || process.env.OMP_RELAY_URL) {
+  if (dataStore.settings.remoteRelay?.enabled || process.env.PERCH_RELAY_URL) {
     await relayService.start().catch((error) => trace("relay-start-failed", error instanceof Error ? error.message : String(error)));
   }
   const maintenance = () => collectGarbage(dataStore.baseDir, { nodes: dataStore.nodes, threads: dataStore.threads }, { dryRun: false });
@@ -862,6 +818,8 @@ app.on("before-quit", () => {
   notifications?.destroy();
   store?.flush();
 });
+
+
 
 
 

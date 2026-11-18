@@ -1,6 +1,6 @@
 {
-  "appId": "com.ompstudio.remote",
-  "appName": "OMP Remote",
+  "appId": "com.perch.remote",
+  "appName": "Perch Remote",
   "webDir": "out/mobile",
   "bundledWebRuntime": false,
   "server": { "androidScheme": "http", "cleartext": true },

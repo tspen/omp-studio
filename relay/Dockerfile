@@ -1,6 +1,6 @@
 # Stateless self-hosted relay. Build from the repository root after the PWA build:
 #   npm run build:mobile
-#   docker build -f relay/Dockerfile -t omp-relay .
+#   docker build -f relay/Dockerfile -t perch-relay .
 FROM node:22-slim
 
 WORKDIR /app
@@ -19,3 +19,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:43150/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "relay/server.mjs"]
+

@@ -151,7 +151,7 @@ export class SiteService {
       return;
     }
     if (site.accessToken) {
-      const cookieName = `omp_site_${site.id}`;
+      const cookieName = `perch_site_${site.id}`;
       const cookies = Object.fromEntries(
         (req.headers.cookie ?? "").split(";").map((part) => part.trim().split("=")).filter((pair) => pair.length === 2),
       );

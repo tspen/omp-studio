@@ -30,8 +30,8 @@ jobs:
           file: relay/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/omp-relay:latest
-            ghcr.io/${{ github.repository_owner }}/omp-relay:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/perch-relay:latest
+            ghcr.io/${{ github.repository_owner }}/perch-relay:${{ github.ref_name }}
 
   runner:
     runs-on: ubuntu-latest
@@ -51,5 +51,5 @@ jobs:
           file: runner/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/omp-runner:latest
-            ghcr.io/${{ github.repository_owner }}/omp-runner:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/perch-runner:latest
+            ghcr.io/${{ github.repository_owner }}/perch-runner:${{ github.ref_name }}

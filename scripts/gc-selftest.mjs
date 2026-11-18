@@ -11,7 +11,7 @@ import { join } from "node:path";
 const require = createRequire(import.meta.url);
 const { collectGarbage } = require("../out/runner/main/services/maintenance.js");
 
-const base = mkdtempSync(join(tmpdir(), "omp-gc-"));
+const base = mkdtempSync(join(tmpdir(), "perch-gc-"));
 const old = Date.now() / 1000 - 7 * 24 * 60 * 60;
 const make = (path, contents = "x".repeat(1024)) => {
   mkdirSync(path, { recursive: true });

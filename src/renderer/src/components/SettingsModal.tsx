@@ -37,7 +37,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, OmpConfigEntry, PluginPreview, MaintenanceReport, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, PiConfigEntry, PluginPreview, MaintenanceReport, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -822,12 +822,12 @@ function EngineTab() {
           <Button size="sm" variant="soft" onClick={() => void window.perch.restartApp()}><RefreshCw size={13} /> Restart</Button>
         </Row>
         <Row label="Open config file" hint="The raw Pi config YAML is also editable from Advanced.">
-          <Button size="sm" variant="soft" onClick={() => state.ompConfig?.path && void window.perch.openPath(state.ompConfig.path)}>Open config</Button>
+          <Button size="sm" variant="soft" onClick={() => state.piConfig?.path && void window.perch.openPath(state.piConfig.path)}>Open config</Button>
         </Row>
       </Section>
       <Section title="Pi config" subtitle="The advanced tab exposes the full config surface.">
-        <Row label="Config file"><span className="mono muted">{state.ompConfig?.path ?? "—"}</span></Row>
-        <Row label="Entries"><span>{state.ompConfig?.entries.length ?? 0}</span></Row>
+        <Row label="Config file"><span className="mono muted">{state.piConfig?.path ?? "—"}</span></Row>
+        <Row label="Entries"><span>{state.piConfig?.entries.length ?? 0}</span></Row>
         <Row label="Refresh"><Button size="sm" variant="soft" onClick={() => void state.refreshConfig()}><RefreshCw size={13} /> Reload</Button></Row>
       </Section>
     </>
@@ -836,7 +836,7 @@ function EngineTab() {
 
 function AdvancedTab() {
   const state = useApp();
-  const config = state.ompConfig;
+  const config = state.piConfig;
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("all");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -854,9 +854,9 @@ function AdvancedTab() {
         <div className="config-list">
           {entries.slice(0, 160).map((entry) => (
             <ConfigRow key={entry.key} entry={entry} draft={drafts[entry.key]} setDraft={(value) => setDrafts({ ...drafts, [entry.key]: value })} onSave={async (value) => {
-              await window.perch.setOmpConfig(entry.key, value);
+              await window.perch.setPiConfig(entry.key, value);
               await state.refreshConfig();
-            }} onReset={async () => { await window.perch.resetOmpConfig(entry.key); await state.refreshConfig(); }} />
+            }} onReset={async () => { await window.perch.resetPiConfig(entry.key); await state.refreshConfig(); }} />
           ))}
           {entries.length > 160 ? <p className="muted">Showing 160 of {entries.length}. Use search or a group filter.</p> : null}
         </div>
@@ -865,7 +865,7 @@ function AdvancedTab() {
   );
 }
 
-function ConfigRow({ entry, draft, setDraft, onSave, onReset }: { entry: OmpConfigEntry; draft?: string; setDraft: (value: string) => void; onSave: (value: unknown) => Promise<void>; onReset: () => Promise<void> }) {
+function ConfigRow({ entry, draft, setDraft, onSave, onReset }: { entry: PiConfigEntry; draft?: string; setDraft: (value: string) => void; onSave: (value: unknown) => Promise<void>; onReset: () => Promise<void> }) {
   const [value, setValue] = useState(draft ?? serialize(entry.value));
   useEffect(() => setValue(serialize(entry.value)), [entry.value]);
   const isComplex = entry.type === "array" || entry.type === "record" || entry.type === "unknown";
@@ -1437,7 +1437,7 @@ function RelaySettings() {
       setBusy(false);
     }
   };
-  const relayCommand = "docker run -d --restart unless-stopped --name omp-relay -p 43150:43150 ghcr.io/tspen/omp-relay:latest";
+  const relayCommand = "docker run -d --restart unless-stopped --name perch-relay -p 43150:43150 ghcr.io/tspen/perch-relay:latest";
   return (
     <Section
       title="Use away from home"
@@ -1549,7 +1549,7 @@ function PairMachine({ targets, onChange }: { targets: RemoteTarget[]; onChange:
   const state = useApp();
   const [pairLink, setPairLink] = useState("");
   const [busy, setBusy] = useState(false);
-  const command = "docker run -d --restart unless-stopped -p 43120:43120 -v omp-data:/data ghcr.io/tspen/omp-runner:latest";
+  const command = "docker run -d --restart unless-stopped -p 43120:43120 -v perch-data:/data ghcr.io/tspen/perch-runner:latest";
   return (
     <Section title="Add another machine" subtitle="Run this on a VPS or spare PC, then paste the pairing link from its logs (swap 127.0.0.1 for its address).">
       <div className="remote-command">
