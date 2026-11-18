@@ -53,6 +53,7 @@ import { newId } from "../services/store";
 import { trace } from "../diagnostics";
 import { lspRequest } from "../services/lsp";
 import { astEdit, astGrep } from "../services/ast";
+import { dapLaunch, dapRequest, disposeDap } from "../services/dap";
 import { webSearch } from "../services/web-search";
 import type { PythonService } from "../services/python";
 import { notebookRequest } from "../services/notebook";
@@ -1372,6 +1373,7 @@ export class Orchestrator extends EventEmitter {
     if (this.automationTimer) clearInterval(this.automationTimer);
     for (const timer of this.gitTimers.values()) clearTimeout(timer);
     for (const timer of this.autoContinueTimers.values()) clearTimeout(timer);
+    disposeDap();
     await Promise.all([...this.sessions.values()].map((session) => session.dispose().catch(() => undefined)));
     this.sessions.clear();
   }
@@ -1536,6 +1538,7 @@ export class Orchestrator extends EventEmitter {
         });
       }).catch(() => undefined);
     }
+    disposeDap(threadId);
     await session.dispose();
     this.store.finalizeRunningTools(threadId, "Stopped");
     this.updateStatus(threadId, "parked", "Parked");
@@ -2108,6 +2111,42 @@ export class Orchestrator extends EventEmitter {
           return {
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             details: { action: context.args.action, result },
+          };
+        }
+        case "launch": {
+          const result = await dapLaunch({
+            threadId: context.thread.id,
+            cwd: context.cwd,
+            program: typeof context.args.program === "string" ? context.args.program : undefined,
+            language: typeof context.args.language === "string" ? context.args.language : undefined,
+            adapter: typeof context.args.adapter === "string" ? context.args.adapter : undefined,
+            args: Array.isArray(context.args.args) ? context.args.args.map(String) : undefined,
+            stopOnEntry: context.args.stopOnEntry === true,
+            timeoutMs: context.args.timeoutMs == null ? undefined : Number(context.args.timeoutMs),
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            details: { adapter: result.adapter, stopped: result.stopped ?? null },
+          };
+        }
+        case "debug": {
+          const result = await dapRequest({
+            threadId: context.thread.id,
+            action: context.args.action,
+            cwd: context.cwd,
+            path: typeof context.args.path === "string" ? context.args.path : undefined,
+            lines: Array.isArray(context.args.lines) ? context.args.lines.map(Number) : undefined,
+            threadIdForFrame: context.args.threadId == null ? undefined : Number(context.args.threadId),
+            frameId: context.args.frameId == null ? undefined : Number(context.args.frameId),
+            variablesReference:
+              context.args.variablesReference == null ? undefined : Number(context.args.variablesReference),
+            expression: typeof context.args.expression === "string" ? context.args.expression : undefined,
+            context: typeof context.args.context === "string" ? context.args.context : undefined,
+            timeoutMs: context.args.timeoutMs == null ? undefined : Number(context.args.timeoutMs),
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            details: { action: context.args.action },
           };
         }
         case "ast_grep": {

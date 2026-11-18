@@ -100,6 +100,48 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "launch",
+    label: "Launch: debug session",
+    description:
+      "Start a DAP debug session for a program. Requires a debug adapter on PATH, a PERCH_DAP_<LANGUAGE> override, or an explicit adapter command. Use debug to set breakpoints and control execution.",
+    parameters: object(
+      {
+        program: { type: "string", description: "Program or script to debug, relative to the project." },
+        language: { type: "string", description: "python, go, c, cpp, node, etc. Inferred from the program extension." },
+        adapter: { type: "string", description: "Debug adapter command, for example `python -m debugpy.adapter`." },
+        args: { type: "array", items: { type: "string" } },
+        stopOnEntry: { type: "boolean" },
+        timeoutMs: { type: "number" },
+      },
+      ["program"],
+    ),
+    loadMode: "discoverable",
+  },
+  {
+    name: "debug",
+    label: "Debug: DAP control",
+    description:
+      "Control the active debug session: set breakpoints, continue, step, inspect threads, stack, scopes, variables, evaluate expressions, report status or stop.",
+    parameters: object(
+      {
+        action: {
+          type: "string",
+          enum: ["breakpoints", "continue", "next", "stepIn", "stepOut", "pause", "threads", "stack", "scopes", "variables", "evaluate", "status", "stop"],
+        },
+        path: { type: "string", description: "Source file for breakpoints, relative to the project." },
+        lines: { type: "array", items: { type: "number" } },
+        threadId: { type: "number", description: "DAP thread id. Default 1." },
+        frameId: { type: "number" },
+        variablesReference: { type: "number" },
+        expression: { type: "string" },
+        context: { type: "string", description: "evaluate context: repl, watch or hover." },
+        timeoutMs: { type: "number" },
+      },
+      ["action"],
+    ),
+    loadMode: "discoverable",
+  },
+  {
     name: "ast_grep",
     label: "AST: structural search",
     description:
