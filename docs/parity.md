@@ -22,6 +22,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Parallel tasks | `task` host tool fans out Perch worker threads and returns structured results |
 | Python | Persistent Python 3 kernel per thread, reset, timeout; `PERCH_PYTHON` or PATH discovery |
 | Notebook | Read, edit and execute `.ipynb` cells through the persistent Python kernel |
+| AST editing | Structural `ast_grep`/`ast_edit` for JavaScript, TypeScript, TSX, HTML and CSS via `@ast-grep/napi` |
 | Rebrand | Perch window, tray, PWA, Android/iOS IDs, installer, repository, data dir |
 | Data | `%APPDATA%\Perch`; 19 existing threads verified after migration |
 | Remote | same-Wi-Fi QR, relay, pair-by-link, moves, PWA |
@@ -32,7 +33,7 @@ Perch runs the bundled Pi coding agent. This is the current feature-parity recor
 | Gap | Impact | Notes |
 | --- | --- | --- |
 | LSP / DAP | TypeScript/JavaScript/JSON LSP is bridged through `typescript-language-server`: diagnostics, definition, references, hover, symbols. DAP and other language servers are not wired. | `lsp` host tool; see `src/main/services/lsp.ts`. |
-| AST editing | No `ast_grep` or `ast_edit` structural tools | Use language-server references plus Pi `grep`/`edit`; Python/notebook support is implemented. |
+| AST editing outside JS/TS/HTML/CSS | `ast_grep`/`ast_edit` cover JavaScript, TypeScript, TSX, HTML and CSS | Python and other languages use Pi `grep`/`edit` plus the Python kernel. |
 | Web search | No built-in `web_search` | Deliberately not added; use a chosen extension/provider. |
 | Native subagent panel | The previous in-process `task` frames are gone | `task` now creates normal Perch worker threads; the tree is the subagent UI. |
 | Provider credentials | Previous credentials are not imported | Reconnect a provider once in Settings. |
@@ -47,6 +48,7 @@ npm run build                          pass
 node scripts/pi-engine-selftest.mjs    "PERCH PI OK", 3 messages
 node scripts/pi-durable-selftest.mjs   commit + reopen "PERCH DURABLE OK"
 python + notebook host tools           "PYTHON APP DONE", "NOTEBOOK APP DONE"
+ast_grep + ast_edit                    "AST APP DONE", "AST EDIT APP DONE"
 packaged Perch.exe                     Pi 1.5.2, Python + notebook tools, completed sessions
 ```
 

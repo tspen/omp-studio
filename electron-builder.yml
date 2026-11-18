@@ -16,6 +16,7 @@ asar: true
 asarUnpack:
   - node_modules/node-pty/**
   - node_modules/@earendil-works/**
+  - node_modules/@ast-grep/**
   - node_modules/typescript-language-server/**
   - node_modules/typescript/**
 npmRebuild: false

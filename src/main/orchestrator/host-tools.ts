@@ -100,6 +100,40 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "ast_grep",
+    label: "AST: structural search",
+    description:
+      "Search JavaScript, TypeScript, TSX, HTML and CSS structurally with ast-grep patterns such as `console.log($A)`. Returns file, line, column, matched text and captures. Use before broad edits.",
+    parameters: object(
+      {
+        pattern: { type: "string", description: "ast-grep pattern with optional $CAPTURE variables." },
+        path: { type: "string", description: "File or directory, relative to the project. Defaults to the project root." },
+        lang: { type: "string", description: "Force a language: typescript, tsx, javascript, html or css." },
+        limit: { type: "number", description: "Maximum matches. Default 100." },
+      },
+      ["pattern"],
+    ),
+    loadMode: "essential",
+  },
+  {
+    name: "ast_edit",
+    label: "AST: structural rewrite",
+    description:
+      "Rewrite JavaScript, TypeScript, TSX, HTML and CSS structurally. The rewrite can reference captures with $CAPTURE. Use dryRun first to review changes.",
+    parameters: object(
+      {
+        pattern: { type: "string", description: "ast-grep pattern with optional $CAPTURE variables." },
+        rewrite: { type: "string", description: "Replacement text with $CAPTURE references." },
+        path: { type: "string", description: "File or directory, relative to the project. Defaults to the project root." },
+        lang: { type: "string", description: "Force a language: typescript, tsx, javascript, html or css." },
+        dryRun: { type: "boolean", description: "Report changes without writing files." },
+        limit: { type: "number", description: "Maximum edits. Default 100." },
+      },
+      ["pattern", "rewrite"],
+    ),
+    loadMode: "essential",
+  },
+  {
     name: "python",
     label: "Python: persistent kernel",
     description:

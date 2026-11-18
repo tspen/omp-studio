@@ -52,6 +52,7 @@ import type { Store } from "../services/store";
 import { newId } from "../services/store";
 import { trace } from "../diagnostics";
 import { lspRequest } from "../services/lsp";
+import { astEdit, astGrep } from "../services/ast";
 import type { PythonService } from "../services/python";
 import { notebookRequest } from "../services/notebook";
 import { audit } from "../audit";
@@ -2106,6 +2107,34 @@ export class Orchestrator extends EventEmitter {
           return {
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
             details: { action: context.args.action, result },
+          };
+        }
+        case "ast_grep": {
+          const result = astGrep({
+            cwd: context.cwd,
+            pattern: String(context.args.pattern ?? ""),
+            path: typeof context.args.path === "string" ? context.args.path : undefined,
+            lang: typeof context.args.lang === "string" ? context.args.lang : undefined,
+            limit: context.args.limit == null ? undefined : Number(context.args.limit),
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            details: { matches: result.matches.length, files: result.files, truncated: result.truncated },
+          };
+        }
+        case "ast_edit": {
+          const result = astEdit({
+            cwd: context.cwd,
+            pattern: String(context.args.pattern ?? ""),
+            rewrite: String(context.args.rewrite ?? ""),
+            path: typeof context.args.path === "string" ? context.args.path : undefined,
+            lang: typeof context.args.lang === "string" ? context.args.lang : undefined,
+            dryRun: context.args.dryRun === true,
+            limit: context.args.limit == null ? undefined : Number(context.args.limit),
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            details: { changes: result.changes.length, files: result.files, applied: result.applied, truncated: result.truncated },
           };
         }
         case "python": {
