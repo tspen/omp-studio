@@ -38,7 +38,8 @@
     "runner:quota": "node out/runner/cli/runner.js quota",
     "test:gc": "node scripts/gc-selftest.mjs",
     "pi:selftest": "node scripts/pi-engine-selftest.mjs",
-    "pi:durable": "node scripts/pi-durable-selftest.mjs"
+    "pi:durable": "node scripts/pi-durable-selftest.mjs",
+    "auth:import": "node scripts/import-auth-db.mjs"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.51.3",

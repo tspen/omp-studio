@@ -123,7 +123,7 @@ function ThreadIntro({ thread }: { thread: Thread }) {
       <div>
         <h1>{thread.title}</h1>
         <div className="thread-intro-meta">
-          <span>{thread.kind === "orchestrator" ? "Orchestrator" : thread.kind === "native" ? "Pi subagent" : "Worker thread"}</span>
+          <span>{thread.kind === "orchestrator" ? "Orchestrator" : thread.kind === "native" ? "Pi subagent" : thread.spawnedByTask ? "Subagent" : "Worker thread"}</span>
           <span>·</span>
           <span>{thread.model.name ?? thread.model.selector}</span>
           <span>·</span>

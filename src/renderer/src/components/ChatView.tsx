@@ -227,7 +227,7 @@ function ThreadHeader({
           {thread.kind !== "orchestrator" ? (
             <>
               <ChevronRight size={12} />
-              <span className="breadcrumb-thread">{thread.kind === "native" ? "subagent" : "worker"}</span>
+              <span className="breadcrumb-thread">{thread.kind === "native" || thread.spawnedByTask ? "subagent" : "worker"}</span>
             </>
           ) : null}
         </div>

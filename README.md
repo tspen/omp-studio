@@ -8,7 +8,7 @@ Perch is the cockpit. Pi is the engine. There is no legacy engine runtime, no se
 
 - **Tree orchestrators**: Root -> Groups -> Projects -> Worker threads. Each level has its own Pi session, context, model, environment and memory.
 - **Messages up and down**: `tree_*` host tools let orchestrators spawn nodes/threads, send tasks, ask blocking questions, report results, escalate blockers, wait, cancel and inspect git. Every envelope is durable and visible in the message bus.
-- **Parallel tasks**: the `task` host tool fans out up to eight worker threads and returns structured results, so Pi agents get parallel task delegation without in-process subagents.
+- **Parallel tasks**: the `task` host tool fans out up to eight worker threads and returns structured results, so Pi agents get parallel task delegation without in-process subagents. Task-spawned workers appear in a dedicated **Subagents** section in the right rail and keep their full transcripts.
 - **Pi under the hood**: Perch launches the bundled `@earendil-works/pi-coding-agent` in `--mode rpc`, uses Pi sessions, tools, skills, provider auth and compaction. It does not reimplement the agent loop.
 - **Host tool bridge**: Perch's tree, browser, sites, dev-server, workspace, LSP, AST, debugging, Python, notebook, web search and mobile tools are registered as Pi tools through a local authenticated extension. TypeScript/JavaScript/JSON diagnostics, definitions, references, hover and symbols are bundled; Python, Rust, Go, C/C++, Java, C#, Ruby and PHP use an installed language server or a `PERCH_LSP_*` override. `launch`/`debug` control a DAP session through an installed adapter. Python and Jupyter cells use a persistent kernel; `ast_grep`/`ast_edit` rewrite JS/TS/TSX/HTML/CSS structurally; `web_search` uses the provider you configure.
 - **Explicit model selection**: Per-thread model and thinking level, plus role defaults for root/group/project/worker/naming/memory.
@@ -50,7 +50,7 @@ On first run Perch opens a setup wizard:
 2. **Pick models**. Root, worker and naming defaults are selected from the connected provider, with cost and quality hints.
 3. **Ready**. Notifications, auto-naming and an optional first project.
 
-Provider credentials are stored in the Perch data directory under `pi-agent/auth.json`; they are not sent to Perch.
+Provider credentials are stored in the Perch data directory under `pi-agent/auth.json`; they are not sent to Perch. Existing credentials in a legacy SQLite auth store can be imported with `node scripts/import-auth-db.mjs --db <agent.db>`.
 
 ## Build a Windows installer
 

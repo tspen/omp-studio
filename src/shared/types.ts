@@ -238,6 +238,7 @@ export interface Thread {
   sessionFile?: string;
   nativeSubagentId?: string;
   nativeSubagentParentToolCallId?: string;
+  spawnedByTask?: boolean;
   branch?: string;
   baseBranch?: string;
   worktreePath?: string;

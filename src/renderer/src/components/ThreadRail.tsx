@@ -65,11 +65,13 @@ function ThreadsTab() {
   const current = selectedThread(state);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "live" | "open" | "done">("all");
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ resolved: true });
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ resolved: true, subagents: false });
   if (!node || !current) return null;
   const threads = nodeThreads(state, node.id);
   const orchestrator = threads.find((thread) => thread.kind === "orchestrator");
   const workers = threads.filter((thread) => thread.kind !== "orchestrator");
+  const taskWorkers = workers.filter((thread) => thread.spawnedByTask);
+  const standardWorkers = workers.filter((thread) => !thread.spawnedByTask);
   const matches = (thread: Thread) => {
     const text = query.trim().toLowerCase();
     if (text) {
@@ -81,10 +83,11 @@ function ThreadsTab() {
     if (filter === "done") return thread.archived || ["completed", "error"].includes(thread.status);
     return true;
   };
-  const active = workers.filter((thread) => ["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
-  const idle = workers.filter((thread) => !thread.archived && ["idle", "parked", "cancelled"].includes(thread.status) && matches(thread));
-  const done = workers.filter((thread) => !thread.archived && ["completed", "error"].includes(thread.status) && matches(thread));
-  const resolved = workers.filter((thread) => thread.archived && !["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
+  const subagents = taskWorkers.filter((thread) => !thread.archived && matches(thread));
+  const active = standardWorkers.filter((thread) => ["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
+  const idle = standardWorkers.filter((thread) => !thread.archived && ["idle", "parked", "cancelled"].includes(thread.status) && matches(thread));
+  const done = standardWorkers.filter((thread) => !thread.archived && ["completed", "error"].includes(thread.status) && matches(thread));
+  const resolved = standardWorkers.filter((thread) => thread.archived && !["running", "starting", "waiting", "queued"].includes(thread.status) && matches(thread));
   const showLive = filter === "all" || filter === "live" || filter === "open";
   const showIdle = filter === "all" || filter === "open";
   const showDone = filter === "all" || filter === "done";
@@ -122,6 +125,13 @@ function ThreadsTab() {
         {orchestrator ? <ThreadRow thread={orchestrator} current={current.id} /> : null}
       </div>
 
+      {subagents.length ? (
+        <div className="rail-section">
+          {sectionHead("subagents", "Subagents", subagents.length)}
+          {collapsed.subagents ? null : subagents.map((thread) => <ThreadRow key={thread.id} thread={thread} current={current.id} />)}
+        </div>
+      ) : null}
+
       {showLive ? (
         <div className="rail-section">
           {sectionHead("live", "Live threads", active.length, (
@@ -152,7 +162,7 @@ function ThreadsTab() {
         </div>
       ) : null}
 
-      {!active.length && !idle.length && !done.length && !resolved.length && (query || filter !== "all") ? (
+      {!subagents.length && !active.length && !idle.length && !done.length && !resolved.length && (query || filter !== "all") ? (
         <p className="rail-empty">No threads match this filter.</p>
       ) : null}
 
@@ -184,7 +194,7 @@ function ThreadRow({ thread, current }: { thread: Thread; current: string }) {
       <div className="thread-row-top">
         <StatusDot status={thread.status} pulse={thread.status === "running" || thread.status === "starting"} />
         <span className="thread-row-title">{thread.title}</span>
-        {thread.kind === "native" ? <Badge tone="purple">sub</Badge> : null}
+        {thread.kind === "native" || thread.spawnedByTask ? <Badge tone="purple">sub</Badge> : null}
         {thread.targetId ? <Badge tone="blue" title="Runs on a remote target">cloud</Badge> : null}
         {thread.pendingApproval ? <ShieldAlert size={13} className="warn-icon" /> : null}
         <span className="thread-row-time">{relativeTime(thread.lastActivityAt)}</span>

@@ -384,6 +384,7 @@ export class Orchestrator extends EventEmitter {
     titleAuto?: boolean;
     source?: Thread["source"];
     nativeSubagentId?: string;
+    spawnedByTask?: boolean;
     sessionFile?: string;
   }): Thread {
     const now = Date.now();
@@ -407,6 +408,7 @@ export class Orchestrator extends EventEmitter {
       sessionDir: input.sessionDir,
       sessionFile: input.sessionFile,
       nativeSubagentId: input.nativeSubagentId,
+      spawnedByTask: input.spawnedByTask,
       branch: input.branch,
       baseBranch: input.baseBranch,
       worktreePath: input.worktreePath,
@@ -519,7 +521,7 @@ export class Orchestrator extends EventEmitter {
     return node;
   }
 
-  async createThread(input: NewThreadRequest): Promise<Thread> {
+  async createThread(input: NewThreadRequest, options?: { spawnedByTask?: boolean }): Promise<Thread> {
     const node = this.store.getNode(input.nodeId);
     if (!node) throw new Error(`Node not found: ${input.nodeId}`);
     this.assertBudget(node.id);
@@ -565,6 +567,7 @@ export class Orchestrator extends EventEmitter {
       baseBranch,
       worktreePath,
       modelManual: !!input.model,
+      spawnedByTask: options?.spawnedByTask,
     });
     thread.environmentId = input.environmentId ?? node.environmentId;
     thread.git = worktreePath ? { ...(await this.deps.git.status(worktreePath)), worktreePath, baseBranch, isolation: isolationUsed } : undefined;
@@ -2261,7 +2264,7 @@ export class Orchestrator extends EventEmitter {
               effort: item.effort ?? context.thread.effort,
               isolation: item.isolation,
               wait: false,
-            }));
+            }, { spawnedByTask: true }));
           }
           if (context.args.wait === false) {
             return textResult(`Started ${created.length} worker(s): ${created.map((thread) => `${thread.title} (${thread.id})`).join(", ")}. Use tree_wait to collect results.`);
