@@ -254,6 +254,9 @@ function GeneralTab() {
         <Row label="Advisor runtime" hint="Passively reviews each turn and injects notes. More tokens, more scrutiny.">
           <Toggle checked={settings.advisor} onChange={(value) => update({ advisor: value })} />
         </Row>
+        <Row label="Auto-resolve finished workers" hint="Archive completed worker threads after 30 seconds so the tree stays focused. Results stay in Messages and Artifacts.">
+          <Toggle checked={settings.autoResolveWorkers !== false} onChange={(value) => update({ autoResolveWorkers: value })} />
+        </Row>
         <Row label="Setup wizard" hint="Re-run provider connection and model selection.">
           <Button size="sm" variant="soft" onClick={() => void state.updateSettings({ settings: { onboardingCompleted: false } })}>Run setup again</Button>
         </Row>

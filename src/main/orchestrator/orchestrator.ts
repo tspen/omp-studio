@@ -62,6 +62,7 @@ import { audit } from "../audit";
 
 const WORKER_RESUME_PROMPT =
   "The app closed while this thread was working. Resume the interrupted task from where it stopped: inspect the current workspace and branch first, finish the unfinished work, verify it, then call tree_report with the outcome. Do not redo steps that already completed.";
+const AUTO_RESOLVE_DELAY_MS = 30_000;
 
 export interface OrchestratorDeps {
   store: Store;
@@ -95,6 +96,7 @@ export class Orchestrator extends EventEmitter {
   private starting = new Map<string, Promise<PiSession>>();
   private gitTimers = new Map<string, NodeJS.Timeout>();
   private autoContinueTimers = new Map<string, NodeJS.Timeout>();
+  private autoResolveTimers = new Map<string, NodeJS.Timeout>();
   private retitleState = new Map<string, { turns: number; lastAt: number }>();
   private focusedThreadId: string | null = null;
   private digestTimer: NodeJS.Timeout | null = null;
@@ -136,6 +138,7 @@ export class Orchestrator extends EventEmitter {
     this.recomputeUsage();
     this.startDigestTimer();
     this.startStatusTimer();
+    this.sweepAutoResolvedWorkers();
     this.parkingTimer = setInterval(() => void this.runMaintenance(), 60_000);
     this.automationTimer = setInterval(() => void this.runDueAutomations(), 60_000);
   }
@@ -600,6 +603,7 @@ export class Orchestrator extends EventEmitter {
     const thread = this.store.getThread(threadId);
     trace("continue-start", { threadId, kind: thread?.kind, status: thread?.status });
     if (!thread) throw new Error("Thread not found");
+    this.clearAutoResolve(thread.id);
     if (thread.archived) {
       const revived = this.store.updateThread(thread.id, { archived: false, status: "idle", statusMessage: "Reopened" });
       this.deps.emit({ type: "thread:updated", payload: revived });
@@ -721,6 +725,7 @@ export class Orchestrator extends EventEmitter {
   async sendUserMessage(request: SendMessageRequest): Promise<void> {
     const thread = this.store.getThread(request.threadId);
     if (!thread) throw new Error("Thread not found");
+    this.clearAutoResolve(thread.id);
     trace("send-user", { threadId: thread.id, chars: request.text.length });
     if (thread.archived) {
       const revived = this.store.updateThread(thread.id, { archived: false, status: "idle", statusMessage: "Reopened" });
@@ -792,6 +797,7 @@ export class Orchestrator extends EventEmitter {
   }
 
   async restartThread(threadId: string): Promise<void> {
+    this.clearAutoResolve(threadId);
     const thread = this.store.getThread(threadId);
     if (thread?.archived) {
       const revived = this.store.updateThread(threadId, { archived: false, status: "idle", statusMessage: "Restarting" });
@@ -1236,9 +1242,70 @@ export class Orchestrator extends EventEmitter {
   }
 
   async deleteThread(id: string): Promise<void> {
+    this.clearAutoResolve(id);
     await this.disposeSession(id).catch(() => undefined);
     this.store.removeThread(id);
     this.deps.emit({ type: "thread:removed", payload: { id } });
+  }
+
+  private clearAutoResolve(threadId: string): void {
+    const timer = this.autoResolveTimers.get(threadId);
+    if (timer) clearTimeout(timer);
+    this.autoResolveTimers.delete(threadId);
+  }
+
+  /**
+   * Finished workers leave the live tree on their own. The delay leaves a
+   * short window to read the result before the thread moves to Resolved.
+   */
+  private scheduleAutoResolve(threadId: string, delayMs?: number): void {
+    if (this.store.settings.autoResolveWorkers === false) return;
+    const thread = this.store.getThread(threadId);
+    if (!thread || thread.kind !== "worker" || thread.archived || thread.pinned) return;
+    if (thread.goal?.status === "active") return;
+    if (!["completed", "cancelled"].includes(thread.status)) return;
+    this.clearAutoResolve(threadId);
+    const remaining = delayMs ?? Math.max(0, AUTO_RESOLVE_DELAY_MS - (Date.now() - thread.updatedAt));
+    const timer = setTimeout(() => void this.autoResolveThread(threadId, thread.updatedAt), remaining);
+    timer.unref?.();
+    this.autoResolveTimers.set(threadId, timer);
+  }
+
+  private async autoResolveThread(threadId: string, expectedUpdatedAt: number): Promise<void> {
+    this.clearAutoResolve(threadId);
+    if (this.closed) return;
+    const thread = this.store.getThread(threadId);
+    if (!thread || thread.kind !== "worker" || thread.archived || thread.pinned) return;
+    if (thread.updatedAt !== expectedUpdatedAt) return;
+    if (!["completed", "cancelled"].includes(thread.status)) return;
+    if (thread.goal?.status === "active") return;
+    if (this.focusedThreadId === threadId) {
+      this.scheduleAutoResolve(threadId, AUTO_RESOLVE_DELAY_MS);
+      return;
+    }
+    const updated = this.store.updateThread(threadId, { archived: true, pendingApproval: undefined });
+    this.deps.emit({ type: "thread:updated", payload: updated });
+    trace("auto-resolve", { threadId, status: thread.status });
+    await this.disposeSession(threadId).catch(() => undefined);
+  }
+
+  private sweepAutoResolvedWorkers(): void {
+    if (this.store.settings.autoResolveWorkers === false) return;
+    const now = Date.now();
+    for (const thread of this.store.threads) {
+      if (thread.kind !== "worker" || thread.archived || thread.pinned) continue;
+      if (thread.goal?.status === "active") continue;
+      if (!["completed", "cancelled"].includes(thread.status)) continue;
+      const remaining = AUTO_RESOLVE_DELAY_MS - (now - thread.updatedAt);
+      if (remaining > 0) this.scheduleAutoResolve(thread.id);
+      else void this.autoResolveThread(thread.id, thread.updatedAt);
+    }
+  }
+
+  refreshAutoResolve(): void {
+    for (const timer of this.autoResolveTimers.values()) clearTimeout(timer);
+    this.autoResolveTimers.clear();
+    this.sweepAutoResolvedWorkers();
   }
 
   /**
@@ -1246,6 +1313,7 @@ export class Orchestrator extends EventEmitter {
    * parent so the orchestrator sees it as done, not silently disappeared.
    */
   async resolveThread(id: string, note?: string): Promise<Thread> {
+    this.clearAutoResolve(id);
     const thread = this.store.getThread(id);
     if (!thread) throw new Error("Thread not found");
     if (thread.kind === "orchestrator") throw new Error("Resolve the node instead; orchestrator threads are owned by their node");
@@ -1377,6 +1445,8 @@ export class Orchestrator extends EventEmitter {
     if (this.automationTimer) clearInterval(this.automationTimer);
     for (const timer of this.gitTimers.values()) clearTimeout(timer);
     for (const timer of this.autoContinueTimers.values()) clearTimeout(timer);
+    for (const timer of this.autoResolveTimers.values()) clearTimeout(timer);
+    this.autoResolveTimers.clear();
     disposeDap();
     disposeLsp();
     this.deps.python.dispose();
@@ -1397,6 +1467,7 @@ export class Orchestrator extends EventEmitter {
   }
 
   private async startSession(threadId: string): Promise<PiSession> {
+    this.clearAutoResolve(threadId);
     const thread = this.store.getThread(threadId);
     if (!thread) throw new Error("Thread not found");
     const node = this.store.getNode(thread.nodeId);
@@ -1876,6 +1947,7 @@ export class Orchestrator extends EventEmitter {
     if (result.status === "aborted") {
       this.updateStatus(threadId, "cancelled", "Stopped");
       await this.autoReport(threadId, "The thread was stopped before completion.");
+      if (thread.kind === "worker") this.scheduleAutoResolve(threadId);
       return;
     }
     const status: ThreadStatus = thread.kind === "worker" ? "completed" : "idle";
@@ -1897,6 +1969,7 @@ export class Orchestrator extends EventEmitter {
     }
     await this.autoReport(threadId, text);
     await this.refreshGit(threadId);
+    if (thread.kind === "worker") this.scheduleAutoResolve(threadId);
     void this.continueGoal(threadId);
   }
 
@@ -1992,6 +2065,7 @@ export class Orchestrator extends EventEmitter {
     if (debug) console.log("DELIVER_START", envelope.id, envelope.fromThreadId, "->", envelope.toThreadId, envelope.kind, envelope.direction);
     const target = this.store.getThread(envelope.toThreadId);
     if (!target) return false;
+    this.clearAutoResolve(target.id);
     if (target.kind === "native") {
       const parent = target.parentThreadId ? this.sessions.get(target.parentThreadId) : undefined;
       if (parent?.isRunning && target.nativeSubagentId) {

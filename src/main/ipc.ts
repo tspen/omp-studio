@@ -196,6 +196,7 @@ export function registerIpc(context: IpcContext): void {
       await orchestrator.setContextCompaction(!!patch.settings.contextCompaction);
     }
     if (patch.settings?.statusCheckIntervalMin !== undefined) orchestrator.refreshStatusTimer();
+    if (patch.settings?.autoResolveWorkers !== undefined) orchestrator.refreshAutoResolve();
     broadcast({ type: "snapshot", payload: orchestrator.snapshot() });
     return updated;
   });
