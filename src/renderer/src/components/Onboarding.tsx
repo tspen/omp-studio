@@ -49,6 +49,7 @@ export function Onboarding() {
   const [projectPathTouched, setProjectPathTouched] = useState(false);
   const [projectBrief, setProjectBrief] = useState("");
   const [gitInit, setGitInit] = useState(false);
+  const [showProject, setShowProject] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -62,10 +63,10 @@ export function Onboarding() {
       setProviders(list);
       const preferred = settings?.models.preferredProvider;
       const chosen =
+        list.find((provider) => provider.connected) ??
         list.find((provider) => provider.id === preferred) ??
         list.find((provider) => provider.id === "opencode-go") ??
-        list.find((provider) => provider.connected && provider.recommended) ??
-        list.find((provider) => provider.connected);
+        list.find((provider) => provider.connected && provider.recommended);
       setSelectedProvider(chosen?.id ?? "opencode-go");
     }).catch((error) => setProviderError(String(error)));
   }, []);
@@ -211,8 +212,8 @@ export function Onboarding() {
           <div className="onboarding-panel">
             <div className="onboarding-head">
               <Badge tone="accent">Step 1</Badge>
-              <h2>Connect a provider</h2>
-              <p>Perch uses Pi's provider catalog and credential store. Connect one service to unlock its models.</p>
+              <h2>{connectedProviders.length ? "Provider ready" : "Connect a provider"}</h2>
+              <p>{connectedProviders.length ? "You already have a provider connected through Pi. Choose it, or connect another service." : "Perch uses Pi's provider catalog and credential store. Connect one service to unlock its models."}</p>
             </div>
 
             <div className={cx("engine-card", engine?.found ? "ok" : "bad")}>
@@ -243,7 +244,7 @@ export function Onboarding() {
                   <div className="provider-logo">{provider.name.slice(0, 1).toUpperCase()}</div>
                   <div className="provider-copy">
                     <strong>{provider.name}</strong>
-                    <span>{provider.id} · {provider.login === "api-key" ? "API key" : provider.login === "oauth-code" ? "OAuth" : provider.login === "device-code" ? "device code" : provider.envVar ? "API key / env" : "Pi config"}</span>
+                    <span>{provider.login === "api-key" ? "API key" : provider.login === "oauth-code" ? "OAuth" : provider.login === "device-code" ? "device code" : provider.envVar ? "API key / env" : "Pi config"}</span>
                   </div>
                   {provider.connected ? <Badge tone="green">connected</Badge> : provider.recommended ? <Badge tone="accent">recommended</Badge> : null}
                   {provider.billing === "subscription" && !provider.connected ? <Badge tone="blue">plan</Badge> : null}
@@ -330,6 +331,7 @@ export function Onboarding() {
               <div className="onboarding-option"><div><strong>Windows notifications</strong><span>Toasts when a thread finishes, needs a decision, or errors.</span></div><Toggle checked={notifications} onChange={setNotifications} /></div>
               <div className="onboarding-option"><div><strong>Auto-name threads</strong><span>Names threads from the first message and refreshes long workers every few turns.</span></div><Toggle checked={autoName} onChange={setAutoName} /></div>
             </div>
+{showProject ? (
             <div className="onboarding-project">
               <div className="onboarding-project-head"><div><strong>First project</strong><span>Optional. Point it at a repository or let Perch create a workspace folder.</span></div><Badge tone="neutral">optional</Badge></div>
               <div className="two-col">
@@ -339,6 +341,9 @@ export function Onboarding() {
               <Field label="Brief" hint="Sent to the project orchestrator as its first task."><textarea rows={3} value={projectBrief} onChange={(event) => setProjectBrief(event.target.value)} placeholder="What should the first project own?" /></Field>
               <label className="inline-check"><input type="checkbox" checked={gitInit} onChange={(event) => setGitInit(event.target.checked)} /> Initialize git if needed</label>
             </div>
+            ) : (
+              <button type="button" className="link-button" onClick={() => setShowProject(true)}>Add a first project (optional)</button>
+            )}
             <div className="onboarding-actions">
               <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
               <Button variant="primary" disabled={submitting} onClick={() => void finish()}>{submitting ? <Spinner /> : <Check size={14} />} Enter Mission Control</Button>
@@ -429,7 +434,7 @@ function findModel(models: ModelInfo[], selector: string): ModelInfo | undefined
 
 function pickModel(role: "root" | "worker" | "naming", models: ModelInfo[]): string {
   if (!models.length) return "";
-  if (models[0]?.provider === "opencode-go") {
+  if (role !== "naming" && models[0]?.provider === "opencode-go") {
     const curated = models.find((model) => model.selector === "opencode-go/deepseek-v4.1-flash");
     if (curated) return curated.selector;
   }

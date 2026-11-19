@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Bell, Command, Globe, Inbox, Rocket, Search, Settings, Sparkles } from "lucide-react";
+import { Bell, Globe, Inbox, Search, Settings } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { BrowserPanel } from "./components/BrowserPanel";
@@ -8,7 +8,7 @@ import { ThreadRail } from "./components/ThreadRail";
 import { SettingsModal } from "./components/SettingsModal";
 import { ApprovalModal, Modals } from "./components/Modals";
 import { Onboarding } from "./components/Onboarding";
-import { Badge, IconButton, Logo, Toasts, cx, formatCost, formatNumber } from "./components/Common";
+import { Badge, IconButton, Logo, Toasts, cx } from "./components/Common";
 import { selectedNode, selectedThread, useApp } from "./store";
 import type { PaneKind } from "../../shared/types";
 import { unlockSounds } from "./sounds";
@@ -80,8 +80,6 @@ export function App() {
   const node = selectedNode(state);
   const thread = selectedThread(state);
   const unread = state.notifications.filter((item) => !item.read).length;
-  const groups = state.snapshot.nodes.filter((item) => item.type === "group").length;
-  const projects = state.snapshot.nodes.filter((item) => item.type === "project").length;
   const running = state.snapshot.threads.filter((item) => item.status === "running").length;
   const waiting = state.snapshot.threads.filter((item) => item.status === "waiting" || item.pendingApproval).length;
   const paneParam = new URLSearchParams(window.location.search).get("pane") as PaneKind | null;
@@ -106,13 +104,11 @@ export function App() {
       <div className="statusbar">
         <div className="statusbar-left">
           <span className="statusbar-item"><span className={cx("engine-dot", state.engine?.found ? "ok" : "bad")} /> {state.engine?.found ? `Pi ${state.engine.version}` : "Pi not found"}</span>
-          <span className="statusbar-item">{groups} groups · {projects} projects · {running} running · {waiting} waiting</span>
-          <span className="statusbar-item">{formatNumber(state.snapshot.usage.totalTokens)} tokens · {formatCost(state.snapshot.usage.totalCost)} metered{state.snapshot.usage.referenceCost ? ` · ${formatCost(state.snapshot.usage.referenceCost)} included ref` : ""}</span>
+          <span className="statusbar-item">{running ? `${running} running` : "All quiet"}{waiting ? ` / ${waiting} waiting` : ""}</span>
         </div>
         <div className="statusbar-right">
-          <span>{node ? `${node.type}: ${node.name}` : "No node"}</span>
+          <span>{node ? node.name : "No node"}</span>
           <span>{thread ? thread.model.name ?? thread.model.selector : "No thread"}</span>
-          <span>{thread ? `${thread.effort} effort` : ""}</span>
         </div>
       </div>
 
@@ -173,7 +169,6 @@ function TitleBar({ unread, running, waiting }: { unread: number; running: numbe
           <Bell size={15} />
           {unread ? <span className="titlebar-badge">{unread > 9 ? "9+" : unread}</span> : null}
         </button>
-        <button type="button" className="titlebar-icon" title="Sites" onClick={() => { void state.loadSites(); state.setOverlay("sites"); }}><Rocket size={15} /></button>
         <button type="button" className="titlebar-icon" title="Browser" onClick={() => state.openBrowser()}><Globe size={15} /></button>
         <button type="button" className="titlebar-icon" title="Settings" onClick={() => state.setSettingsTab("general")}><Settings size={15} /></button>
         <div className="titlebar-drag-space" />

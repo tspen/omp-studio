@@ -4,7 +4,6 @@ import {
   Boxes,
   ChevronDown,
   ChevronRight,
-  CircleDollarSign,
   Cloud,
   Folder,
   FolderGit2,
@@ -21,11 +20,10 @@ import {
   Sparkles,
   TerminalSquare,
   TreePine,
-  Zap,
 } from "lucide-react";
 import type { Thread, TreeNode } from "../../../shared/types";
 import { useApp, childNodes, selectedNode, selectedThread } from "../store";
-import { Badge, Button, IconButton, StatusDot, cx, formatCost, formatNumber, statusColor, statusLabel, truncate } from "./Common";
+import { Badge, Button, IconButton, StatusDot, cx, formatNumber, statusColor, statusLabel, truncate } from "./Common";
 
 export function Sidebar() {
   const state = useApp();
@@ -143,11 +141,6 @@ export function Sidebar() {
             <span>{thread ? truncate(thread.model.name ?? thread.model.selector, 24) : "No thread"}</span>
           </div>
           <IconButton icon={<Settings size={15} />} label="Settings" onClick={() => state.setSettingsTab("general")} />
-        </div>
-        <div className="foot-stats">
-          <span><Zap size={12} /> {formatNumber(snapshot?.usage.totalTokens ?? 0)} tokens</span>
-          <span><CircleDollarSign size={12} /> {formatCost(snapshot?.usage.totalCost ?? 0)}</span>
-          <span className={cx("engine-pill", state.engine?.found ? "ok" : "bad")}>{state.engine?.found ? "Pi" : "No engine"}</span>
         </div>
         {thread ? (
           <div className="foot-thread">

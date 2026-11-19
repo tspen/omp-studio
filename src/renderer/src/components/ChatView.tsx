@@ -13,6 +13,7 @@ import {
   GitBranch,
   MessageSquarePlus,
   Minimize2,
+  MoreHorizontal,
   PanelRightClose,
   PanelRightOpen,
   Paperclip,
@@ -36,7 +37,7 @@ import {
 } from "lucide-react";
 import type { ApprovalMode, ApprovalRequest, Thread, TreeNode } from "../../../shared/types";
 import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
-import { Badge, Button, IconButton, Select, Spinner, cx, formatCost, formatNumber, statusColor, statusLabel, truncate } from "./Common";
+import { Badge, Button, IconButton, Select, Spinner, cx, formatNumber, statusColor, statusLabel, truncate } from "./Common";
 import { Transcript } from "./Transcript";
 import { ModelPicker } from "./ModelPicker";
 
@@ -198,10 +199,20 @@ function ThreadHeader({
   const ancestors = nodeAncestors(nodes, node.id);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(thread.title);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   const model = state.models.find((item) => item.selector === thread.model.selector);
   const efforts = model?.thinking?.length ? model.thinking : ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
   useEffect(() => setTitle(thread.title), [thread.title]);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (event: MouseEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [moreOpen]);
 
   const saveTitle = async () => {
     setEditing(false);
@@ -256,11 +267,7 @@ function ThreadHeader({
           <span>{thread.kind === "orchestrator" ? node.type : thread.kind}</span>
           {thread.targetId ? <span className="chip-inline">cloud target</span> : null}
           <span>{thread.model.name ?? thread.model.selector}</span>
-          <span>{thread.effort} effort</span>
           {/compact/i.test(thread.statusMessage ?? "") ? <span className="compaction-inline">{thread.statusMessage}</span> : null}
-          <span className={node.approvalMode === "yolo" ? "approval-inline danger" : "approval-inline"}>
-            {node.approvalMode === "yolo" ? "auto-approve all" : node.approvalMode === "write" ? "auto-approve writes" : "ask each time"}
-          </span>
           {thread.branch ? <span className="mono chip-inline"><GitBranch size={11} /> {thread.branch}</span> : null}
           {thread.git ? (
             <span className={thread.git.clean ? "git-clean" : "git-dirty"}>
@@ -276,56 +283,68 @@ function ThreadHeader({
           <Plus size={14} /> Thread
         </Button>
         <IconButton icon={<Target size={15} />} label="Goal mode" onClick={() => state.setOverlay("goal")} />
-        <IconButton icon={<ListChecks size={15} />} label="Open tasks pane" onClick={() => state.openPane("tasks")} />
-        <IconButton icon={<Minimize2 size={15} />} label="Compact context now" onClick={async () => {
-          if (thread.status === "running" && !confirm("Manual compaction aborts the current turn. Continue?")) return;
-          state.pushToast({ kind: "info", title: "Compacting context", body: "Pi is summarizing older history." });
-          try {
-            await window.perch.compactThread(thread.id);
-            state.pushToast({ kind: "success", title: "Context compacted" });
-            await state.refresh();
-          } catch (error) {
-            state.pushToast({ kind: "error", title: "Compaction failed", body: String(error) });
-          }
-        }} />
         <IconButton icon={<History size={15} />} label="History, checkpoints, fork and rewind" onClick={() => state.setOverlay("history")} />
-        <IconButton icon={<Save size={15} />} label="Create a file checkpoint" onClick={async () => {
-          try {
-            await window.perch.createCheckpoint(thread.id, "Manual checkpoint");
-            state.pushToast({ kind: "success", title: "Checkpoint created" });
-          } catch (error) {
-            state.pushToast({ kind: "error", title: "Checkpoint failed", body: String(error) });
-          }
-        }} />
-        <IconButton icon={<Share2 size={15} />} label="Share this thread" onClick={() => void state.shareThread()} />
-        <IconButton icon={<FileDown size={15} />} label="Export thread as PDF" onClick={async () => {
-          try {
-            const result = await window.perch.exportThreadPdf(thread.id);
-            state.pushToast({ kind: "success", title: "PDF exported", body: result.path });
-            await window.perch.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
-          } catch (error) {
-            state.pushToast({ kind: "error", title: "PDF export failed", body: String(error) });
-          }
-        }} />
-        <IconButton icon={<FileText size={15} />} label="Export thread as Word document" onClick={async () => {
-          try {
-            const result = await window.perch.exportThreadDocx(thread.id);
-            state.pushToast({ kind: "success", title: "Word document exported", body: result.path });
-            await window.perch.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
-          } catch (error) {
-            state.pushToast({ kind: "error", title: "Word export failed", body: String(error) });
-          }
-        }} />
-        {thread.kind !== "orchestrator" ? (
-          <IconButton icon={<Trash2 size={15} />} label="Delete thread" onClick={async () => {
-            if (!confirm(`Delete thread "${thread.title}"? Its branch and files stay on disk.`)) return;
-            await window.perch.deleteThread(thread.id);
-            await state.refresh();
-            await state.selectNode(node.id);
-          }} />
-        ) : null}
+        <div className="header-more" ref={moreRef}>
+          <IconButton icon={<MoreHorizontal size={16} />} label="More actions" onClick={() => setMoreOpen((value) => !value)} />
+          {moreOpen ? (
+            <div className="header-more-menu">
+              <button type="button" onClick={() => { setMoreOpen(false); state.openPane("tasks"); }}><ListChecks size={14} /> Tasks</button>
+              <button type="button" onClick={async () => {
+                setMoreOpen(false);
+                if (thread.status === "running" && !confirm("Manual compaction aborts the current turn. Continue?")) return;
+                state.pushToast({ kind: "info", title: "Compacting context", body: "Pi is summarizing older history." });
+                try {
+                  await window.perch.compactThread(thread.id);
+                  state.pushToast({ kind: "success", title: "Context compacted" });
+                  await state.refresh();
+                } catch (error) {
+                  state.pushToast({ kind: "error", title: "Compaction failed", body: String(error) });
+                }
+              }}><Minimize2 size={14} /> Compact context</button>
+              <button type="button" onClick={async () => {
+                setMoreOpen(false);
+                try {
+                  await window.perch.createCheckpoint(thread.id, "Manual checkpoint");
+                  state.pushToast({ kind: "success", title: "Checkpoint created" });
+                } catch (error) {
+                  state.pushToast({ kind: "error", title: "Checkpoint failed", body: String(error) });
+                }
+              }}><Save size={14} /> Create checkpoint</button>
+              <button type="button" onClick={() => { setMoreOpen(false); void state.shareThread(); }}><Share2 size={14} /> Share thread</button>
+              <button type="button" onClick={() => { setMoreOpen(false); state.setSettingsTab("workspace"); }}><Settings2 size={14} /> Project settings</button>
+              <button type="button" onClick={async () => {
+                setMoreOpen(false);
+                try {
+                  const result = await window.perch.exportThreadPdf(thread.id);
+                  state.pushToast({ kind: "success", title: "PDF exported", body: result.path });
+                  await window.perch.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
+                } catch (error) {
+                  state.pushToast({ kind: "error", title: "PDF export failed", body: String(error) });
+                }
+              }}><FileDown size={14} /> Export PDF</button>
+              <button type="button" onClick={async () => {
+                setMoreOpen(false);
+                try {
+                  const result = await window.perch.exportThreadDocx(thread.id);
+                  state.pushToast({ kind: "success", title: "Word document exported", body: result.path });
+                  await window.perch.openPath(result.path.replace(/[\\/][^\\/]+$/, ""));
+                } catch (error) {
+                  state.pushToast({ kind: "error", title: "Word export failed", body: String(error) });
+                }
+              }}><FileText size={14} /> Export Word</button>
+              {thread.kind !== "orchestrator" ? (
+                <button type="button" className="danger" onClick={async () => {
+                  setMoreOpen(false);
+                  if (!confirm("Delete thread \"" + thread.title + "\"? Its branch and files stay on disk.")) return;
+                  await window.perch.deleteThread(thread.id);
+                  await state.refresh();
+                  await state.selectNode(node.id);
+                }}><Trash2 size={14} /> Delete thread</button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         <IconButton icon={state.railOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />} label="Toggle right panel" onClick={state.toggleRail} />
-        <IconButton icon={<Settings2 size={16} />} label="Project settings" onClick={() => state.setSettingsTab("general")} />
       </div>
     </header>
   );
@@ -456,9 +475,9 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
                   });
                 })}
               >
-                <option value="yolo">YOLO · approve all</option>
-                <option value="write">Auto · writes</option>
-                <option value="always-ask">Ask always</option>
+                <option value="yolo">Auto-approve all</option>
+                <option value="write">Auto-approve writes</option>
+                <option value="always-ask">Ask each time</option>
               </Select>
             </span>
             <span className="composer-context">
@@ -493,8 +512,7 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
         </div>
       </div>
       <div className="composer-foot">
-        <span>{thread.tokens ? `${formatNumber(thread.tokens)} tokens · ${model?.included ? `included (ref ${formatCost(thread.cost)})` : formatCost(thread.cost)}` : "New thread"}</span>
-        <span>{running ? "Messages steer the live turn" : "Enter to send · Shift+Enter for newline"}</span>
+        <span>{running ? "Steering the live turn" : "Enter to send / Shift+Enter for newline"}</span>
         {state.share ? <span className="share-live">live share active</span> : null}
       </div>
     </div>

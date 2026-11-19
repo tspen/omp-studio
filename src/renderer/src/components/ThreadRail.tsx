@@ -41,7 +41,7 @@ export function ThreadRail() {
           value={tab}
           options={[
             { value: "threads", label: `Threads ${nodeThreads(state, node.id).length}` },
-            { value: "bus", label: "Message bus" },
+            { value: "bus", label: "Messages" },
             { value: "git", label: "Git" },
             { value: "ci", label: "CI" },
           ]}
@@ -167,13 +167,10 @@ function ThreadsTab() {
       ) : null}
 
       <div className="rail-section">
-        <div className="rail-section-head"><span>Node status</span></div>
+        <div className="rail-section-head"><span>Workspace</span></div>
         <div className="node-status-card">
           <div><span>Path</span><strong title={node.repoPath || node.path}>{truncate(node.repoPath || node.path, 30)}</strong></div>
           <div><span>Model</span><strong>{truncate(state.models.find((model) => model.selector === node.model)?.name ?? node.model, 28)}</strong></div>
-          <div><span>Git policy</span><strong>{node.gitMode}</strong></div>
-          <div><span>Approval</span><strong>{node.approvalMode}</strong></div>
-          <div><span>Threads</span><strong>{threads.length}</strong></div>
         </div>
       </div>
     </div>

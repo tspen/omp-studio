@@ -45,25 +45,17 @@ import { playSound } from "../sounds";
 
 const TABS = [
   { id: "general", label: "General", icon: <Settings2 size={15} /> },
+  { id: "workspace", label: "Workspace", icon: <FolderGit2 size={15} /> },
   { id: "models", label: "Models", icon: <Sparkles size={15} /> },
-  { id: "usage", label: "Usage", icon: <Gauge size={15} /> },
   { id: "tools", label: "Tools", icon: <Wrench size={15} /> },
-  { id: "memory", label: "Memory", icon: <MemoryStick size={15} /> },
-  { id: "environments", label: "Environment", icon: <Terminal size={15} /> },
-  { id: "git", label: "Git", icon: <FolderGit2 size={15} /> },
-  { id: "connectors", label: "Connectors", icon: <Plug size={15} /> },
-  { id: "automations", label: "Automations", icon: <Clock size={15} /> },
-  { id: "sandbox", label: "Sandbox", icon: <Shield size={15} /> },
-  { id: "plugins", label: "Plugins", icon: <Package size={15} /> },
   { id: "remote", label: "Remote", icon: <Wifi size={15} /> },
-  { id: "notifications", label: "Notifications", icon: <Bell size={15} /> },
-  { id: "engine", label: "Engine", icon: <Cpu size={15} /> },
   { id: "advanced", label: "Advanced", icon: <SlidersHorizontal size={15} /> },
 ] as const;
 
 export function SettingsModal() {
   const state = useApp();
-  const tab = state.settingsTab;
+  const requestedTab = state.settingsTab;
+  const tab = TABS.some((item) => item.id === requestedTab) ? requestedTab : "general";
   const node = selectedNode(state);
   return (
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && state.setOverlay("none")}>
@@ -81,14 +73,9 @@ export function SettingsModal() {
               <button key={item.id} type="button" className={cx(tab === item.id && "active")} onClick={() => state.setSettingsTab(item.id)}>
                 {item.icon}
                 <span>{item.label}</span>
-                <ChevronRight size={13} className="settings-chev" />
               </button>
             ))}
           </nav>
-          <div className="settings-nav-foot">
-            <span>{state.engine?.version ? `Pi ${state.engine.version}` : "Pi not detected"}</span>
-            <span>{state.models.length} models</span>
-          </div>
         </aside>
         <section className="settings-content">
           <header className="settings-head">
@@ -100,19 +87,10 @@ export function SettingsModal() {
           </header>
           <div className="settings-scroll">
             {tab === "general" ? <GeneralTab /> : null}
+            {tab === "workspace" ? <WorkspaceTab /> : null}
             {tab === "models" ? <ModelsTab /> : null}
-            {tab === "usage" ? <UsageTab /> : null}
             {tab === "tools" ? <ToolsTab /> : null}
-            {tab === "memory" ? <MemoryTab /> : null}
-            {tab === "environments" ? <EnvironmentsTab /> : null}
-            {tab === "git" ? <GitTab /> : null}
-            {tab === "connectors" ? <ConnectorsTab /> : null}
-            {tab === "automations" ? <AutomationsTab /> : null}
-            {tab === "sandbox" ? <SandboxTab /> : null}
-            {tab === "plugins" ? <PluginsTab /> : null}
             {tab === "remote" ? <RemoteTab /> : null}
-            {tab === "notifications" ? <NotificationsTab /> : null}
-            {tab === "engine" ? <EngineTab /> : null}
             {tab === "advanced" ? <AdvancedTab /> : null}
           </div>
         </section>
@@ -124,35 +102,17 @@ export function SettingsModal() {
 function settingsBlurb(tab: string): string {
   switch (tab) {
     case "general":
-      return "Tree behavior, this node, and the app shell.";
+      return "Appearance, defaults and notifications.";
+    case "workspace":
+      return "Rename, move and configure the selected project or group.";
     case "models":
-      return "Explicit model and reasoning defaults for every level. Defaults use Artificial Analysis agentic value within sane cost caps.";
-    case "usage":
-      return "Provider windows, token/cost totals, budgets and auto-resume behavior.";
+      return "Choose the model each level uses. The defaults are tuned for quality and cost.";
     case "tools":
-      return "Enable Pi tools and decide how they are approved. Host tree tools are always available to orchestrators.";
-    case "memory":
-      return "Memory at this level. Orchestrators write here when they decide something is durable.";
-    case "environments":
-      return "Local execution profiles: env vars, setup scripts, shell, git policy and approval mode.";
-    case "git":
-      return "Default isolation and integration policy for project threads.";
-    case "connectors":
-      return "Tokens for GitHub, Cloudflare, Slack, Linear and Figma, plus one-click Cloudflare MCP.";
-    case "automations":
-      return "Scheduled instructions that spawn a fresh worker thread and report into your queue.";
-    case "sandbox":
-      return "Command denylist, path scope, network policy and the audit trail.";
-    case "plugins":
-      return "Install Claude Code-style plugin folders from Git or disk. Skills and MCP servers are installed; hooks are not executed.";
+      return "Tools follow the approval mode by default. Override individual tools only when you need to.";
     case "remote":
-      return "Control this machine from your phone or another PC over your Wi-Fi or your own relay. Token-protected, no public exposure.";
-    case "notifications":
-      return "Windows toasts, tray badge, and which events are worth interrupting you.";
-    case "engine":
-      return "The bundled Pi runtime, its version, and updates.";
+      return "Scan once to use Perch from your phone, or connect another machine.";
     case "advanced":
-      return "The Pi settings surface, backed by pi-agent/settings.json.";
+      return "Rarely used defaults and integrations. Most people never need this page.";
     default:
       return "";
   }
@@ -204,12 +164,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 function GeneralTab() {
   const state = useApp();
   const settings = state.snapshot?.settings;
-  const node = selectedNode(state);
-  const thread = selectedThread(state);
-  const [name, setName] = useState(node?.name ?? "");
-  const [path, setPath] = useState(node?.path ?? "");
-  useEffect(() => { setName(node?.name ?? ""); setPath(node?.path ?? ""); }, [node?.id]);
-  if (!settings || !node) return null;
+  if (!settings) return null;
   const update = (patch: any) => state.updateSettings({ settings: patch });
   return (
     <>
@@ -227,12 +182,12 @@ function GeneralTab() {
             <Button size="sm" variant="soft" onClick={async () => { const picked = await window.perch.pickDirectory(); if (picked) update({ workspaceRoot: picked }); }}><Folder size={13} /> Browse</Button>
           </div>
         </Row>
-        <Row label="Default tool approval" hint="YOLO auto-approves every tool call, including shell and destructive commands. Applies to new nodes and sessions; change one node from the chat toolbar.">
+        <Row label="Default tool approval" hint="Auto-approve all runs every tool call without asking, including shell and destructive commands. Applies to new nodes and sessions.">
           <div className="inline-actions">
             <Select value={settings.defaultApprovalMode ?? "yolo"} onChange={(value) => update({ defaultApprovalMode: value as ApprovalMode })}>
-              <option value="yolo">YOLO · approve all</option>
+              <option value="yolo">Auto-approve all</option>
               <option value="write">Auto-approve writes</option>
-              <option value="always-ask">Always ask</option>
+              <option value="always-ask">Ask each time</option>
             </Select>
             <Button size="sm" variant="soft" onClick={async () => {
               const mode = (settings.defaultApprovalMode ?? "yolo") as ApprovalMode;
@@ -249,33 +204,6 @@ function GeneralTab() {
         </Row>
         <Row label="Wake parent on report" hint="If the parent is parked, a child report starts it. Disable to queue reports silently.">
           <Toggle checked={settings.autoWakeParent} onChange={(value) => update({ autoWakeParent: value })} />
-        </Row>
-        <Row label="Tree summary interval" hint="Minutes between a roll-up of running, waiting and failed threads. 0 disables summaries.">
-          <input className="num-input" type="number" min={0} value={settings.digestIntervalMin} onChange={(event) => update({ digestIntervalMin: Number(event.target.value) })} />
-        </Row>
-        <Row label="Status check interval" hint="Minutes between Mission Control status requests to child orchestrators. 0 disables them.">
-          <input className="num-input" type="number" min={0} value={settings.statusCheckIntervalMin ?? 15} onChange={(event) => update({ statusCheckIntervalMin: Number(event.target.value) })} />
-        </Row>
-        <Row label="Max concurrent Pi sessions" hint="Idle sessions are parked to stay under this cap.">
-          <input className="num-input" type="number" min={1} max={32} value={settings.maxConcurrentThreads} onChange={(event) => update({ maxConcurrentThreads: Number(event.target.value) })} />
-        </Row>
-        <Row label="Auto-compact context" hint="Pi summarizes older history as the context window fills, including mid-turn. Applies to running sessions immediately.">
-          <Toggle checked={settings.contextCompaction !== false} onChange={(value) => update({ contextCompaction: value })} />
-        </Row>
-        <Row label="Background compact idle sessions" hint="When a session has been idle for a couple of minutes and its context is above the threshold, Pi summarizes it in the background. Sessions are never stopped and only one compacts at a time.">
-          <Toggle checked={settings.idleCompaction !== false} onChange={(value) => update({ idleCompaction: value })} />
-        </Row>
-        <Row label="Idle compaction threshold" hint="Percent of the context window that triggers background compaction.">
-          <input className="num-input" type="number" min={30} max={95} step={5} disabled={settings.idleCompaction === false} value={settings.idleCompactionThreshold ?? 60} onChange={(event) => update({ idleCompactionThreshold: Number(event.target.value) })} />
-        </Row>
-        <Row label="Terminal shell" hint="Shell used by the persistent Terminal. Blank uses PowerShell on Windows and $SHELL elsewhere.">
-          <input value={settings.terminalShell ?? ""} onChange={(event) => update({ terminalShell: event.target.value })} placeholder="powershell.exe" />
-        </Row>
-        <Row label="Auto-open preview URLs" hint="When a terminal prints a localhost URL, open it in the in-app Browser automatically.">
-          <Toggle checked={settings.previewAutoOpen !== false} onChange={(value) => update({ previewAutoOpen: value })} />
-        </Row>
-        <Row label="Advisor runtime" hint="Passively reviews each turn and injects notes. More tokens, more scrutiny.">
-          <Toggle checked={settings.advisor} onChange={(value) => update({ advisor: value })} />
         </Row>
         <Row label="Show thinking blocks" hint="Display model reasoning inline.">
           <Toggle checked={settings.ui.showThinking} onChange={(value) => update({ ui: { ...settings.ui, showThinking: value } })} />
@@ -296,12 +224,59 @@ function GeneralTab() {
             <Button size="sm" variant="ghost" disabled={settings.ui.sounds === false} onClick={() => playSound("complete", { enabled: true, volume: settings.ui.soundVolume ?? 0.25 })}><Play size={12} /> Test</Button>
           </div>
         </Row>
+      </Section>
+
+      <Disclosure title="Advanced defaults" subtitle="Intervals, concurrency, compaction, shell and setup.">
+        <Row label="Tree summary interval" hint="Minutes between a roll-up of running, waiting and failed threads. 0 disables summaries.">
+          <input className="num-input" type="number" min={0} value={settings.digestIntervalMin} onChange={(event) => update({ digestIntervalMin: Number(event.target.value) })} />
+        </Row>
+        <Row label="Status check interval" hint="Minutes between Mission Control status requests to child orchestrators. 0 disables them.">
+          <input className="num-input" type="number" min={0} value={settings.statusCheckIntervalMin ?? 15} onChange={(event) => update({ statusCheckIntervalMin: Number(event.target.value) })} />
+        </Row>
+        <Row label="Max concurrent Pi sessions" hint="Idle sessions are parked to stay under this cap.">
+          <input className="num-input" type="number" min={1} max={32} value={settings.maxConcurrentThreads} onChange={(event) => update({ maxConcurrentThreads: Number(event.target.value) })} />
+        </Row>
+        <Row label="Auto-compact context" hint="Pi summarizes older history as the context window fills, including mid-turn.">
+          <Toggle checked={settings.contextCompaction !== false} onChange={(value) => update({ contextCompaction: value })} />
+        </Row>
+        <Row label="Background compact idle sessions" hint="Summarize idle sessions in the background when their context is above the threshold.">
+          <Toggle checked={settings.idleCompaction !== false} onChange={(value) => update({ idleCompaction: value })} />
+        </Row>
+        <Row label="Idle compaction threshold" hint="Percent of the context window that triggers background compaction.">
+          <input className="num-input" type="number" min={30} max={95} step={5} disabled={settings.idleCompaction === false} value={settings.idleCompactionThreshold ?? 60} onChange={(event) => update({ idleCompactionThreshold: Number(event.target.value) })} />
+        </Row>
+        <Row label="Terminal shell" hint="Blank uses PowerShell on Windows and $SHELL elsewhere.">
+          <input value={settings.terminalShell ?? ""} onChange={(event) => update({ terminalShell: event.target.value })} placeholder="powershell.exe" />
+        </Row>
+        <Row label="Auto-open preview URLs" hint="Open localhost URLs printed by a terminal in the in-app Browser.">
+          <Toggle checked={settings.previewAutoOpen !== false} onChange={(value) => update({ previewAutoOpen: value })} />
+        </Row>
+        <Row label="Advisor runtime" hint="Passively reviews each turn and injects notes. More tokens, more scrutiny.">
+          <Toggle checked={settings.advisor} onChange={(value) => update({ advisor: value })} />
+        </Row>
         <Row label="Setup wizard" hint="Re-run provider connection and model selection.">
           <Button size="sm" variant="soft" onClick={() => void state.updateSettings({ settings: { onboardingCompleted: false } })}>Run setup again</Button>
         </Row>
-      </Section>
+      </Disclosure>
 
-      <Section title="This node" subtitle="Applies to the selected project or group." right={<div className="inline-actions"><Badge tone={node.type === "root" ? "accent" : node.type === "group" ? "blue" : "green"}>{node.type}</Badge><Button size="sm" variant="soft" disabled={!name.trim()} onClick={() => void window.perch.updateNode(node.id, { name, path }).then(() => state.refresh())}><Save size={13} /> Save node</Button></div>}>
+      <NotificationsSection />
+
+
+    </>
+  );
+}
+
+function WorkspaceTab() {
+  const state = useApp();
+  const node = selectedNode(state);
+  const thread = selectedThread(state);
+  const [name, setName] = useState(node?.name ?? "");
+  const [path, setPath] = useState(node?.path ?? "");
+  useEffect(() => { setName(node?.name ?? ""); setPath(node?.path ?? ""); }, [node?.id]);
+  if (!node) return <div className="settings-loading"><Spinner /> Loading workspace...</div>;
+  return (
+    <>
+      <Section title="Selected node" subtitle="Rename, move, isolate and remove the selected project or group." right={<div className="inline-actions"><Badge tone={node.type === "root" ? "accent" : node.type === "group" ? "blue" : "green"}>{node.type}</Badge><Button size="sm" variant="soft" disabled={!name.trim()} onClick={() => void window.perch.updateNode(node.id, { name, path }).then(() => state.refresh())}><Save size={13} /> Save node</Button></div>}>
         <Row label="Name">
           <div className="inline-actions">
             <input value={name} onChange={(event) => setName(event.target.value)} />
@@ -325,19 +300,19 @@ function GeneralTab() {
         <Row label="Orchestrator model">
           <span className="mono muted">{state.models.find((model) => model.selector === node.model)?.name ?? node.model}</span>
         </Row>
-        <Row label="Git isolation">
+        {node.type !== "root" ? <Row label="Git isolation">
           <Select value={node.gitMode} onChange={(value) => void window.perch.updateNode(node.id, { gitMode: value as any }).then(() => state.refresh())}>
             <option value="auto">Auto (orchestrator decides)</option>
             <option value="shared">Shared checkout</option>
             <option value="branch">Branch per worker</option>
             <option value="worktree">Worktree per worker</option>
           </Select>
-        </Row>
+        </Row> : null}
         <Row label="Tool approval">
           <Select value={node.approvalMode} onChange={(value) => void window.perch.updateNode(node.id, { approvalMode: value as any }).then(() => state.refresh())}>
             <option value="always-ask">Always ask</option>
             <option value="write">Auto-approve writes</option>
-            <option value="yolo">Yolo</option>
+            <option value="yolo">Auto-approve all</option>
           </Select>
         </Row>
         <Row label="Node budget (USD)" hint="Overrides the app budget for this subtree. 0 uses the app budget.">
@@ -346,15 +321,15 @@ function GeneralTab() {
         <Row label="Mute this node" hint="Suppresses toasts, not the in-app inbox.">
           <Toggle checked={node.muted} onChange={(value) => void window.perch.updateNode(node.id, { muted: value }).then(() => state.refresh())} />
         </Row>
-        <Row label="Delete node" hint="Removes app state and child threads. Repository files and branches are left in place.">
-          <Button size="sm" variant="danger" disabled={node.type === "root"} onClick={async () => {
+        {node.type !== "root" ? <Row label="Delete node" hint="Removes app state and child threads. Repository files and branches are left in place.">
+          <Button size="sm" variant="danger" onClick={async () => {
             if (!confirm(`Delete ${node.name} and its child threads? Files stay on disk.`)) return;
             await window.perch.deleteNode(node.id);
             await state.refresh();
             await state.selectRoot();
             state.setOverlay("none");
           }}><Trash2 size={13} /> Delete</Button>
-        </Row>
+        </Row> : null}
         {thread ? (
           <Row label="Current thread">
             <span className="muted">{thread.title} · {statusLabel(thread.status)}</span>
@@ -425,7 +400,7 @@ function ModelsTab() {
           />
         </div>
       ) : null}
-      <Section title="Artificial Analysis" subtitle="Independent benchmark scores used to order models and choose sane defaults.">
+      <Disclosure title="Artificial Analysis & catalog" subtitle="Benchmark data and catalog refresh. The recommended defaults already use this.">
         <Row label="Catalog" hint={`${state.models.length} models available through Pi. ${aaCount} have AA scores.`}>
           <Button size="sm" variant="soft" onClick={() => void state.refreshModels()}><RefreshCw size={13} /> Refresh Pi catalog</Button>
         </Row>
@@ -436,7 +411,7 @@ function ModelsTab() {
           <Toggle checked={settings.models.autoUpdateAA} onChange={(value) => state.updateSettings({ settings: { models: { ...settings.models, autoUpdateAA: value } } })} />
         </Row>
         <div className="aa-note">Defaults rank by AA agentic score (terminal-bench, τ²-bench, IFBench, long-context) divided by blended cost. Batch routes, free routers, and models above $15/M output are excluded from auto-defaults. Data and pricing are attributed to artificialanalysis.ai; unmatched models use a local estimate labelled Q.</div>
-      </Section>
+      </Disclosure>
     </>
   );
 }
@@ -517,13 +492,23 @@ function ToolsTab() {
       .then(([toolList, skillList, mcpList]) => { setTools(toolList); setSkills(skillList); setMcps(mcpList); })
       .finally(() => setLoading(false));
   }, []);
-  const filtered = tools.filter((tool) => !query || tool.name.toLowerCase().includes(query.toLowerCase()) || tool.group.toLowerCase().includes(query.toLowerCase()));
+  const filtered = tools.filter((tool) => tool.source !== "host" && (!query || tool.name.toLowerCase().includes(query.toLowerCase()) || tool.group.toLowerCase().includes(query.toLowerCase())));
   const groups = [...new Set(filtered.map((tool) => tool.group))];
   const refresh = async () => setTools(await window.perch.listTools());
-  if (loading) return <div className="settings-loading"><Spinner /> Loading tool surface…</div>;
+  if (loading) return <div className="settings-loading"><Spinner /> Loading tools...</div>;
+  const approval = state.snapshot?.settings.defaultApprovalMode;
   return (
     <>
-      <Section title="Pi tools" subtitle="Writes Pi's own tool settings. Changes apply to newly started sessions." right={<input className="settings-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter tools…" />}>
+      <Section title="Tool permissions" subtitle="Tools follow the approval mode you choose in chat. Use this page only for exceptions.">
+        <Row label="Default approval" hint="Change it per node from the chat toolbar, or for all new nodes in General.">
+          <span className="muted">{approval === "yolo" ? "Auto-approve all" : approval === "write" ? "Auto-approve writes" : "Ask each time"}</span>
+        </Row>
+        <Row label="Host tools" hint="Tree, browser, LSP, AST, Python, notebook, web search and mobile tools are always available.">
+          <Badge tone="green">always available</Badge>
+        </Row>
+      </Section>
+      <Disclosure title="Per-tool overrides" subtitle="Turn individual Pi tools off or change their approval. Changes apply to newly started sessions.">
+        <input className="settings-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter tools..." />
         {groups.map((group) => (
           <div key={group} className="tool-group">
             <div className="tool-group-label">{group}</div>
@@ -532,31 +517,26 @@ function ToolsTab() {
                 <div className="tool-row-copy">
                   <strong>{tool.label || tool.name}</strong>
                   <span>{tool.description}</span>
-                  <div className="tool-row-tags">
-                    <Badge tone={tool.source === "host" ? "purple" : "neutral"}>{tool.source}</Badge>
-                    <span className="mono">{tool.name}</span>
-                  </div>
+                  <div className="tool-row-tags"><span className="mono">{tool.name}</span></div>
                 </div>
                 <div className="tool-row-controls">
-                  {tool.source === "host" ? (
-                    <Badge tone="green">always on</Badge>
-                  ) : (
-                    <>
-                      <Select value={tool.approval} onChange={async (value) => { await window.perch.setTool(tool.name, tool.enabled, value as ToolApproval); await refresh(); }}>
-                        <option value="allow">allow</option>
-                        <option value="prompt">prompt</option>
-                        <option value="deny">deny</option>
-                      </Select>
-                      <Toggle checked={tool.enabled} onChange={async (value) => { await window.perch.setTool(tool.name, value, tool.approval); await refresh(); }} />
-                    </>
-                  )}
+                  <Select value={tool.approval} onChange={async (value) => { await window.perch.setTool(tool.name, tool.enabled, value as ToolApproval); await refresh(); }}>
+                    <option value="allow">allow</option>
+                    <option value="prompt">prompt</option>
+                    <option value="deny">deny</option>
+                  </Select>
+                  <Toggle checked={tool.enabled} onChange={async (value) => { await window.perch.setTool(tool.name, value, tool.approval); await refresh(); }} />
                 </div>
               </div>
             ))}
           </div>
         ))}
-      </Section>
-      <Section title="Skills" subtitle="Discovered from Pi and Claude skill directories. Pi skills are editable here." right={<Button size="sm" variant="soft" onClick={() => setSkillForm({ name: "", description: "", body: "" })}><Plus size={12} /> New skill</Button>}>
+        {!groups.length ? <p className="muted">No Pi tools match this filter.</p> : null}
+      </Disclosure>
+      <Disclosure title="Skills" subtitle="Discovered from Pi and Claude skill directories. Pi skills are editable here.">
+        <div className="inline-actions" style={{ justifyContent: "flex-end", marginBottom: 8 }}>
+          <Button size="sm" variant="soft" onClick={() => setSkillForm({ name: "", description: "", body: "" })}><Plus size={12} /> New skill</Button>
+        </div>
         {skillForm ? (
           <div className="skill-form">
             <input value={skillForm.name} onChange={(event) => setSkillForm({ ...skillForm, name: event.target.value })} placeholder="Skill name" />
@@ -605,12 +585,12 @@ function ToolsTab() {
             </div>
           </div>
         )) : <p className="muted">No skills discovered.</p>}
-      </Section>
-      <Section title="MCP servers" subtitle="Project and user MCP configuration.">
+      </Disclosure>
+      <Disclosure title="MCP servers" subtitle="Project and user MCP configuration.">
         {mcps.length ? mcps.map((mcp) => (
           <div key={mcp.name} className="simple-row"><div><strong>{mcp.name}</strong><span>{mcp.command || mcp.url || mcp.source}</span></div><Badge tone={mcp.enabled ? "green" : "neutral"}>{mcp.enabled ? "enabled" : "disabled"}</Badge></div>
         )) : <p className="muted">No MCP servers configured.</p>}
-      </Section>
+      </Disclosure>
     </>
   );
 }
@@ -721,7 +701,7 @@ function EnvironmentsTab() {
           </Row>
           <Row label="Approval mode">
             <Select value={draft.approvalMode} onChange={(value) => setDraft({ ...draft, approvalMode: value as any })}>
-              <option value="always-ask">Always ask</option><option value="write">Auto-approve writes</option><option value="yolo">Yolo</option>
+              <option value="always-ask">Ask each time</option><option value="write">Auto-approve writes</option><option value="yolo">Auto-approve all</option>
             </Select>
           </Row>
           <div className="env-block">
@@ -772,7 +752,7 @@ function GitTab() {
   );
 }
 
-function NotificationsTab() {
+function NotificationsSection() {
   const state = useApp();
   const settings = state.snapshot?.settings;
   if (!settings) return null;
@@ -783,7 +763,6 @@ function NotificationsTab() {
       <Section title="Windows notifications" subtitle="Toasts and tray badge. In-app notifications are always stored.">
         <Row label="Enable notifications"><Toggle checked={n.enabled} onChange={(value) => update({ enabled: value })} /></Row>
         <Row label="Windows toast"><Toggle checked={n.toast} onChange={(value) => update({ toast: value })} /></Row>
-        <Row label="Sound"><Toggle checked={n.sound} onChange={(value) => update({ sound: value })} /></Row>
         <Row label="Thread completed"><Toggle checked={n.onComplete} onChange={(value) => update({ onComplete: value })} /></Row>
         <Row label="Decision needed"><Toggle checked={n.onQuestion} onChange={(value) => update({ onQuestion: value })} /></Row>
         <Row label="Errors"><Toggle checked={n.onError} onChange={(value) => update({ onError: value })} /></Row>
@@ -834,7 +813,67 @@ function EngineTab() {
   );
 }
 
+type AdvancedSection = "usage" | "memory" | "environments" | "git" | "connectors" | "automations" | "sandbox" | "plugins" | "engine" | "pi";
+
+const ADVANCED_SECTIONS: Array<{ id: AdvancedSection; label: string; description: string; icon: React.ReactNode }> = [
+  { id: "usage", label: "Usage & budgets", description: "Provider windows, spend, budgets and auto-resume.", icon: <Gauge size={16} /> },
+  { id: "memory", label: "Memory", description: "Durable facts and decisions at the selected level.", icon: <MemoryStick size={16} /> },
+  { id: "environments", label: "Environments", description: "Shell, setup scripts and per-node execution profiles.", icon: <Terminal size={16} /> },
+  { id: "git", label: "Git defaults", description: "Isolation, branch prefix and automatic integration.", icon: <FolderGit2 size={16} /> },
+  { id: "connectors", label: "Connectors", description: "GitHub, Cloudflare, Slack, Linear and Figma tokens.", icon: <Plug size={16} /> },
+  { id: "automations", label: "Automations", description: "Scheduled prompts that spawn fresh worker threads.", icon: <Clock size={16} /> },
+  { id: "sandbox", label: "Sandbox & audit", description: "Command rules, path scope, network policy and audit log.", icon: <Shield size={16} /> },
+  { id: "plugins", label: "Plugins", description: "Install skills and MCP servers from Git or disk.", icon: <Package size={16} /> },
+  { id: "engine", label: "Pi engine", description: "Runtime status, version and repair actions.", icon: <Cpu size={16} /> },
+  { id: "pi", label: "Pi settings", description: "The raw Pi configuration surface.", icon: <SlidersHorizontal size={16} /> },
+];
+
 function AdvancedTab() {
+  const [section, setSection] = useState<AdvancedSection | null>(null);
+  if (section) {
+    const item = ADVANCED_SECTIONS.find((entry) => entry.id === section);
+    return (
+      <>
+        <button type="button" className="advanced-back" onClick={() => setSection(null)}>
+          <ChevronRight size={14} /> Back to Advanced
+        </button>
+        <div className="advanced-section-head">
+          <span className="advanced-card-icon">{item?.icon}</span>
+          <div>
+            <h3>{item?.label}</h3>
+            <p>{item?.description}</p>
+          </div>
+        </div>
+        {section === "usage" ? <UsageTab /> : null}
+        {section === "memory" ? <MemoryTab /> : null}
+        {section === "environments" ? <EnvironmentsTab /> : null}
+        {section === "git" ? <GitTab /> : null}
+        {section === "connectors" ? <ConnectorsTab /> : null}
+        {section === "automations" ? <AutomationsTab /> : null}
+        {section === "sandbox" ? <SandboxTab /> : null}
+        {section === "plugins" ? <PluginsTab /> : null}
+        {section === "engine" ? <EngineTab /> : null}
+        {section === "pi" ? <PiConfigTab /> : null}
+      </>
+    );
+  }
+  return (
+    <div className="advanced-grid">
+      {ADVANCED_SECTIONS.map((item) => (
+        <button key={item.id} type="button" className="advanced-card" onClick={() => setSection(item.id)}>
+          <span className="advanced-card-icon">{item.icon}</span>
+          <span className="advanced-card-copy">
+            <strong>{item.label}</strong>
+            <span>{item.description}</span>
+          </span>
+          <ChevronRight size={15} className="advanced-card-chev" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PiConfigTab() {
   const state = useApp();
   const config = state.piConfig;
   const [query, setQuery] = useState("");
@@ -1130,9 +1169,9 @@ function SandboxTab() {
         <Row label="Allow network" hint="When off, agent guidance forbids network commands and browser use is still explicit."><Toggle checked={sandbox.allowNetwork !== false} onChange={(value) => update({ allowNetwork: value })} /></Row>
         <Row label="Windows computer use" hint="Allows desktop screenshots and mouse/keyboard tools. Off by default."><Toggle checked={settings.computerUse} onChange={(value) => state.updateSettings({ settings: { computerUse: value } })} /></Row>
         <Row label="Auto-fix CI" hint="Lets the CI panel send failing logs to the thread automatically."><Toggle checked={settings.autoFixCi} onChange={(value) => state.updateSettings({ settings: { autoFixCi: value } })} /></Row>
-        <Row label="Automatic file checkpoints" hint="Snapshot the checkout before each prompt so you can restore code later. YOLO stays safe."><Toggle checked={settings.autoCheckpoints !== false} onChange={(value) => state.updateSettings({ settings: { autoCheckpoints: value } })} /></Row>
+        <Row label="Automatic file checkpoints" hint="Snapshot the checkout before each prompt so you can restore code later."><Toggle checked={settings.autoCheckpoints !== false} onChange={(value) => state.updateSettings({ settings: { autoCheckpoints: value } })} /></Row>
       </Section>
-      <Section title="Permission rules" subtitle="YOLO stays the default. Rules are opt-in exceptions evaluated before auto-approval." right={<Badge tone="green">YOLO default</Badge>}>
+      <Section title="Permission rules" subtitle="Rules are opt-in exceptions evaluated before auto-approval." right={<Badge tone="green">Auto-approve default</Badge>}>
         <Row label="Add rule" hint="Patterns like Bash(npm run *), Edit, Write, mcp__*, or * for everything.">
           <div className="inline-actions">
             <input value={rulePattern} onChange={(event) => setRulePattern(event.target.value)} placeholder="Bash(git push *)" />
@@ -1150,7 +1189,7 @@ function SandboxTab() {
         </Row>
         {(settings.permissions?.rules ?? []).map((rule) => (
           <div key={rule.id} className="simple-row">
-            <div><strong className="mono">{rule.pattern}</strong><span>{rule.action === "deny" ? "Blocked even in YOLO" : rule.action === "ask" ? "Always asks" : "Auto-approved"}</span></div>
+            <div><strong className="mono">{rule.pattern}</strong><span>{rule.action === "deny" ? "Always blocked" : rule.action === "ask" ? "Always asks" : "Auto-approved"}</span></div>
             <div className="inline-actions">
               <Badge tone={rule.action === "deny" ? "red" : rule.action === "ask" ? "amber" : "green"}>{rule.action}</Badge>
               <IconButton icon={<Trash2 size={12} />} label="Delete rule" onClick={() => {
