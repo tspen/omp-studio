@@ -407,7 +407,8 @@ function Composer({ thread, node, onModelPicker }: { thread: Thread; node: TreeN
     if (!draft.trim() || state.sending) return;
     const text = draft;
     setDraft("");
-    await state.send(text, running ? "steer" : "prompt");
+    const sent = await state.send(text, running ? "steer" : "prompt");
+    if (!sent) setDraft(text);
   };
 
   return (

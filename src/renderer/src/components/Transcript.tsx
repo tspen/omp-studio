@@ -138,11 +138,13 @@ function ThreadIntro({ thread }: { thread: Thread }) {
 function TodoPanel({ thread }: { thread: Thread }) {
   const tasks = thread.todoPhases.flatMap((phase) => phase.tasks);
   const done = tasks.filter((task) => task.status === "completed").length;
+  const live = ["running", "starting", "waiting"].includes(thread.status);
+  const complete = tasks.length > 0 && done === tasks.length && !live;
   return (
-    <details className="todo-panel" open>
+    <details className={cx("todo-panel", complete && "complete")} open={!complete}>
       <summary>
         <ListChecks size={15} />
-        <span>Plan</span>
+        <span>{complete ? "Plan complete" : "Plan"}</span>
         <span className="todo-count">{done}/{tasks.length}</span>
         <div className="todo-progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
         <ChevronDown size={14} className="todo-caret" />
@@ -183,8 +185,9 @@ function MessageRow({ message, showThinking }: { message: ChatMessage; showThink
     }
     return (
       <div className="message-row user-row">
-        <div className="user-bubble">
+        <div className={cx("user-bubble", message.optimistic && "pending")}>
           {message.blocks.map((block, index) => <Block key={index} block={block} showThinking={showThinking} />)}
+          {message.optimistic ? <span className="message-pending">Sending…</span> : null}
         </div>
       </div>
     );
@@ -482,18 +485,22 @@ function EnvelopeCard({
 }) {
   const direction = header.direction ?? "down";
   const kind = header.kind ?? "task";
+  const isStatus = kind === "answer" && /status check/i.test(header.subject ?? "");
+  const [open, setOpen] = useState(!isStatus);
+  const preview = body.split("\n").find((line) => line.trim()) ?? "";
   return (
-    <div className={cx("envelope-card", direction)}>
-      <div className="envelope-top">
+    <div className={cx("envelope-card", direction, isStatus && "status")}>
+      <button type="button" className="envelope-top" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
         <Badge tone={direction === "up" ? "green" : direction === "down" ? "accent" : "neutral"}>
           {direction === "up" ? "↑ up" : direction === "down" ? "↓ down" : "↔ lateral"}
         </Badge>
-        <Badge tone="blue">{kind}</Badge>
+        <Badge tone={isStatus ? "neutral" : "blue"}>{isStatus ? "status" : kind}</Badge>
         <span className="envelope-from">{from}</span>
         <span className="envelope-id">{header.id}</span>
-      </div>
+        <ChevronDown size={12} className={cx("envelope-caret", open && "open")} />
+      </button>
       {header.subject ? <div className="envelope-subject">{header.subject}</div> : null}
-      <div className="envelope-body">{body}</div>
+      {open ? <div className="envelope-body">{body}</div> : <div className="envelope-preview">{preview}</div>}
       {header.requiresResponse?.startsWith("YES") ? <div className="envelope-requires">Response required</div> : null}
     </div>
   );

@@ -859,6 +859,7 @@ export interface ChatMessage {
   usage?: ChatUsage;
   stopReason?: string;
   synthetic?: boolean;
+  optimistic?: boolean;
   envelopeId?: string;
   direction?: EnvelopeDirection;
 }

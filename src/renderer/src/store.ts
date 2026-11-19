@@ -7,6 +7,7 @@ import type {
   BrowserNetworkEntry,
   ApprovalRequest,
   Artifact,
+  ChatBlock,
   ChatMessage,
   EngineStatus,
   Envelope,
@@ -106,7 +107,7 @@ interface AppState {
   setOverlay(overlay: Overlay): void;
   setSettingsTab(tab: SettingsTab): void;
   openPreview(preview: PreviewState): void;
-  send(text: string, mode?: "prompt" | "steer" | "followUp"): Promise<void>;
+  send(text: string, mode?: "prompt" | "steer" | "followUp"): Promise<boolean>;
   continueThread(threadId: string): Promise<void>;
   resolveThread(threadId: string): Promise<void>;
   stop(): Promise<void>;
@@ -149,6 +150,14 @@ interface AppState {
 
 const api = () => window.perch;
 let initStarted = false;
+
+function chatText(message: ChatMessage): string {
+  return message.blocks
+    .filter((block) => block.type === "text")
+    .map((block) => (block as Extract<ChatBlock, { type: "text" }>).text)
+    .join("\n")
+    .trim();
+}
 
 export const useApp = create<AppState>((set, get) => ({
   snapshot: null,
@@ -292,7 +301,11 @@ export const useApp = create<AppState>((set, get) => ({
       }
       case "thread:message": {
         if (event.payload.threadId !== state.selectedThreadId) return;
-        const list = state.messages[event.payload.threadId] ?? [];
+        let list = state.messages[event.payload.threadId] ?? [];
+        if (event.payload.role === "user") {
+          const incoming = chatText(event.payload);
+          list = list.filter((message) => !(message.id.startsWith("optimistic_") && (chatText(message) === incoming || incoming.includes(chatText(message)))));
+        }
         const index = list.findIndex((message) => message.id === event.payload.id);
         const next = index >= 0 ? list.map((message) => (message.id === event.payload.id ? event.payload : message)) : [...list, event.payload];
         next.sort((a, b) => a.timestamp - b.timestamp);
@@ -530,13 +543,41 @@ export const useApp = create<AppState>((set, get) => ({
 
   async send(text, mode = "prompt") {
     const threadId = get().selectedThreadId;
-    if (!threadId || !text.trim()) return;
-    set({ sending: true });
+    if (!threadId || !text.trim()) return false;
+    const optimisticId = `optimistic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: ChatMessage = {
+      id: optimisticId,
+      threadId,
+      role: "user",
+      blocks: [{ type: "text", text }],
+      timestamp: Date.now(),
+      optimistic: true,
+    };
+    set((state) => ({
+      sending: true,
+      messages: { ...state.messages, [threadId]: [...(state.messages[threadId] ?? []), optimistic] },
+    }));
     try {
       await api().send({ threadId, text, mode, checkpoint: true });
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [threadId]: (state.messages[threadId] ?? []).map((message) =>
+            message.id === optimisticId ? { ...message, optimistic: false } : message,
+          ),
+        },
+      }));
       playSound("send", soundOptions(get()));
+      return true;
     } catch (error) {
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [threadId]: (state.messages[threadId] ?? []).filter((message) => message.id !== optimisticId),
+        },
+      }));
       get().pushToast({ kind: "error", title: "Message failed", body: String(error) });
+      return false;
     } finally {
       set({ sending: false });
     }
