@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#251E3C"/>
+      <stop offset="1" stop-color="#14111D"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(470 430) rotate(90) scale(430)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6D5BFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#6D5BFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="blue" x1="286" y1="330" x2="536" y2="636" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9BC2FF"/>
+      <stop offset="0.45" stop-color="#5A87FF"/>
+      <stop offset="1" stop-color="#2F51D6"/>
+    </linearGradient>
+    <linearGradient id="blueDeep" x1="348" y1="520" x2="516" y2="642" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3F6DF1"/>
+      <stop offset="1" stop-color="#223FB0"/>
+    </linearGradient>
+    <linearGradient id="tail" x1="632" y1="664" x2="922" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2B49C9"/>
+      <stop offset="0.55" stop-color="#4C7BFF"/>
+      <stop offset="1" stop-color="#9BC7FF"/>
+    </linearGradient>
+    <linearGradient id="tailEdge" x1="610" y1="690" x2="900" y2="330" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20379B"/>
+      <stop offset="1" stop-color="#6E9BFF"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="486" y1="506" x2="690" y2="742" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D08C60"/>
+      <stop offset="0.52" stop-color="#A95E3A"/>
+      <stop offset="1" stop-color="#743A27"/>
+    </linearGradient>
+    <linearGradient id="wingLight" x1="530" y1="512" x2="662" y2="688" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E3A576" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#C07C51" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="cream" x1="466" y1="610" x2="572" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7E3C5"/>
+      <stop offset="1" stop-color="#D6AF86"/>
+    </linearGradient>
+    <linearGradient id="branch" x1="188" y1="790" x2="832" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4B3550"/>
+      <stop offset="0.55" stop-color="#2E2039"/>
+      <stop offset="1" stop-color="#4B3550"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#tile)"/>
+  <circle cx="470" cy="430" r="430" fill="url(#glow)"/>
+
+  <!-- branch -->
+  <path d="M150 818C335 786 618 806 878 752" stroke="url(#branch)" stroke-width="32" stroke-linecap="round"/>
+  <path d="M676 790C720 748 764 716 818 698" stroke="#3B2A45" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- tail -->
+  <path d="M612 682C680 616 766 514 856 398C844 484 806 572 746 654C710 700 674 724 642 732Z" fill="url(#tailEdge)" opacity="0.9"/>
+  <path d="M626 660C704 580 804 456 924 300C898 420 846 548 770 646C728 700 682 728 638 742Z" fill="url(#tail)"/>
+  <path d="M650 672C716 598 792 500 880 392C846 490 800 584 738 660C706 698 676 718 650 728Z" fill="#82AAFF" opacity="0.55"/>
+
+  <!-- body -->
+  <path d="M432 548C472 496 552 478 620 514C682 548 710 616 692 680C674 746 600 786 522 776C446 766 398 706 406 636C410 600 416 570 432 548Z" fill="url(#wing)"/>
+  <path d="M444 626C462 592 504 582 540 604C586 632 604 690 584 738C566 780 518 798 476 780C432 760 410 710 420 670C426 652 434 638 444 626Z" fill="url(#cream)"/>
+
+  <!-- wing -->
+  <path d="M496 518C556 492 626 520 662 578C694 630 686 700 644 738C610 768 558 760 532 722C500 676 480 590 496 518Z" fill="#8E4A2E"/>
+  <path d="M508 538C558 514 614 536 646 582C670 618 668 664 646 696C624 728 584 736 556 712C524 684 504 612 508 538Z" fill="url(#wing)"/>
+  <path d="M536 546C572 528 610 544 636 578C652 600 656 628 646 652C634 628 612 606 584 592C562 580 546 566 536 546Z" fill="url(#wingLight)"/>
+  <path d="M554 726C592 724 626 704 648 674" stroke="#5E2D1E" stroke-width="10" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- head -->
+  <circle cx="402" cy="426" r="124" fill="url(#blue)"/>
+  <path d="M502 468C530 502 538 552 520 594C496 646 438 674 384 660C330 646 300 596 310 542C318 494 354 462 398 458C436 454 476 442 502 468Z" fill="url(#blueDeep)"/>
+
+  <!-- black mask and throat -->
+  <path d="M294 424C318 380 368 350 424 350C462 350 492 362 514 386C520 396 518 410 508 418C486 434 458 440 430 436C390 430 350 444 320 470C306 456 296 440 294 424Z" fill="#121019"/>
+  <path d="M318 514C350 484 394 470 440 474C478 478 506 494 520 520C536 550 532 590 512 618C488 652 446 666 406 654C362 642 334 606 330 564C328 546 320 530 318 514Z" fill="#121019"/>
+
+  <!-- blue cheek between mask and throat -->
+  <path d="M330 474C358 452 390 442 426 446C456 450 478 462 492 482C466 490 440 508 420 534C396 526 366 506 330 474Z" fill="#6D9AFF" opacity="0.9"/>
+
+  <!-- beak -->
+  <path d="M296 408L218 432L296 448Z" fill="#121019"/>
+  <path d="M292 418L236 432L292 436Z" fill="#3C334A" opacity="0.55"/>
+
+  <!-- eye -->
+  <circle cx="382" cy="402" r="18" fill="#0C0B10"/>
+  <circle cx="382" cy="402" r="22" stroke="#9FC6FF" stroke-width="4" opacity="0.85"/>
+  <circle cx="388" cy="396" r="5.5" fill="#FFFFFF" opacity="0.95"/>
+
+  <!-- blue crown highlight -->
+  <path d="M322 362C352 330 396 314 440 322C470 328 492 342 506 362" stroke="#BBD6FF" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- rump blue patch -->
+  <path d="M620 640C654 638 682 654 696 680C706 700 702 722 688 738C672 706 646 676 614 660Z" fill="#4C7BFF" opacity="0.9"/>
+
+  <!-- legs and feet -->
+  <path d="M476 774L468 802M540 768L552 802" stroke="#2B1D31" stroke-width="11" stroke-linecap="round"/>
+  <path d="M446 808C458 800 470 800 482 808M528 808C540 800 552 800 564 808" stroke="#2B1D31" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- soft top light on tile -->
+  <path d="M96 260C96 210 210 96 260 96H764C814 96 928 210 928 260" stroke="#FFFFFF" stroke-width="3" opacity="0.08"/>
+</svg>
