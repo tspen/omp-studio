@@ -877,10 +877,24 @@ function ShareModal() {
   );
 }
 
+const TEXT_PREVIEW_EXTENSIONS = new Set([
+  "txt", "md", "markdown", "json", "jsonl", "log", "diff", "patch", "csv", "tsv",
+  "ts", "tsx", "js", "jsx", "css", "html", "xml", "yml", "yaml", "toml", "ini",
+  "sql", "py", "go", "rs", "java", "c", "cpp", "h", "hpp", "cs", "rb", "php",
+  "kt", "swift", "scala", "sh", "bash", "lua", "ex", "exs", "hs", "ipynb",
+]);
+
+function isTextPreview(path: string | undefined, content: string): boolean {
+  const extension = path?.split(".").pop()?.toLowerCase() ?? "";
+  if (path && extension && !TEXT_PREVIEW_EXTENSIONS.has(extension)) return false;
+  return !/[\u0000-\u0008\u000e-\u001f]/.test(content.slice(0, 2048));
+}
+
 function PreviewModal() {
   const state = useApp();
   const preview = state.preview;
   if (!preview) return null;
+  const binary = preview.kind !== "image" && preview.kind !== "diff" && !isTextPreview(preview.path, preview.content);
   return (
     <Modal title={preview.title} subtitle={preview.path} onClose={() => state.setOverlay("none")} width={1000} className="preview-modal">
       {preview.kind === "image" ? (
@@ -890,6 +904,13 @@ function PreviewModal() {
         </div>
       ) : preview.kind === "diff" ? (
         preview.review ? <DiffReview preview={preview} review={preview.review} /> : <DiffView text={preview.content} />
+      ) : binary ? (
+        <div className="preview-file">
+          <File size={28} />
+          <strong>{preview.title}</strong>
+          <span>This file type opens in its default app instead of inline.</span>
+          {preview.path ? <Button size="sm" variant="soft" onClick={() => void window.perch.openPath(preview.path!)}><ExternalLink size={13} /> Open file</Button> : null}
+        </div>
       ) : <pre className="file-preview">{preview.content || "No content."}</pre>}
     </Modal>
   );
