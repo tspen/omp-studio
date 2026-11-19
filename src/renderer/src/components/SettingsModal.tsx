@@ -368,15 +368,12 @@ function ModelsTab() {
                 <div className="role-model">
                   <Sparkles size={13} />
                   <span>{model?.name ?? (selector || "Not set")}</span>
-                  {model ? <Badge tone={model.quality >= 80 ? "green" : "blue"}>{model.aa?.agentic != null ? `AG ${model.aa.agentic.toFixed(0)}` : model.aa?.intelligence != null ? `AA ${model.quality.toFixed(0)}` : `Q ${model.quality.toFixed(0)}`}</Badge> : null}
-                  {model?.aa?.value != null ? <Badge tone="purple">V {model.aa.value.toFixed(1)}</Badge> : null}
-                  {model ? <span className="muted">{model.included ? `included · ref ${formatCost(model.cost.input)}/${formatCost(model.cost.output)} · ${formatNumber(model.contextWindow)} ctx` : `${formatCost(model.cost.input)}/${formatCost(model.cost.output)} · ${formatNumber(model.contextWindow)} ctx`}</span> : null}
                   {model && role.key !== "naming" && role.key !== "memory" ? (
                     <Select
                       value={(settings.models as any)[`${role.key}Effort`] ?? "high"}
                       onChange={(value) => state.updateSettings({ settings: { models: { ...settings.models, [`${role.key}Effort`]: value } as any } })}
                     >
-                      {["off", ...(model.thinking ?? [])].filter((item, index, list) => list.indexOf(item) === index).map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+                      {(model.thinking?.length ? model.thinking : ["off", "minimal", "low", "medium", "high", "xhigh", "max"]).map((effort) => <option key={effort} value={effort}>{effort}</option>)}
                     </Select>
                   ) : null}
                 </div>
