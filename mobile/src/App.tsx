@@ -480,7 +480,7 @@ export function App() {
 function PairScreen({ server, setServer, token, setToken, onConnect, error }: { server: string; setServer: (value: string) => void; token: string; setToken: (value: string) => void; onConnect: () => void; error: string }) {
   return (
     <div className="pair">
-      <div className="brand">Pi <span>Remote</span></div>
+      <div className="brand">Perch <span>Remote</span></div>
       <p>Enter the runner URL and the pairing token shown in Perch → Settings → Remote.</p>
       <label>Runner URL<input value={server} onChange={(event) => setServer(event.target.value)} placeholder="http://100.x.x.x:43120" autoCapitalize="none" /></label>
       <label>Pairing token<input value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste token" autoCapitalize="none" /></label>
@@ -622,14 +622,14 @@ function urlBase64ToUint8Array(value: string): Uint8Array {
   return bytes;
 }
 
-function Composer({ running, paused, disabled, onSend, onStop, onPause, onContinue }: { running: boolean; paused: boolean; disabled: boolean; onSend: (text: string) => Promise<boolean>; onStop: () => void; onPause: () => void; onContinue: () => void }) {
+function Composer({ running, disabled, onSend, onStop, onContinue }: { running: boolean; disabled: boolean; onSend: (text: string) => Promise<boolean>; onStop: () => void; onContinue: () => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   return (
     <div className="composer">
       <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder={running ? "Steer this turn…" : "Ask the agent…"} rows={2} />
       <div className="composer-actions">
-        {running ? <button className="ghost" onClick={onPause}>{paused ? "Resume" : "Pause"}</button> : null}\n        {running ? <button className="danger" onClick={onStop}>Stop</button> : <button className="ghost" onClick={onContinue}>Continue</button>}
+        {running ? <button className="danger" onClick={onStop}>Stop</button> : <button className="ghost" onClick={onContinue}>Continue</button>}
         <button className="primary" disabled={disabled || busy || !text.trim()} onClick={async () => {
           setBusy(true);
           const ok = await onSend(text);
