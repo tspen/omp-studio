@@ -322,7 +322,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .git-clean { color: var(--green); }
 .git-dirty { color: var(--amber); }
 .chat-header-actions { display: flex; align-items: center; gap: 4px; padding-top: 3px; }
-.transcript { flex: 1; min-height: 0; overflow-y: auto; scroll-behavior: smooth; }
+.transcript { flex: 1; min-height: 0; overflow-y: auto; }
 .transcript-inner { max-width: 880px; margin: 0 auto; padding: 20px 28px 28px; }
 .thread-intro { display: flex; align-items: center; gap: 12px; padding: 6px 0 18px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
 .thread-intro-avatar { width: 44px; height: 44px; border-radius: 13px; background: var(--accent-soft); display: grid; place-items: center; }
