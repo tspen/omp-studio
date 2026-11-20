@@ -529,6 +529,38 @@ export const HOST_TOOL_DEFINITIONS: HostToolDefinition[] = [
     loadMode: "essential",
   },
   {
+    name: "artifact_create",
+    label: "Artifacts: create",
+    description:
+      "Publish an artifact to the Artifacts panel. Pass text content for a report, or a file path to record an existing file. Use for findings, reports, snippets and deliverables that should survive the thread.",
+    parameters: object(
+      {
+        name: { type: "string", description: "Artifact title." },
+        content: { type: "string", description: "Text content for a report artifact." },
+        path: { type: "string", description: "Existing file to record instead of inline content." },
+      },
+      ["name"],
+    ),
+    loadMode: "essential",
+  },
+  {
+    name: "artifact_list",
+    label: "Artifacts: list",
+    description: "List artifacts for this node and its child nodes, newest first.",
+    parameters: object(
+      { limit: { type: "number", description: "Maximum artifacts to return. Default 50." } },
+      [],
+    ),
+    loadMode: "essential",
+  },
+  {
+    name: "artifact_read",
+    label: "Artifacts: read",
+    description: "Read one artifact by id, including its text content when available.",
+    parameters: object({ id: { type: "string", description: "Artifact id from artifact_list." } }, ["id"]),
+    loadMode: "essential",
+  },
+  {
     name: "site_deploy",
     label: "Sites: deploy",
     description: "Deploy a published site to Cloudflare Pages or GitHub Pages. Cloudflare needs a token/account in Settings → Connectors; GitHub Pages uses gh or a token. Returns the live URL.",

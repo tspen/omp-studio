@@ -9,6 +9,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { ApprovalModal, Modals } from "./components/Modals";
 import { Onboarding } from "./components/Onboarding";
 import { Badge, IconButton, Logo, Toasts, cx } from "./components/Common";
+import { nodeAccent } from "./components/NodeMark";
 import { selectedNode, selectedThread, useApp } from "./store";
 import type { PaneKind } from "../../shared/types";
 import { unlockSounds } from "./sounds";
@@ -107,7 +108,7 @@ export function App() {
           <span className="statusbar-item">{running ? `${running} running` : "All quiet"}{waiting ? ` / ${waiting} waiting` : ""}</span>
         </div>
         <div className="statusbar-right">
-          <span>{node ? node.name : "No node"}</span>
+          <span>{node ? <><i className="status-node-dot" style={{ background: nodeAccent(node) }} />{node.name}</> : "No node"}</span>
           <span>{thread ? thread.model.name ?? thread.model.selector : "No thread"}</span>
         </div>
       </div>

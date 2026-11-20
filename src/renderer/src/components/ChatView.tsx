@@ -1,17 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
-  Brain,
   Check,
   ChevronRight,
   CircleHelp,
   CircleStop,
-  Copy,
   FileDown,
   FileText,
-  FolderGit2,
   GitBranch,
-  MessageSquarePlus,
   Minimize2,
   MoreHorizontal,
   PanelRightClose,
@@ -26,9 +22,6 @@ import {
   Share2,
   Sparkles,
   Split,
-  SquarePen,
-  Users,
-  Zap,
   History,
   ListChecks,
   Target,
@@ -40,6 +33,7 @@ import { nodeAncestors, selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, IconButton, Select, Spinner, cx, formatNumber, statusColor, statusLabel, truncate } from "./Common";
 import { Transcript } from "./Transcript";
 import { ModelPicker } from "./ModelPicker";
+import { NodeMark, nodeAccent } from "./NodeMark";
 
 export function ChatView() {
   const state = useApp();
@@ -60,7 +54,7 @@ export function ChatView() {
   }
 
   return (
-    <div className="chat">
+    <div className="chat" style={{ "--node-accent": nodeAccent(node) } as React.CSSProperties}>
       <ThreadHeader thread={thread} node={node} onModelPicker={() => setPickerOpen(true)} />
       {thread.interrupted ? (
         <div className="resume-banner">
@@ -230,7 +224,7 @@ function ThreadHeader({
             <React.Fragment key={ancestor.id}>
               {index > 0 ? <ChevronRight size={12} /> : null}
               <button type="button" onClick={() => void state.selectNode(ancestor.id)} className={ancestor.id === node.id ? "current" : ""}>
-                {ancestor.type === "root" ? <Sparkles size={12} /> : ancestor.type === "group" ? <Users size={12} /> : <FolderGit2 size={12} />}
+                {ancestor.type === "root" ? <Sparkles size={12} /> : <NodeMark node={ancestor} size={14} />}
                 {ancestor.type === "root" ? "Root" : ancestor.name}
               </button>
             </React.Fragment>

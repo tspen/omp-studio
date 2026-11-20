@@ -484,7 +484,7 @@ function EnvelopeCard({
 }) {
   const direction = header.direction ?? "down";
   const kind = header.kind ?? "task";
-  const isStatus = kind === "answer" && /status check/i.test(header.subject ?? "");
+  const isStatus = /status check/i.test(header.subject ?? "");
   const [open, setOpen] = useState(!isStatus);
   const preview = body.split("\n").find((line) => line.trim()) ?? "";
   return (

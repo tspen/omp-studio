@@ -161,6 +161,15 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
+  if (/artifact app test/i.test(userText) && !hasToolResult) {
+    const toolCall = { name: "Artifact tool test", content: "ARTIFACT TOOL OK" };
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_artifact_1", type: "function", function: { name: "artifact_create", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolCall) } }] }, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`);
+    response.write("data: [DONE]\n\n");
+    response.end();
+    return;
+  }
   if (/host tool test/i.test(userText) && !hasToolResult) {
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: null, tool_calls: [{ index: 0, id: "call_host_1", type: "function", function: { name: "tree_list", arguments: "" } }] }, finish_reason: null }] })}\n\n`);
     response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: "{}" } }] }, finish_reason: null }] })}\n\n`);
@@ -169,7 +178,7 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
-  const reply = /go ast edit app test/i.test(userText) && hasToolResult ? "GO AST EDIT APP DONE" : /go ast app test/i.test(userText) && hasToolResult ? "GO AST APP DONE" : /py ast edit app test/i.test(userText) && hasToolResult ? "PY AST EDIT APP DONE" : /py ast app test/i.test(userText) && hasToolResult ? "PY AST APP DONE" : /read app test/i.test(userText) && hasToolResult ? "READ APP DONE" : /edit app test/i.test(userText) && hasToolResult ? "EDIT APP DONE" : /debug app test/i.test(userText) && hasToolResult ? "DEBUG APP DONE" : /web search app test/i.test(userText) && hasToolResult ? "WEB SEARCH APP DONE" : /ast edit app test/i.test(userText) && hasToolResult ? "AST EDIT APP DONE" : /ast app test/i.test(userText) && hasToolResult ? "AST APP DONE" : /python app test/i.test(userText) && hasToolResult ? "PYTHON APP DONE" : /notebook app test/i.test(userText) && hasToolResult ? "NOTEBOOK APP DONE" : /lsp app test/i.test(userText) && hasToolResult ? "LSP APP DONE" : /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
+  const reply = /artifact app test/i.test(userText) && hasToolResult ? "ARTIFACT APP DONE" : /go ast edit app test/i.test(userText) && hasToolResult ? "GO AST EDIT APP DONE" : /go ast app test/i.test(userText) && hasToolResult ? "GO AST APP DONE" : /py ast edit app test/i.test(userText) && hasToolResult ? "PY AST EDIT APP DONE" : /py ast app test/i.test(userText) && hasToolResult ? "PY AST APP DONE" : /read app test/i.test(userText) && hasToolResult ? "READ APP DONE" : /edit app test/i.test(userText) && hasToolResult ? "EDIT APP DONE" : /debug app test/i.test(userText) && hasToolResult ? "DEBUG APP DONE" : /web search app test/i.test(userText) && hasToolResult ? "WEB SEARCH APP DONE" : /ast edit app test/i.test(userText) && hasToolResult ? "AST EDIT APP DONE" : /ast app test/i.test(userText) && hasToolResult ? "AST APP DONE" : /python app test/i.test(userText) && hasToolResult ? "PYTHON APP DONE" : /notebook app test/i.test(userText) && hasToolResult ? "NOTEBOOK APP DONE" : /lsp app test/i.test(userText) && hasToolResult ? "LSP APP DONE" : /continue working toward the goal/i.test(userText) ? "GOAL COMPLETE" : hasToolResult ? "TASK DONE" : (/WORKER OK/i.test(userText) ? "WORKER OK" : /perch pi ok/i.test(userText) ? "PERCH PI OK" : text);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: reply }, finish_reason: null }] })}\n\n`);
   response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\n`);
   response.write("data: [DONE]\n\n");

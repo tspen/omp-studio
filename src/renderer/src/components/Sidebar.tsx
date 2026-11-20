@@ -1,29 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Archive,
-  Boxes,
   ChevronDown,
   ChevronRight,
   Cloud,
-  Folder,
-  FolderGit2,
   GitBranch,
   Globe,
   Inbox,
-  Layers,
   MoreHorizontal,
   Orbit,
   Plus,
   Search,
   Settings,
   Smartphone,
-  Sparkles,
   TerminalSquare,
   TreePine,
 } from "lucide-react";
 import type { Thread, TreeNode } from "../../../shared/types";
 import { useApp, childNodes, selectedNode, selectedThread } from "../store";
 import { Badge, Button, IconButton, StatusDot, cx, formatNumber, statusColor, statusLabel, truncate } from "./Common";
+import { NodeMark, nodeAccent } from "./NodeMark";
 
 export function Sidebar() {
   const state = useApp();
@@ -272,12 +268,13 @@ function TreeRow({
   const status = aggregateStatus(threads, node.id);
   const running = threads.filter((thread) => thread.nodeId === node.id && thread.status === "running").length;
   const isSelected = selectedId === node.id;
+  const accent = nodeAccent(node);
   const childThreads = threads
     .filter((thread) => thread.nodeId === node.id && thread.kind !== "orchestrator" && (showResolved || !thread.archived || ["running", "starting", "waiting", "queued"].includes(thread.status)))
     .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0) || a.id.localeCompare(b.id));
   return (
     <div>
-      <div className={cx("tree-row", isSelected && "active")} style={{ paddingLeft: 8 + depth * 14 }} onClick={() => onSelect(node.id)}>
+      <div className={cx("tree-row", isSelected && "active", node.type !== "root" && "node-tinted")} style={{ paddingLeft: 8 + depth * 14, "--node-accent": accent } as React.CSSProperties} onClick={() => onSelect(node.id)}>
         <button
           type="button"
           className={cx("tree-caret", !children.length && !childThreads.length && "hidden")}
@@ -288,7 +285,7 @@ function TreeRow({
         >
           {children.length || childThreads.length ? isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} /> : null}
         </button>
-        <NodeIcon type={node.type} />
+        <NodeIcon node={node} />
         <span className="tree-name">{node.name}</span>
         {running ? <span className="tree-running">{running}</span> : null}
         <StatusDot status={status} pulse={status === "running"} />
@@ -304,9 +301,9 @@ function TreeRow({
         <button
           key={thread.id}
           type="button"
-          className={cx("tree-thread", thread.id === selectedThreadId && "active", thread.archived && "resolved")}
+          className={cx("tree-thread", thread.id === selectedThreadId && "active", thread.archived && "resolved", node.type !== "root" && "node-tinted")}
           data-thread-id={thread.id}
-          style={{ paddingLeft: 20 + (depth + 1) * 14 }}
+          style={{ paddingLeft: 20 + (depth + 1) * 14, "--node-accent": accent } as React.CSSProperties}
           title={`${thread.title} · ${thread.status}${thread.statusMessage ? ` · ${thread.statusMessage}` : ""}${thread.git?.branch ? ` · ${thread.git.branch}` : ""}`}
           onClick={(event) => { event.stopPropagation(); onSelectThread(thread.id, node.id); }}
           onContextMenu={(event) => {
@@ -345,10 +342,9 @@ function TreeRow({
   );
 }
 
-function NodeIcon({ type }: { type: TreeNode["type"] }) {
-  if (type === "root") return <Orbit size={15} className="node-icon root" />;
-  if (type === "group") return <Boxes size={15} className="node-icon group" />;
-  return <FolderGit2 size={15} className="node-icon project" />;
+function NodeIcon({ node }: { node: TreeNode }) {
+  if (node.type === "root") return <Orbit size={15} className="node-icon root" />;
+  return <NodeMark node={node} size={18} />;
 }
 
 function aggregateStatus(threads: Thread[], nodeId: string): Thread["status"] {

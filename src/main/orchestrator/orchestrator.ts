@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
   AppEvent,
@@ -2530,6 +2530,54 @@ export class Orchestrator extends EventEmitter {
           if (!symbols.length) return textResult("No symbols found.");
           return textResult(symbols.map((symbol) => `${symbol.path}:${symbol.line} ${symbol.kind} ${symbol.name}`).join("\n"));
         }
+        case "artifact_create": {
+          const name = String(context.args.name ?? "").trim();
+          if (!name) throw new Error("Artifact name is required");
+          const artifactPath = typeof context.args.path === "string" ? context.args.path.trim() : "";
+          if (artifactPath) {
+            const absolute = isAbsolute(artifactPath) ? artifactPath : join(context.cwd, artifactPath);
+            if (!existsSync(absolute)) throw new Error(`File not found: ${absolute}`);
+            const artifact = this.deps.artifacts.recordFile(context.thread, absolute, context.cwd);
+            return textResult(JSON.stringify({ id: artifact.id, name: artifact.name, kind: artifact.kind, path: artifact.path }, null, 2));
+          }
+          const content = typeof context.args.content === "string" ? context.args.content : "";
+          if (!content.trim()) throw new Error("Provide content or a file path");
+          if (content.length > 1_000_000) throw new Error("Artifact content is too large (maximum 1 MB)");
+          const artifact = this.deps.artifacts.recordReport(context.thread, name, content);
+          return textResult(JSON.stringify({ id: artifact.id, name: artifact.name, kind: artifact.kind }, null, 2));
+        }
+        case "artifact_list": {
+          const limit = Math.max(1, Math.min(200, Number(context.args.limit) || 50));
+          const nodeIds = new Set([context.node.id, ...this.descendantNodes(context.node.id).map((node) => node.id)]);
+          const artifacts = this.deps.artifacts
+            .list()
+            .filter((artifact) => nodeIds.has(artifact.nodeId))
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, limit)
+            .map((artifact) => ({
+              id: artifact.id,
+              name: artifact.name,
+              kind: artifact.kind,
+              nodeId: artifact.nodeId,
+              threadId: artifact.threadId,
+              path: artifact.path,
+              size: artifact.size,
+              createdAt: artifact.createdAt,
+            }));
+          return textResult(JSON.stringify(artifacts, null, 2));
+        }
+        case "artifact_read": {
+          const id = String(context.args.id ?? "").trim();
+          if (!id) throw new Error("Artifact id is required");
+          const artifact = this.deps.artifacts.read(id);
+          const nodeIds = new Set([context.node.id, ...this.descendantNodes(context.node.id).map((node) => node.id)]);
+          if (!nodeIds.has(artifact.nodeId)) throw new Error("Artifact is outside this node");
+          const content = artifact.content ?? "";
+          return textResult(JSON.stringify({
+            ...artifact,
+            content: content.length > 200_000 ? `${content.slice(0, 200_000)}\n\n[truncated]` : content,
+          }, null, 2));
+        }
         case "site_deploy": {
           const deployment = await this.deps.deploy.deploy(String(context.args.siteId ?? ""), context.args.provider === "github-pages" ? "github-pages" : "cloudflare");
           this.deps.emit({ type: "sites:updated", payload: this.deps.sites.list() });
@@ -3017,9 +3065,21 @@ export class Orchestrator extends EventEmitter {
     if (!rootThread || ["running", "starting"].includes(rootThread.status)) return;
     const targets = this.store.nodes
       .filter((node) => node.parentId === root.id)
-      .map((node) => this.store.getThread(node.orchestratorThreadId))
-      .filter((thread): thread is Thread => !!thread && !thread.archived && !["running", "starting"].includes(thread.status))
-      .slice(0, 8);
+      .map((node) => ({ node, thread: this.store.getThread(node.orchestratorThreadId) }))
+      .filter((entry): entry is { node: TreeNode; thread: Thread } => {
+        const { node, thread } = entry;
+        if (!thread || thread.archived || ["running", "starting"].includes(thread.status)) return false;
+        // Don't spend a turn waking an idle project just to hear that it is idle.
+        const nodeIds = new Set([node.id, ...this.descendantNodes(node.id).map((child) => child.id)]);
+        return this.store.threads.some(
+          (candidate) =>
+            nodeIds.has(candidate.nodeId) &&
+            !candidate.archived &&
+            (["running", "starting", "waiting"].includes(candidate.status) || !!candidate.pendingApproval || candidate.status === "error"),
+        );
+      })
+      .slice(0, 8)
+      .map((entry) => entry.thread);
     if (!targets.length) return;
     trace("status-check", { targets: targets.map((thread) => thread.id) });
     for (const target of targets) {
