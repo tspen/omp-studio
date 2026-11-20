@@ -431,15 +431,18 @@ function SitesModal() {
   const nodeName = (id: string) => state.snapshot?.nodes.find((node) => node.id === id)?.name ?? "Unknown project";
 
   const create = async () => {
-    if (!name.trim() || !nodeId) return;
+    if (!nodeId) return;
     setBusy("create");
     try {
-      const site = await window.perch.createSite({ name: name.trim(), nodeId, path: path.trim() || "." });
-      await state.publishSite(site.id);
+      const site = await state.createSite({ name: name.trim() || nodeName(nodeId), nodeId, path: path.trim() || "." });
+      const published = await state.publishSite(site.id);
       setName("");
-      await state.loadSites();
+      if (published.url) {
+        state.openBrowser(published.url);
+        state.setOverlay("none");
+      }
     } catch (error) {
-      state.pushToast({ kind: "error", title: "Could not create site", body: String(error) });
+      state.pushToast({ kind: "error", title: "Could not publish site", body: String(error) });
     } finally {
       setBusy(null);
     }
@@ -477,12 +480,14 @@ function SitesModal() {
   return (
     <Modal title="Sites" subtitle="Publish a folder from a project to a local URL and open it in the in-app browser." onClose={() => state.setOverlay("none")} width={900}>
       <div className="site-create">
-        <Field label="Name">
-          <input value={name} placeholder="Landing page" onChange={(event) => setName(event.target.value)} />
+        <Field label="Project">
+          <Select value={nodeId} onChange={setNodeId}>
+            {projects.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}
+          </Select>
         </Field>
         <Field label="Folder" hint="Relative to the project, or pick any folder.">
-          <div className="inline-actions">
-            <input value={path} onChange={(event) => setPath(event.target.value)} />
+          <div className="site-create-folder">
+            <input value={path} onChange={(event) => setPath(event.target.value)} placeholder="." />
             <IconButton icon={<Folder size={14} />} label="Pick folder" onClick={async () => {
               const picked = await window.perch.pickDirectory();
               if (picked) {
@@ -492,13 +497,11 @@ function SitesModal() {
             }} />
           </div>
         </Field>
-        <Field label="Project">
-          <Select value={nodeId} onChange={setNodeId}>
-            {projects.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}
-          </Select>
+        <Field label="Name" hint="Optional. Defaults to the project name.">
+          <input value={name} placeholder={nodeName(nodeId)} onChange={(event) => setName(event.target.value)} />
         </Field>
-        <Button variant="primary" size="sm" disabled={!name.trim() || !nodeId || busy === "create"} onClick={() => void create()}>
-          {busy === "create" ? <Spinner /> : <Rocket size={13} />} Create & publish
+        <Button variant="primary" size="sm" disabled={!nodeId || busy === "create"} onClick={() => void create()}>
+          {busy === "create" ? <Spinner /> : <Rocket size={13} />} Publish site
         </Button>
       </div>
 
@@ -579,7 +582,7 @@ function SitesModal() {
           );
         })}
         {!state.sites.length ? (
-          <Empty icon={<Globe size={22} />} title="No sites yet" body="Point a project at an HTML folder, then publish it. The agent can also create sites with site_create." />
+          <Empty icon={<Globe size={22} />} title="No sites yet" body="Publish a project folder to get a local URL you can open or share." />
         ) : null}
       </div>
     </Modal>

@@ -195,7 +195,6 @@ function MessageRow({ message, showThinking }: { message: ChatMessage; showThink
   if (message.role === "assistant") {
     return (
       <div className="message-row assistant-row">
-        <div className="assistant-avatar"><Logo size={22} /></div>
         <div className="assistant-content">
           <div className="assistant-meta">
             <strong>{message.model ?? "Pi"}</strong>

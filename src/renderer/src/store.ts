@@ -131,8 +131,8 @@ interface AppState {
   startPty(input?: { nodeId?: string; threadId?: string; title?: string }): Promise<PtySession | null>;
   killPty(id: string): Promise<void>;
   loadSites(): Promise<void>;
-  createSite(input: { name: string; nodeId: string; path: string }): Promise<void>;
-  publishSite(id: string): Promise<void>;
+  createSite(input: { name: string; nodeId: string; path: string }): Promise<Site>;
+  publishSite(id: string): Promise<Site>;
   deleteSite(id: string): Promise<void>;
   runTerminal(command: string): Promise<void>;
   respondApproval(id: string, response: unknown): Promise<void>;
@@ -765,12 +765,14 @@ export const useApp = create<AppState>((set, get) => ({
     const site = await api().createSite(input);
     await get().loadSites();
     get().pushToast({ kind: "success", title: "Site created", body: site.name });
+    return site;
   },
 
   async publishSite(id) {
     const site = await api().publishSite(id);
     await get().loadSites();
     get().pushToast({ kind: "success", title: "Site published", body: site.url });
+    return site;
   },
 
   async deleteSite(id) {

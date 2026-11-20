@@ -333,7 +333,6 @@ body.resizing { cursor: col-resize; user-select: none; }
 .user-bubble { max-width: 82%; background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 14px 14px 4px 14px; padding: 10px 13px; color: var(--text); }
 .user-bubble .markdown p:last-child { margin-bottom: 0; }
 .assistant-row { align-items: flex-start; }
-.assistant-avatar { width: 27px; height: 27px; border-radius: 8px; background: var(--bg-2); display: grid; place-items: center; flex: 0 0 auto; margin-top: 2px; }
 .assistant-content { min-width: 0; flex: 1; }
 .assistant-meta { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; margin-bottom: 3px; }
 .assistant-meta strong { font-size: 10.5px; color: var(--text-2); font-weight: 600; }
@@ -1233,3 +1232,9 @@ button.envelope-top { width: 100%; border: 0; background: transparent; color: in
 
 .todo-panel.complete summary { color: var(--muted); }
 .todo-panel.complete .todo-progress i { background: var(--green); }
+
+.site-create-folder { display: flex; align-items: center; gap: 6px; }
+.site-create-folder input { flex: 1; min-width: 0; }
+
+.site-create .select-wrap { width: 100%; }
+.site-create .select-wrap select { width: 100%; height: 31px; font-size: 11.5px; }
